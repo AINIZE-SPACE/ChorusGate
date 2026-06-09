@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "slack-socket": {
+      "command": "npx",
+      "args": ["tsx", "E:/my_project/slack4ccmcp/src/index.ts"],
+      "env": {
+        "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}",
+        "SLACK_APP_TOKEN": "${SLACK_APP_TOKEN}"
+      }
+    },
+    "trello": {
+      "command": "npx",
+      "args": ["-y", "trello-mcp-server"],
+      "env": {
+        "TRELLO_API_KEY": "${TRELLO_API_KEY}",
+        "TRELLO_TOKEN": "${TRELLO_TOKEN}"
+      }
+    }
+  }
+}
