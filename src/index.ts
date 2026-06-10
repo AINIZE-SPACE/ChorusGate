@@ -2,8 +2,23 @@
 // Slack Socket Mode MCP Server — Main Entry Point
 // ============================================================
 
-// Load .env file before anything else
-import "dotenv/config";
+// Load .env file before anything else. If an MCP config passes literal
+// placeholders like "${SLACK_BOT_TOKEN}", replace them with .env values.
+import { config as loadDotEnv } from "dotenv";
+import { dirname, resolve } from "path";
+import { fileURLToPath } from "url";
+
+// Always load .env from the project root, regardless of cwd
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const projectRoot = resolve(__dirname, "..");
+
+const dotEnvResult = loadDotEnv({ path: resolve(projectRoot, ".env") });
+for (const key of ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"] as const) {
+  if (process.env[key]?.startsWith("${") && dotEnvResult.parsed?.[key]) {
+    process.env[key] = dotEnvResult.parsed[key];
+  }
+}
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -282,6 +297,19 @@ async function main(): Promise<void> {
   await server.connect(transport);
 
   console.error("[slack-socket-mcp] MCP Server ready (stdio)");
+
+  // Sender-only mode: skip Socket Mode so this process does NOT open a second
+  // event connection competing with a running gateway. The send/reply/history
+  // tools still work (they're Web API calls), letting Claude Code proactively
+  // act on Slack while the gateway owns the single event-receiving connection.
+  if (process.env.MCP_SENDER_ONLY) {
+    console.error(
+      "[slack-socket-mcp] MCP_SENDER_ONLY set — skipping Socket Mode. " +
+        "Send/reply/history tools work via Web API; check_events will be empty " +
+        "(events go to the gateway's connection)."
+    );
+    return;
+  }
 
   // Start Slack Socket Mode
   await startSocketMode(notifySubscribers);

@@ -76,29 +76,33 @@ export async function startSocketMode(
 
   // app_mention — someone @mentions the bot
   socketClient.on("app_mention", async ({ event, ack }) => {
-    await ack();
+    // Enqueue BEFORE ack, so a crash between the two doesn't lose the event
+    // (ack tells Slack "got it"; we want it recorded first).
     await handleSlackEvent("app_mention", event);
+    await ack();
   });
 
   // message — any message in channels the bot is in
   socketClient.on("message", async ({ event, ack }) => {
-    await ack();
     // Skip messages from our own bot
     if (botUserId && (event as Record<string, unknown>).user === botUserId) {
+      await ack();
       return;
     }
     // Skip bot_message subtypes from other bots
     const subtype = (event as Record<string, unknown>).subtype as string | undefined;
     if (subtype === "bot_message") {
+      await ack();
       return;
     }
     await handleSlackEvent("message", event);
+    await ack();
   });
 
   // reaction_added — someone adds a reaction
   socketClient.on("reaction_added", async ({ event, ack }) => {
-    await ack();
     await handleSlackEvent("reaction_added", event);
+    await ack();
   });
 
   await socketClient.start();
@@ -123,22 +127,23 @@ async function handleSlackEvent(
 ): Promise<void> {
   try {
     const evt = rawEvent as Record<string, unknown>;
+    const item = evt.item as Record<string, unknown> | undefined;
 
-    // Build the stored event
+    // Build the stored event. For reaction_added, the channel lives on
+    // evt.item.channel (evt.channel is empty for reactions).
     const stored = eventStore.push({
       type,
       subtype: evt.subtype as string | undefined,
-      channel: (evt.channel as string) || "",
+      channel:
+        (evt.channel as string) || (item?.channel as string) || "",
       user: (evt.user as string) || "",
       text: (evt.text as string) || "",
       ts: (evt.ts as string) || (evt.event_ts as string) || "",
       thread_ts: evt.thread_ts as string | undefined,
       reaction: evt.reaction as string | undefined,
       reaction_user: evt.user as string | undefined,
-      reaction_item_channel: (evt.item as Record<string, unknown> | undefined)
-        ?.channel as string | undefined,
-      reaction_item_ts: (evt.item as Record<string, unknown> | undefined)
-        ?.ts as string | undefined,
+      reaction_item_channel: item?.channel as string | undefined,
+      reaction_item_ts: item?.ts as string | undefined,
       user_name: undefined,
       channel_name: undefined,
       raw: rawEvent,
