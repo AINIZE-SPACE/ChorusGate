@@ -1,22 +1,47 @@
 // ============================================================
-// Session Store — maps a Slack thread to a persistent Claude session
+// Session Store — maps a Slack scope to a persistent Claude session
 //
-// Each Slack thread (channel + thread_ts) is bound to one Claude session
+// Each Slack scope (channel or thread) is bound to one Claude session
 // UUID. The first turn creates the session (`claude -p --session-id <uuid>`);
 // subsequent turns resume it (`claude -p --resume <uuid>`), so the model
-// retains the thread's conversation context across messages — instead of
-// spawning a fresh, context-less `claude -p` every time.
+// retains conversation context across messages.
 //
-// The mapping itself is in-memory. The actual conversation history lives on
-// disk in Claude's own session storage (keyed by the UUID), so even if this
-// map is lost on restart, the worst case is a brand-new session for that
-// thread — never corruption. (Optional future enhancement: persist the map.)
+// Persistence is a human-readable MARKDOWN TABLE at `memory/sessions.md`
+// (git-tracked), NOT a database. This file holds ONLY routing metadata —
+// the Slack scope → session UUID mapping. The actual conversation/memory
+// lives in the Claude agent's own session storage (keyed by the UUID) and
+// its memory md files; the gateway is a stateless meta router and never
+// stores conversation content here.
+//
+// Cross-machine note: session UUIDs are local to the machine where Claude
+// persisted them. If this map syncs to another machine via git, a `--resume`
+// there won't find the UUID and gracefully starts a fresh session. That's
+// fine — the map's value is versioning/audit/restart-durability on the host.
 // ============================================================
 
 import { randomUUID } from "node:crypto";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const projectRoot = resolve(__dirname, "..");
+const MEMORY_DIR = resolve(projectRoot, "memory");
+const SESSIONS_MD = resolve(MEMORY_DIR, "sessions.md");
+
+const MD_HEADER = `# Slack Scope → Claude Session Map
+
+每个 Slack scope（channel 或 thread）绑定一个持久 Claude session UUID。
+gateway 用 \`claude -p --resume <uuid>\` 续接，使同一 scope 跨消息保留上下文。
+本文件只存路由 meta —— 真正的对话/记忆在 Claude agent 自己的 session
+存储和它的 memory md 里，不在这里。由 gateway 自动维护；可由 git 追踪。
+
+| Scope Key | Session UUID | Started | Last Used |
+|------------|--------------|---------|-----------|
+`;
 
 export interface ThreadSession {
-  /** Stable Claude session UUID for this thread. */
+  /** Stable Claude session UUID for this scope. */
   sessionId: string;
   /** Whether the first turn has run (decides --session-id vs --resume). */
   started: boolean;
@@ -26,15 +51,25 @@ export interface ThreadSession {
 
 class SessionStore {
   private sessions = new Map<string, ThreadSession>();
+  private persistTimer: NodeJS.Timeout | null = null;
+
+  constructor() {
+    this.load();
+  }
 
   /** Build a stable key for a Slack thread. */
   threadKey(channel: string, threadTs: string): string {
     return `${channel}:${threadTs}`;
   }
 
+  /** Build a scope key for channel-level sessions (one session per channel/DM). */
+  channelKey(channel: string): string {
+    return `channel:${channel}`;
+  }
+
   /**
-   * Get the session for a thread, creating a fresh UUID mapping if absent.
-   * Touches lastUsed.
+   * Get the session for a scope, creating a fresh UUID mapping if absent.
+   * Touches lastUsed and schedules a persist.
    */
   getOrCreate(key: string): ThreadSession {
     let session = this.sessions.get(key);
@@ -48,24 +83,42 @@ class SessionStore {
     } else {
       session.lastUsed = Date.now();
     }
+    this.schedulePersist();
     return session;
   }
 
-  /** Mark a thread's session as started (first turn succeeded). */
+  /** Mark a scope's session as started (first turn succeeded). */
   markStarted(key: string): void {
     const session = this.sessions.get(key);
     if (session) {
       session.started = true;
       session.lastUsed = Date.now();
+      this.schedulePersist();
     }
   }
 
   /**
-   * Reset a thread's session so the next turn starts fresh (e.g. on a
+   * Reset a scope's session so the next turn starts fresh (e.g. on a
    * resume failure). Drops the mapping; getOrCreate will mint a new UUID.
    */
   reset(key: string): void {
-    this.sessions.delete(key);
+    if (this.sessions.delete(key)) {
+      this.schedulePersist();
+    }
+  }
+
+  /**
+   * Explicitly bind a scope to an existing Claude session UUID (e.g. via the
+   * `/resume N` command). Marks it started so the next turn uses `--resume`.
+   * Caller is responsible for verifying the sessionId exists on disk.
+   */
+  setSession(key: string, sessionId: string): void {
+    this.sessions.set(key, {
+      sessionId,
+      started: true,
+      lastUsed: Date.now(),
+    });
+    this.schedulePersist();
   }
 
   /** Evict mappings idle longer than maxAgeMs. Returns count removed. */
@@ -78,6 +131,7 @@ class SessionStore {
         removed += 1;
       }
     }
+    if (removed > 0) this.schedulePersist();
     return removed;
   }
 
@@ -99,6 +153,76 @@ class SessionStore {
       started: s.started,
       lastUsed: s.lastUsed,
     }));
+  }
+
+  // ---- persistence (markdown) ---------------------------------------------
+
+  /** Load the mapping from memory/sessions.md (best effort). */
+  load(): void {
+    let text: string;
+    try {
+      text = readFileSync(SESSIONS_MD, "utf8");
+    } catch {
+      return; // no file yet — start empty
+    }
+    try {
+      for (const line of text.split("\n")) {
+        const t = line.trim();
+        // Table data rows start with "|" and aren't the header/separator.
+        if (!t.startsWith("|")) continue;
+        if (t.includes("Thread Key") || t.includes("Scope Key") || t.includes("---")) continue;
+        const cells = t
+          .split("|")
+          .slice(1, -1)
+          .map((c) => c.trim());
+        if (cells.length < 4) continue;
+        const [key, sessionId, startedRaw, lastUsedRaw] = cells;
+        if (!key || !sessionId) continue;
+        const lastUsedMs = Date.parse(lastUsedRaw);
+        this.sessions.set(key, {
+          sessionId,
+          started: startedRaw.toLowerCase() === "yes",
+          lastUsed: Number.isNaN(lastUsedMs) ? Date.now() : lastUsedMs,
+        });
+      }
+    } catch (err) {
+      console.error(
+        "[session-store] WARNING: failed to parse memory/sessions.md, " +
+          "starting with empty map:",
+        (err as Error).message
+      );
+      this.sessions.clear();
+    }
+  }
+
+  /** Debounced persist — coalesces bursts of mutations into one write. */
+  private schedulePersist(): void {
+    if (this.persistTimer) return;
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = null;
+      this.persist();
+    }, 1000);
+    this.persistTimer.unref?.();
+  }
+
+  /** Render the in-memory map to memory/sessions.md as a markdown table. */
+  persist(): void {
+    try {
+      mkdirSync(MEMORY_DIR, { recursive: true });
+      const rows = Array.from(this.sessions.entries())
+        .sort((a, b) => b[1].lastUsed - a[1].lastUsed)
+        .map(([key, s]) => {
+          const started = s.started ? "yes" : "no";
+          const lastUsed = new Date(s.lastUsed).toISOString();
+          return `| ${key} | ${s.sessionId} | ${started} | ${lastUsed} |`;
+        });
+      writeFileSync(SESSIONS_MD, MD_HEADER + rows.join("\n") + "\n");
+    } catch (err) {
+      console.error(
+        "[session-store] WARNING: failed to write memory/sessions.md:",
+        (err as Error).message
+      );
+    }
   }
 }
 

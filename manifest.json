@@ -1,7 +1,7 @@
 {
   "display_information": {
     "name": "ClaudeCodeApp",
-    "description": "Claude Code on Slack — auto-reply gateway via Socket Mode",
+    "description": "小克",
     "background_color": "#004492"
   },
   "features": {
@@ -11,33 +11,62 @@
     },
     "app_home": {
       "home_tab_enabled": true,
-      "messages_tab_enabled": false,
+      "messages_tab_enabled": true,
       "messages_tab_read_only_enabled": false
     },
-    "assistant_view": {
-      "assistant_description": "Chat with Claude Code in threads and DMs.",
-      "suggested_prompts": []
-    }
+    "slash_commands": [
+      {
+        "command": "/sessions",
+        "url": "https://claudecode.local/slack/commands",
+        "description": "列出本频道的 Claude Code 会话",
+        "should_escape": false
+      },
+      {
+        "command": "/resume",
+        "url": "https://claudecode.local/slack/commands",
+        "description": "把本频道切换到某个会话",
+        "usage_hint": "[N | session-uuid]",
+        "should_escape": false
+      },
+      {
+        "command": "/new",
+        "url": "https://claudecode.local/slack/commands",
+        "description": "重置本频道会话（下条消息开新对话）",
+        "should_escape": false
+      },
+      {
+        "command": "/current",
+        "url": "https://claudecode.local/slack/commands",
+        "description": "显示本频道当前绑定的会话",
+        "should_escape": false
+      },
+      {
+        "command": "/cchelp",
+        "url": "https://claudecode.local/slack/commands",
+        "description": "ClaudeCode 命令帮助",
+        "should_escape": false
+      }
+    ]
   },
   "oauth_config": {
     "scopes": {
       "bot": [
         "app_mentions:read",
-        "assistant:write",
         "channels:history",
-        "channels:read",
         "channels:join",
+        "channels:read",
         "chat:write",
+        "commands",
+        "files:read",
         "groups:history",
         "groups:read",
         "im:history",
         "im:read",
         "im:write",
         "mpim:history",
-        "users:read",
         "reactions:read",
         "reactions:write",
-        "files:read"
+        "users:read"
       ]
     }
   },

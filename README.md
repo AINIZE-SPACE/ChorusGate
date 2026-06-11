@@ -13,8 +13,8 @@ This project has **two modes**:
 2. **Auto-reply gateway** (`src/gateway.ts`) — a standing daemon that drives
    itself: it listens on Socket Mode and **automatically replies** to @mentions
    and DMs by spawning `claude -p`. This is the Hermes-style fully-automatic bot.
-   Each Slack thread reuses a persistent Claude session, so the bot remembers
-   the thread's earlier messages across replies.
+   By default each Slack channel/DM reuses one persistent Claude session, so the
+   bot behaves like a long-lived room assistant.
 
 > **Pick one at a time.** Slack load-balances each event to exactly ONE open
 > Socket Mode connection for the app. If the MCP server (in Claude Code) and the
@@ -56,28 +56,89 @@ Daemon control commands (see also INSTALL.md):
 
 (`npm run start|stop|restart|status|list` are aliases. Logs: `.gateway/gateway.log`.)
 
+### In-Slack session commands
+
+These are registered as **native Slack slash commands** (see `manifest.json`).
+Use them anywhere in a channel or DM — no @mention needed.
+
+| Command | Action |
+|---------|--------|
+| `/sessions` | list sessions tracked in `memory/sessions.md` for this project |
+| `/resume N` | bind THIS channel to session N from the list |
+| `/resume <uuid>` | bind to a specific session UUID (prefix match ok) |
+| `/new` | drop this channel's binding — next message starts a fresh session |
+| `/current` | show the session bound to this channel |
+| `/cchelp` | list these commands |
+
+Sessions come from `memory/sessions.md` (gateway's own md-backed store — no
+`~/.claude/projects/` scanning). After `/resume N`, the channel's entry points
+at that session UUID; the next reply runs `claude -p --resume <uuid>`.
+
+> **After updating the manifest**, go to api.slack.com → your app → *From a
+> manifest* → paste the updated `manifest.json`, click *Save Changes*, then
+> **reinstall the app** to the workspace for slash commands to take effect.
+
 Behavior:
 - Replies to **@mentions** (any channel) and **DMs** (`channel_type: im`).
 - Ignores plain channel chatter not addressed to the bot, and reactions.
 - Each reply spawns `claude -p` with a **sender-only Slack MCP** config, so it
   has the Slack tools (read history, post, react — all Web API) but does NOT
   open a second Socket Mode connection.
-- Each Slack thread reuses a persistent Claude session (`--session-id` first
-  turn, `--resume` after), so the bot remembers the thread's earlier messages.
+- Each Slack scope reuses a persistent Claude session (`--session-id` first
+  turn, `--resume` after). The default scope is one session per channel/DM.
 - Same-thread turns run serially; different threads run in parallel up to
   `GATEWAY_MAX_CONCURRENT`.
 - First token can take seconds to tens of seconds per reply (same as Hermes).
 
+### Memory model
+
+The gateway is a **stateless meta router** — it does NOT store conversation
+content. The real memory lives in the Claude agent: each `claude -p --resume`
+session keeps its own history (and its own memory md files). The gateway only
+persists a tiny routing map — Slack scope → session UUID — as a human-readable
+markdown table at **`memory/sessions.md`** (git-tracked, no database). You can
+version, audit, and sync it across machines with git.
+
+> Cross-machine: session UUIDs are local to the machine where Claude persisted
+> them. If `memory/sessions.md` syncs elsewhere, a `--resume` there won't find
+> the UUID and gracefully starts a fresh session (no error).
+
+### Live progress
+
+Replies can take seconds to tens of seconds. To show it's working, the gateway
+posts a placeholder message and **edits it in place** as the agent progresses:
+
+```
+🤔 正在思考…            ← posted immediately
+📖 读取频道消息中…       ← real tool-use events (parsed from stream-json)
+📊 汇总结果中…           ← rotating heartbeat when no tool is active
+<final reply>           ← placeholder replaced when done
+```
+
+Progress labels come from the agent's actual tool calls (`--output-format
+stream-json`), with a rotating heartbeat for pure-reasoning stretches. Updates
+are throttled (~1.5s) to stay under Slack's rate limit. Set `GATEWAY_PROGRESS=0`
+to disable and just post the final reply.
+
 Env knobs (optional, in `.env`):
 - `CLAUDE_BIN` — path to the claude CLI (default: `claude` on PATH)
+- `CLAUDE_PERMISSION_MODE` — permission mode for the spawned `claude -p`
+  (default: `bypassPermissions`). Headless has no approval UI, so tools would
+  stall on a prompt otherwise; the default lets Slack tools run unattended.
+- `GATEWAY_PROGRESS` — `0` disables live progress (default: on)
 - `GATEWAY_CLAUDE_CWD` — working dir for the spawned claude (default: project root)
 - `GATEWAY_REPLY_TIMEOUT_MS` — per-reply timeout (default: 180000)
+- `GATEWAY_SESSION_SCOPE` — `channel` (default) or `thread`. `channel` = one
+  long-lived session per channel/DM (the whole channel shares context, like a
+  persistent room assistant). `thread` = one session per Slack thread (classic
+  per-topic isolation, but slash commands always use channel scope since they
+  carry no thread). Default is `channel`.
 - `GATEWAY_MAX_CONCURRENT` — max simultaneous `claude -p` replies (default: 3).
   Extra events queue and run as slots free up — prevents a spawn storm when
   several people @mention at once.
-- `GATEWAY_SESSION_IDLE_MS` — idle time before a thread's session mapping is
+- `GATEWAY_SESSION_IDLE_MS` — idle time before a scope's session mapping is
   evicted (default: 86400000 = 24h). The on-disk Claude session is unaffected;
-  eviction only forgets the thread→UUID map entry to bound memory.
+  eviction only forgets the scope→UUID map entry to bound memory.
 
 > The gateway must run in your **native terminal** where `claude` already works.
 > A sandboxed shell may fail to reach the configured `ANTHROPIC_BASE_URL`.

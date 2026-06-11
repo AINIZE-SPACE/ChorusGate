@@ -10,8 +10,19 @@ import type { StoredEvent, SlackEventType } from "./types.js";
 
 export type EventCallback = (event: StoredEvent) => void;
 
+/** A Slack slash command received over Socket Mode. */
+export interface SlashCommand {
+  command: string; // e.g. "/sessions"
+  text: string; // args after the command
+  channelId: string;
+  userId: string;
+  userName?: string;
+}
+export type SlashCallback = (cmd: SlashCommand) => void | Promise<void>;
+
 let socketClient: SocketModeClient | null = null;
 let onEventCallback: EventCallback | null = null;
+let onSlashCallback: SlashCallback | null = null;
 
 // Track our own bot user ID to filter out self-messages
 let botUserId: string | null = null;
@@ -19,12 +30,15 @@ let botUserId: string | null = null;
 /**
  * Start the Socket Mode connection.
  * @param onEvent Called whenever a new Slack event is stored
+ * @param onSlash Called when a slash command arrives (optional)
  */
 export async function startSocketMode(
-  onEvent: EventCallback
+  onEvent: EventCallback,
+  onSlash?: SlashCallback
 ): Promise<void> {
   const appToken = getAppToken();
   onEventCallback = onEvent;
+  onSlashCallback = onSlash ?? null;
 
   // Resolve our own bot user ID to filter self-messages
   try {
@@ -103,6 +117,30 @@ export async function startSocketMode(
   socketClient.on("reaction_added", async ({ event, ack }) => {
     await handleSlackEvent("reaction_added", event);
     await ack();
+  });
+
+  // slash_commands — native Slack slash commands (registered in manifest)
+  // Slash commands need ack() within 3 seconds. We ack empty (no visible
+  // intermediate message) and let the command handler post the real response.
+  socketClient.on("slash_commands", async ({ body, ack }) => {
+    await ack();
+    if (onSlashCallback) {
+      const cmd: SlashCommand = {
+        command: (body.command as string) || "",
+        text: ((body.text as string) || "").trim(),
+        channelId: (body.channel_id as string) || "",
+        userId: (body.user_id as string) || "",
+        userName: (body.user_name as string) || undefined,
+      };
+      try {
+        await onSlashCallback(cmd);
+      } catch (err) {
+        console.error(
+          "[slack-socket-mcp] slash command handler error:",
+          (err as Error).message
+        );
+      }
+    }
   });
 
   await socketClient.start();

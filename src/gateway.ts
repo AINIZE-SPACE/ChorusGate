@@ -32,10 +32,12 @@ import {
   startSocketMode,
   stopSocketMode,
   enrichEvent,
+  type SlashCommand,
 } from "./socket-manager.js";
 import { eventStore } from "./event-store.js";
 import { generateReply } from "./reply-engine.js";
 import { sessionStore } from "./session-store.js";
+import { detectCommand, handleCommand } from "./session-commands.js";
 import {
   ensureGatewayDir,
   PID_FILE,
@@ -65,21 +67,67 @@ initSlackClients({ botToken: SLACK_BOT_TOKEN, appToken: SLACK_APP_TOKEN });
 const CLAUDE_CWD = process.env.GATEWAY_CLAUDE_CWD || projectRoot;
 const REPLY_TIMEOUT_MS = Number(process.env.GATEWAY_REPLY_TIMEOUT_MS || 180_000);
 // Max concurrent `claude -p` replies. Excess events queue and run as slots free.
-const MAX_CONCURRENT = Math.max(
-  1,
-  Number(process.env.GATEWAY_MAX_CONCURRENT || 3)
-);
+const maxConcurrentRaw = Number(process.env.GATEWAY_MAX_CONCURRENT || 3);
+const MAX_CONCURRENT =
+  Number.isFinite(maxConcurrentRaw) && maxConcurrentRaw > 0
+    ? Math.floor(maxConcurrentRaw)
+    : 3;
 // Evict thread→session mappings idle longer than this (default 24h).
 const SESSION_IDLE_MS = Number(
   process.env.GATEWAY_SESSION_IDLE_MS || 24 * 60 * 60 * 1000
 );
+// Live progress updates (placeholder message edited in place). Set
+// GATEWAY_PROGRESS=0 to disable and just post the final reply.
+const PROGRESS_ENABLED = process.env.GATEWAY_PROGRESS !== "0";
+// Session scope: "channel" (default) = one session per channel/DM;
+// "thread" = one session per thread (falls back to channel for slash commands).
+const SESSION_SCOPE = (
+  process.env.GATEWAY_SESSION_SCOPE || "channel"
+) as "channel" | "thread";
+// Rotating heartbeat phrases shown while the agent works with no tool activity.
+const HEARTBEAT_PHRASES = [
+  "🤔 正在思考…",
+  "🔍 分析中…",
+  "🧩 整理中…",
+  "📊 汇总结果中…",
+  "✅ 审核结果中…",
+];
+const TOOL_LABEL_STICKY_MS = 6000;
 
 // ============================================================
 // Reply decision
 // ============================================================
 
+/**
+ * Compute the session scope key for a channel+thread pair.
+ * - "channel" scope (default): one shared session per channel/DM,
+ *   EXCEPT assistant threads in DMs — each new chat (distinct thread_ts)
+ *   gets its own session so "新聊天" always starts fresh.
+ * - "thread" scope: one session per thread everywhere.
+ * Slash commands always use channel scope (they carry no thread_ts).
+ */
+function scopeKey(
+  channel: string,
+  threadTs?: string,
+  channelType?: string
+): string {
+  if (SESSION_SCOPE === "thread" && threadTs) {
+    return sessionStore.threadKey(channel, threadTs);
+  }
+  // DM assistant threads: isolate each "新聊天" by its thread_ts.
+  if (channelType === "im" && threadTs) {
+    return sessionStore.threadKey(channel, threadTs);
+  }
+  return sessionStore.channelKey(channel);
+}
+
 /** Decide whether a stored event warrants an auto-reply. */
 function shouldReply(event: StoredEvent): boolean {
+  // Skip system events: edits, deletions, assistant_thread_started, etc.
+  if (event.subtype) return false;
+  // Skip empty messages (no text, or whitespace/mention-only after cleaning)
+  if (!cleanText(event.text || "")) return false;
+
   // Always reply to explicit @mentions (any channel)
   if (event.type === "app_mention") return true;
 
@@ -196,13 +244,45 @@ function releaseSlot(): void {
   }
 }
 
-// Per-thread serial queues. A thread maps to ONE Claude session, so its
+// Per-scope serial queues. A scope maps to ONE Claude session, so its
 // turns must run sequentially — two concurrent `claude -p --resume <same uuid>`
-// would corrupt session state. We chain each thread's work on a promise;
-// different threads still run in parallel (bounded by the global semaphore).
+// would corrupt session state. We chain each scope's work on a promise;
+// different scopes still run in parallel (bounded by the global semaphore).
 const threadChains = new Map<string, Promise<void>>();
 
-/** Entry point: enqueue an event onto its thread's serial chain. */
+/** Handle a native Slack slash command (/sessions, /resume, /new, /current, /cchelp). */
+function onSlash(slashCmd: SlashCommand): void {
+  // Slash commands always use channel scope (no thread_ts).
+  const sKey = sessionStore.channelKey(slashCmd.channelId);
+  const command = detectCommand(
+    slashCmd.command + (slashCmd.text ? ` ${slashCmd.text}` : "")
+  );
+  if (!command) {
+    console.error(
+      `[gateway] unrecognized slash command: ${slashCmd.command}`
+    );
+    return;
+  }
+
+  // Run on the channel's serial chain to avoid races with concurrent messages.
+  const prev = threadChains.get(sKey) ?? Promise.resolve();
+  const next = prev.catch(() => {}).then(async () => {
+    try {
+      await handleCommand(command, sKey, { channel: slashCmd.channelId });
+    } catch (err) {
+      console.error(
+        "[gateway] slash command handler failed:",
+        (err as Error).message
+      );
+    }
+  });
+  threadChains.set(sKey, next);
+  void next.finally(() => {
+    if (threadChains.get(sKey) === next) threadChains.delete(sKey);
+  });
+}
+
+/** Entry point: enqueue an event onto its scope's serial chain. */
 function onEvent(event: StoredEvent): void {
   if (!shouldReply(event)) {
     eventStore.markHandled(event.id);
@@ -218,13 +298,35 @@ function onEvent(event: StoredEvent): void {
   inFlight.add(dedupKey);
 
   const replyThreadTs = event.thread_ts || event.ts;
-  const tKey = sessionStore.threadKey(event.channel, replyThreadTs);
+  const channelType = (event.raw as Record<string, unknown> | undefined)
+    ?.channel_type as string | undefined;
+  const tKey = scopeKey(event.channel, replyThreadTs, channelType);
 
-  // Append to this thread's chain so same-thread turns run in order.
+  // Session commands (/sessions, /resume, /new, /current, /help) bypass the
+  // AI reply path — handle them directly, but still on the scope chain so
+  // ordering/dedup stay consistent.
+  const cmd = detectCommand(cleanText(event.text || ""));
+
   const prev = threadChains.get(tKey) ?? Promise.resolve();
   const next = prev
     .catch(() => {}) // a prior failure shouldn't break the chain
-    .then(() => processEvent(event, tKey, replyThreadTs));
+    .then(async () => {
+      if (cmd) {
+        try {
+          await handleCommand(cmd, tKey, {
+            channel: event.channel,
+            threadTs: replyThreadTs,
+          });
+        } catch (err) {
+          console.error("[gateway] command failed:", (err as Error).message);
+        } finally {
+          eventStore.markHandled(event.id);
+          inFlight.delete(dedupKey);
+        }
+        return;
+      }
+      return processEvent(event, tKey, replyThreadTs);
+    });
   threadChains.set(tKey, next);
   // Clean up the map entry once this is the tail of the chain.
   void next.finally(() => {
@@ -232,13 +334,16 @@ function onEvent(event: StoredEvent): void {
   });
 }
 
-/** Process one event: reply via the thread's reused Claude session. */
+/** Process one event: reply via the scope's reused Claude session. */
 async function processEvent(
   event: StoredEvent,
   tKey: string,
   replyThreadTs: string
 ): Promise<void> {
   const web = getWebClient();
+  let heartbeatTimer: NodeJS.Timeout | undefined;
+  let progressDone = false;
+  let progressChain = Promise.resolve();
 
   // Wait for a global concurrency slot (queues if MAX_CONCURRENT reached).
   await acquireSlot();
@@ -256,12 +361,71 @@ async function processEvent(
     );
 
     const prompt = await buildPrompt(event, resume);
+
+    // --- live progress: post a placeholder, then edit it in place ---
+    let placeholderTs: string | undefined;
+    let lastUpdate = 0;
+    let lastLabel = "";
+    let lastToolAt = 0;
+    let hbIndex = 0;
+
+    if (PROGRESS_ENABLED) {
+      try {
+        const ph = await web.chat.postMessage({
+          channel: event.channel,
+          thread_ts: replyThreadTs,
+          text: HEARTBEAT_PHRASES[0],
+        });
+        placeholderTs = ph.ts as string | undefined;
+      } catch {
+        placeholderTs = undefined; // fall back to plain post at the end
+      }
+    }
+
+    // Throttled in-place update of the placeholder message.
+    const updatePlaceholder = (text: string, force = false): void => {
+      if (!placeholderTs || progressDone) return;
+      const now = Date.now();
+      if (!force && now - lastUpdate < 1500) return; // throttle to dodge rate limits
+      lastUpdate = now;
+      progressChain = progressChain
+        .then(async () => {
+          if (progressDone || !placeholderTs) return;
+          await web.chat.update({ channel: event.channel, ts: placeholderTs, text });
+        })
+        .catch(() => {});
+    };
+
+    // Heartbeat: rotate generic phrases so pure-reasoning turns still move.
+    if (placeholderTs) {
+      heartbeatTimer = setInterval(() => {
+        hbIndex = (hbIndex + 1) % HEARTBEAT_PHRASES.length;
+        const recentlyUsedTool = Date.now() - lastToolAt < TOOL_LABEL_STICKY_MS;
+        updatePlaceholder(
+          recentlyUsedTool && lastLabel ? lastLabel : HEARTBEAT_PHRASES[hbIndex]
+        );
+      }, 6000);
+      heartbeatTimer.unref?.();
+    }
+
     const result = await generateReply(prompt, {
       timeoutMs: REPLY_TIMEOUT_MS,
       cwd: CLAUDE_CWD,
       sessionId: session.sessionId,
       resume,
+      onProgress: (label) => {
+        lastLabel = label;
+        lastToolAt = Date.now();
+        updatePlaceholder(label, true);
+      },
     });
+
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = undefined;
+    }
+    progressDone = true;
+    await progressChain;
 
     if (result.ok) {
       // First successful turn establishes the session; later turns resume it.
@@ -276,11 +440,20 @@ async function processEvent(
       ? result.text
       : `:warning: 抱歉，我暂时无法生成回复（${result.error}）。`;
 
-    await web.chat.postMessage({
-      channel: event.channel,
-      thread_ts: replyThreadTs,
-      text,
-    });
+    if (placeholderTs) {
+      // Replace the placeholder with the final reply.
+      await web.chat.update({
+        channel: event.channel,
+        ts: placeholderTs,
+        text,
+      });
+    } else {
+      await web.chat.postMessage({
+        channel: event.channel,
+        thread_ts: replyThreadTs,
+        text,
+      });
+    }
 
     console.error(
       `[gateway] ${result.ok ? "replied" : "posted error notice"} to ` +
@@ -298,6 +471,8 @@ async function processEvent(
       // give up
     }
   } finally {
+    progressDone = true;
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
     eventStore.markHandled(event.id);
     inFlight.delete(event.ts || event.id);
     releaseSlot();
@@ -360,10 +535,10 @@ async function main(): Promise<void> {
   await startSocketMode((event) => {
     // onEvent enqueues onto the thread's serial chain (non-blocking).
     onEvent(event);
-  });
+  }, onSlash);
   console.error(
     "[gateway] listening — will auto-reply to @mentions and DMs. " +
-      "Sessions are reused per thread. Ctrl+C to stop."
+      `Sessions are reused per ${SESSION_SCOPE} scope. Ctrl+C to stop.`
   );
 }
 

@@ -8,8 +8,8 @@ auto-reply gateway.
 1. Go to <https://api.slack.com/apps> → **Create New App** → **From a manifest**.
 2. Pick your workspace.
 3. Paste the contents of [`manifest.json`](./manifest.json) (it pre-configures
-   Socket Mode, all required bot scopes, and the four bot events — including
-   `reaction_added`).
+   Socket Mode, native slash commands, required bot scopes, and bot events —
+   including `reaction_added`).
 4. Review and click **Create**.
 
 > The manifest sets `socket_mode_enabled: true`, so no public request URL is
@@ -63,7 +63,7 @@ npm run gateway          # or: slack-gateway run
 ```bash
 slack-gateway start      # start in the background
 slack-gateway status     # running? pid, uptime, active sessions
-slack-gateway list       # active thread→session mappings
+slack-gateway list       # active channel/thread → session mappings
 slack-gateway restart    # restart
 slack-gateway stop        # stop
 ```
@@ -90,9 +90,11 @@ Then, in Slack: invite the bot to a channel (`/invite @ClaudeCodeApp`),
 - **Adding a reaction ≠ typing an emoji.** To trigger `reaction_added`, hover a
   message → click the 😊 icon → pick an emoji. Typing `:smile:` in the box just
   sends a normal message.
-- **Sessions are reused per thread.** Each Slack thread maps to a persistent
-  Claude session, so the bot remembers the thread's earlier messages. Idle
-  mappings are evicted after 24h (configurable via `GATEWAY_SESSION_IDLE_MS`).
+- **Sessions are reused per channel/DM by default.** Each channel or DM maps to
+  a persistent Claude session, so the bot behaves like a long-lived room
+  assistant. Set `GATEWAY_SESSION_SCOPE=thread` if you prefer per-topic
+  isolation. Idle mappings are evicted after 24h (configurable via
+  `GATEWAY_SESSION_IDLE_MS`).
 
 ## Tuning (optional `.env` knobs)
 
@@ -100,6 +102,7 @@ Then, in Slack: invite the bot to a channel (`/invite @ClaudeCodeApp`),
 |-----|---------|---------|
 | `GATEWAY_MAX_CONCURRENT` | 3 | Max simultaneous `claude -p` replies |
 | `GATEWAY_REPLY_TIMEOUT_MS` | 180000 | Per-reply timeout |
-| `GATEWAY_SESSION_IDLE_MS` | 86400000 | Idle time before a thread session mapping is evicted |
+| `GATEWAY_SESSION_SCOPE` | `channel` | `channel` or `thread` session scope |
+| `GATEWAY_SESSION_IDLE_MS` | 86400000 | Idle time before a scope mapping is evicted |
 | `GATEWAY_CLAUDE_CWD` | project root | Working dir for the spawned claude |
 | `CLAUDE_BIN` | `claude` | Path to the Claude CLI |

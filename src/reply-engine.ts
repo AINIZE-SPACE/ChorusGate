@@ -32,6 +32,12 @@ export interface ReplyEngineOptions {
    * (`--session-id`). Only meaningful when sessionId is set.
    */
   resume?: boolean;
+  /**
+   * Called as the agent works, with a short human-friendly progress label
+   * derived from tool-use events (e.g. "📖 读取频道消息中…"). Lets the gateway
+   * show live progress so a long reply doesn't look frozen.
+   */
+  onProgress?: (label: string) => void;
 }
 
 export interface ReplyResult {
@@ -41,6 +47,13 @@ export interface ReplyResult {
 }
 
 const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
+
+// Headless `claude -p` has no interactive approval UI. If a tool call needs
+// permission and the mode isn't permissive, it stalls/fails — so Slack tools
+// (channel history, etc.) wouldn't work. Default to bypassing approvals;
+// override with CLAUDE_PERMISSION_MODE if you want stricter behavior.
+const PERMISSION_MODE =
+  process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -76,9 +89,30 @@ try {
   );
 }
 
+/** Map a tool name (incl. mcp__slack__* and built-ins) to a progress label. */
+function toolLabel(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes("channel_history") || n.includes("thread_replies"))
+    return "📖 读取频道消息中…";
+  if (n.includes("send_message") || n.endsWith("slack_reply"))
+    return "✍️ 发送消息中…";
+  if (n.includes("search")) return "🔍 搜索 Slack 中…";
+  if (n.includes("list_channels") || n.includes("get_user"))
+    return "📇 查询信息中…";
+  if (n.includes("add_reaction")) return "👍 添加反应中…";
+  if (n === "read" || n === "grep" || n === "glob")
+    return "📂 查阅资料中…";
+  if (n === "bash") return "⚙️ 执行命令中…";
+  if (n === "websearch" || n === "webfetch") return "🌐 联网检索中…";
+  if (n === "write" || n === "edit") return "📝 整理内容中…";
+  // Strip mcp prefix for a cleaner fallback label.
+  const short = name.replace(/^mcp__[^_]+__/, "");
+  return `🛠️ 处理中（${short}）…`;
+}
+
 /**
  * Generate a reply for the given prompt by invoking `claude -p`.
- * Resolves with the trimmed stdout text, or an error description.
+ * Resolves with the trimmed reply text, or an error description.
  */
 export function generateReply(
   prompt: string,
@@ -90,7 +124,10 @@ export function generateReply(
     const args = [
       "-p",
       "--output-format",
-      "text",
+      "stream-json",
+      "--verbose", // required for -p to emit intermediate events
+      "--permission-mode",
+      PERMISSION_MODE,
       "--strict-mcp-config",
       "--mcp-config",
       SENDER_MCP_CONFIG,
@@ -123,9 +160,40 @@ export function generateReply(
     child.stdin.write(prompt);
     child.stdin.end();
 
-    let stdout = "";
+    let stdoutBuf = ""; // holds the partial trailing line between chunks
     let stderr = "";
     let settled = false;
+    let resultText = ""; // final text from the `result` event
+    let assistantText = ""; // accumulated assistant text (fallback)
+
+    /** Parse one NDJSON line from the stream-json output. */
+    const handleLine = (line: string): void => {
+      const t = line.trim();
+      if (!t || t[0] !== "{") return;
+      let evt: Record<string, unknown>;
+      try {
+        evt = JSON.parse(t);
+      } catch {
+        return; // not JSON — ignore defensively
+      }
+      const type = evt.type as string | undefined;
+
+      if (type === "assistant") {
+        const msg = evt.message as Record<string, unknown> | undefined;
+        const content = (msg?.content as unknown[]) || [];
+        for (const block of content) {
+          const b = block as Record<string, unknown>;
+          if (b.type === "tool_use" && typeof b.name === "string") {
+            opts.onProgress?.(toolLabel(b.name));
+          } else if (b.type === "text" && typeof b.text === "string") {
+            assistantText += b.text;
+          }
+        }
+      } else if (type === "result") {
+        // Final result event carries the reply text in `result`.
+        if (typeof evt.result === "string") resultText = evt.result;
+      }
+    };
 
     const timer = setTimeout(() => {
       if (settled) return;
@@ -139,7 +207,11 @@ export function generateReply(
     }, timeoutMs);
 
     child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
+      stdoutBuf += chunk.toString();
+      // Process complete lines; keep the last partial line buffered.
+      const lines = stdoutBuf.split("\n");
+      stdoutBuf = lines.pop() ?? "";
+      for (const line of lines) handleLine(line);
     });
     child.stderr.on("data", (chunk) => {
       stderr += chunk.toString();
@@ -161,7 +233,11 @@ export function generateReply(
       settled = true;
       clearTimeout(timer);
 
-      const text = stdout.trim();
+      // Flush any trailing buffered line.
+      if (stdoutBuf) handleLine(stdoutBuf);
+
+      // Prefer the result event's text; fall back to accumulated assistant text.
+      const text = (resultText || assistantText).trim();
       if (code === 0 && text) {
         resolve({ ok: true, text });
       } else if (code === 0 && !text) {
@@ -173,7 +249,7 @@ export function generateReply(
       } else {
         resolve({
           ok: false,
-          text: text,
+          text,
           error: `claude -p exited ${code}: ${stderr.trim().slice(0, 500)}`,
         });
       }
