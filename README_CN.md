@@ -47,8 +47,10 @@ SLACK_APP_TOKEN=xapp-你的-app-token
 
 ```bash
 npm install
-npm link      # 注册 slack-socket-mcp 和 slack-gateway 到 PATH
+npm link
 ```
+
+> :warning: **不要跳过 `npm link`。** `npm install` 不会把 `slack-gateway` 和 `slack-socket-mcp` 注册到 PATH。后面如果报 `command not found`，先回来跑 `npm link`。
 
 ### 5. 验证 Claude CLI
 
@@ -184,6 +186,10 @@ Slack App 管理页 → App Home → 勾选 "Allow users to send Slash commands 
 **占位消息卡在"发送中…" / 续轮超时 180s**
 
 续轮会话使用 `GATEWAY_REPLY_TIMEOUT_MS_LONG`（默认 360s）。长任务超时就调大它。占位消息卡住的话重启 gateway —— 最新代码已修复进度队列排空顺序。
+
+**`slack-gateway: command not found`**
+
+`npm install` 不会注册全局命令 — 跑一次 `npm link` 把 `slack-gateway` 和 `slack-socket-mcp` 挂到 PATH。
 
 更多见 [`docs/gotchas.md`](./docs/gotchas.md)。
 

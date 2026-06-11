@@ -47,8 +47,10 @@ SLACK_APP_TOKEN=xapp-your-app-token
 
 ```bash
 npm install
-npm link      # registers slack-socket-mcp and slack-gateway on your PATH
+npm link
 ```
+
+> :warning: **Don't skip `npm link`.** `npm install` alone won't register the `slack-gateway` and `slack-socket-mcp` commands on your PATH. If you get `command not found` later, re-run `npm link`.
 
 ### 5. Verify Claude CLI
 
@@ -184,6 +186,10 @@ Slack App settings → **App Home** → check "Allow users to send Slash command
 **Placeholder stuck on "Sending..." / timed out after 180s**
 
 Long resume turns use `GATEWAY_REPLY_TIMEOUT_MS_LONG` (default 360s). If you see timeouts on long tasks, increase it. If the placeholder message is stuck on a tool label, restart the gateway — the latest code fixes drain-queue ordering.
+
+**`slack-gateway: command not found`**
+
+`npm install` doesn't register global commands — run `npm link` to wire `slack-gateway` and `slack-socket-mcp` onto your PATH.
 
 More in [`docs/gotchas.md`](./docs/gotchas.md).
 
