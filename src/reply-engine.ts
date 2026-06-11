@@ -152,8 +152,10 @@ export function generateReply(
     const child = spawn(CLAUDE_BIN, args, {
       cwd: opts.cwd ?? process.cwd(),
       stdio: ["pipe", "pipe", "pipe"],
-      // shell:true lets Windows resolve the `claude` / `claude.cmd` shim on PATH
+      // shell:true lets Windows resolve the `claude` / `claude.cmd` shim on PATH.
+      // windowsHide:true prevents a console window flashing on every Slack message.
       shell: process.platform === "win32",
+      windowsHide: true,
     });
 
     // Write the prompt to stdin and close it so claude starts processing.
