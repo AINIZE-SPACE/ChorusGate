@@ -1,0 +1,139 @@
+{
+    "display_information": {
+        "name": "ClaudeCodeApp",
+        "description": "小克",
+        "background_color": "#004492"
+    },
+    "features": {
+        "app_home": {
+            "home_tab_enabled": true,
+            "messages_tab_enabled": true,
+            "messages_tab_read_only_enabled": false
+        },
+        "bot_user": {
+            "display_name": "ClaudeCodeApp",
+            "always_online": true
+        },
+        "slash_commands": [
+            {
+                "command": "/sessions",
+                "description": "列出本频道的 Claude Code 会话",
+                "should_escape": false
+            },
+            {
+                "command": "/resume",
+                "description": "把本频道切换到某个会话",
+                "usage_hint": "[N | session-uuid]",
+                "should_escape": false
+            },
+            {
+                "command": "/new",
+                "description": "重置本频道会话（下条消息开新对话）",
+                "should_escape": false
+            },
+            {
+                "command": "/current",
+                "description": "显示本频道当前绑定的会话",
+                "should_escape": false
+            },
+            {
+                "command": "/cchelp",
+                "description": "ClaudeCode 命令帮助",
+                "should_escape": false
+            }
+        ],
+        "assistant_view": {
+            "assistant_description": "Chat with Claude Code in threads and DMs.",
+            "suggested_prompts": []
+        },
+        "rich_previews": {
+            "is_active": true,
+            "entity_types": [
+                "slack#/entities/file",
+                "slack#/entities/task"
+            ]
+        }
+    },
+    "oauth_config": {
+        "scopes": {
+            "user": [
+                "canvases:read",
+                "canvases:write",
+                "channels:history",
+                "channels:read",
+                "channels:write",
+                "chat:write",
+                "emoji:read",
+                "files:read",
+                "groups:history",
+                "groups:read",
+                "groups:write",
+                "im:history",
+                "im:write",
+                "mpim:history",
+                "mpim:read",
+                "mpim:write",
+                "reactions:read",
+                "reactions:write",
+                "search:read.files",
+                "search:read.im",
+                "search:read.mpim",
+                "search:read.private",
+                "search:read.public",
+                "search:read.users",
+                "users:read",
+                "users:read.email"
+            ],
+            "user_optional": [
+                "canvases:read",
+                "canvases:write",
+                "search:read.files",
+                "search:read.im",
+                "search:read.mpim",
+                "search:read.private"
+            ],
+            "bot": [
+                "app_mentions:read",
+                "assistant:write",
+                "channels:history",
+                "channels:join",
+                "channels:read",
+                "chat:write",
+                "commands",
+                "files:read",
+                "files:write",
+                "groups:history",
+                "groups:read",
+                "groups:write",
+                "channels:manage",
+                "im:read",
+                "im:write",
+                "im:history",
+                "users:read",
+                "mpim:history",
+                "reactions:read"
+            ]
+        },
+        "pkce_enabled": false
+    },
+    "settings": {
+        "event_subscriptions": {
+            "bot_events": [
+                "app_mention",
+                "assistant_thread_context_changed",
+                "assistant_thread_started",
+                "message.channels",
+                "message.groups",
+                "message.im",
+                "reaction_added"
+            ]
+        },
+        "interactivity": {
+            "is_enabled": true
+        },
+        "org_deploy_enabled": true,
+        "socket_mode_enabled": true,
+        "token_rotation_enabled": false,
+        "is_mcp_enabled": true
+    }
+}
