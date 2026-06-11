@@ -149,12 +149,20 @@ export function generateReply(
     // (newlines truncate it, CJK chars corrupt) — claude then sees an empty
     // prompt and emits its default "Ready to help..." greeting. stdin is safe
     // for any content. `claude -p` with no prompt arg reads it from stdin.
-    const child = spawn(CLAUDE_BIN, args, {
+    //
+    // On Windows, shell:true is required for .cmd shims on PATH. But passing
+    // an args array with shell:true triggers DEP0190 (Node warns args aren't
+    // escaped). Work around that by concatenating the command ourselves — we
+    // control all args so injection isn't a concern here.
+    const win = process.platform === "win32";
+    const cmd = win
+      ? `"${CLAUDE_BIN}" ${args.map((a) => (a.includes(" ") ? `"${a}"` : a)).join(" ")}`
+      : CLAUDE_BIN;
+    const spawnArgs = win ? [] : args;
+    const child = spawn(cmd, spawnArgs, {
       cwd: opts.cwd ?? process.cwd(),
       stdio: ["pipe", "pipe", "pipe"],
-      // shell:true lets Windows resolve the `claude` / `claude.cmd` shim on PATH.
-      // windowsHide:true prevents a console window flashing on every Slack message.
-      shell: process.platform === "win32",
+      shell: win,
       windowsHide: true,
     });
 
