@@ -8,10 +8,10 @@
 
 | 命令 | 状态 | 行为 |
 |------|------|------|
-| `/sessions` | ✅ 已实现 | 列出 memory/sessions.md 里所有 session，标注当前绑定 |
-| `/resume N` / `/resume <uuid>` | ✅ 已实现 | 把当前频道绑定到指定 session |
-| `/new` | ✅ 已实现 | 重置当前频道的 session 绑定（下条消息开新对话）|
-| `/current` | ✅ 已实现 | 显示当前频道绑定的 session UUID 和最后使用时间 |
+| `/cc_sessions` | ✅ 已实现 | 列出 memory/sessions.md 里所有 session，标注当前绑定 |
+| `/cc_resume N` / `/cc_resume <uuid>` | ✅ 已实现 | 把当前频道绑定到指定 session |
+| `/cc_new` | ✅ 已实现 | 重置当前频道的 session 绑定（下条消息开新对话）|
+| `/cc_current` | ✅ 已实现 | 显示当前频道绑定的 session UUID 和最后使用时间 |
 | `/cchelp` | ✅ 已实现 | 列出命令帮助 |
 
 ---

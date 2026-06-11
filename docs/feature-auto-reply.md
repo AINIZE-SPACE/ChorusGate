@@ -42,7 +42,7 @@ dedup: inFlight.has(ts) — 已在处理就跳过（防 Slack 重投递）
   ↓
 scopeKey(channel, threadTs?) — 确定 session 维度
   ↓
-detectCommand() — 是 /sessions 等命令就走 handleCommand，跳过 AI
+detectCommand() — 是 /cc_sessions 等命令就走 handleCommand，跳过 AI
   ↓
 per-key 串行队列（threadChains Map）— 入队，等前一条处理完
   ↓
@@ -77,7 +77,7 @@ scope key 由 `scopeKey(channel, threadTs?, channelType?)` 决定，规则如下
 
 **DM assistant thread 隔离（Why）**：Slack `assistant_view: true` 时，用户点"新聊天"会创建一个新 assistant thread，分配新的 `thread_ts`。如果用 channel 级 key，两次"新聊天"会共享同一个 Claude session，对话内容串在一起。用 `thread_ts` 作 key，每次新聊天天然隔离，无需监听 `assistant_thread_started` 事件，也不需要预创建 session——第一条真实消息到达时自动建立。
 
-**Why channel 是其他场景的默认**：Slack slash command（`/resume`、`/new` 等）没有 thread_ts，必须有一个 channel 级 key。让普通频道消息和 slash command 用同一个 key，命令才能影响下一条消息的 session。
+**Why channel 是其他场景的默认**：Slack slash command（`/cc_resume`、`/cc_new` 等）没有 thread_ts，必须有一个 channel 级 key。让普通频道消息和 slash command 用同一个 key，命令才能影响下一条消息的 session。
 
 ---
 

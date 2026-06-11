@@ -140,10 +140,10 @@ Control sessions directly from Slack:
 
 | Command | Description |
 |---------|-------------|
-| `/sessions` | List all known sessions |
-| `/resume N` or `/resume <uuid>` | Switch the current channel to a specific session |
-| `/new` | Reset the current session (next message starts fresh) |
-| `/current` | Show the currently bound session |
+| `/cc_sessions` | List all known sessions |
+| `/cc_resume N` or `/cc_resume <uuid>` | Switch the current channel to a specific session |
+| `/cc_new` | Reset the current session (next message starts fresh) |
+| `/cc_current` | Show the currently bound session |
 | `/cchelp` | Show help |
 
 > To use slash commands in DMs: Slack App settings → **App Home** → enable "Allow users to send Slash commands and messages from the messages tab".

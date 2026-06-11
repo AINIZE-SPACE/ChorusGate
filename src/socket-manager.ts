@@ -12,7 +12,7 @@ export type EventCallback = (event: StoredEvent) => void;
 
 /** A Slack slash command received over Socket Mode. */
 export interface SlashCommand {
-  command: string; // e.g. "/sessions"
+  command: string; // e.g. "/cc_sessions"
   text: string; // args after the command
   channelId: string;
   userId: string;

@@ -140,10 +140,10 @@ slack-gateway list     # 列出 channel→session 映射
 
 | 命令 | 说明 |
 |------|------|
-| `/sessions` | 列出所有已知 session |
-| `/resume N` 或 `/resume <uuid>` | 切换当前频道绑定的 session |
-| `/new` | 重置 session（下条消息开新对话）|
-| `/current` | 显示当前绑定的 session |
+| `/cc_sessions` | 列出所有已知 session |
+| `/cc_resume N` 或 `/cc_resume <uuid>` | 切换当前频道绑定的 session |
+| `/cc_new` | 重置 session（下条消息开新对话）|
+| `/cc_current` | 显示当前绑定的 session |
 | `/cchelp` | 帮助 |
 
 > 在 DM 里使用 slash command，需要在 Slack App 管理页 **App Home** 里勾选 "Allow users to send Slash commands and messages from the messages tab"。

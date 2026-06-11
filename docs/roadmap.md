@@ -106,7 +106,7 @@
 
 ### 6. 消息 thread 摘要
 
-`/sessions` 记录对话首句，让列表显示"这个 session 是关于什么的"，方便 `/resume` 选择。
+`/cc_sessions` 记录对话首句，让列表显示"这个 session 是关于什么的"，方便 `/cc_resume` 选择。
 
 ### 7. 定时任务 / 主动推送
 

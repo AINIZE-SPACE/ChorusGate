@@ -22,7 +22,7 @@
 **原因**：在输入框打 `:smile:` 发出去是普通消息，不是反应。触发 `reaction_added` 必须悬停消息 → 点 😊 图标 → 选 emoji。
 
 ### 4. slash command "不支持"
-**现象**：Slackbot 提示"消息列不支持 /sessions"。  
+**现象**：Slackbot 提示"消息列不支持 /cc_sessions"。  
 **原因**：manifest 里有 `slash_commands` 配置，但没有推送到 api.slack.com / 没有 reinstall app。  
 **修复**：api.slack.com → App Manifest → 粘贴更新后的 manifest → Save → Reinstall。
 

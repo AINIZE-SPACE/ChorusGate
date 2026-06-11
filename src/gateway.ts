@@ -255,7 +255,7 @@ function releaseSlot(): void {
 // different scopes still run in parallel (bounded by the global semaphore).
 const threadChains = new Map<string, Promise<void>>();
 
-/** Handle a native Slack slash command (/sessions, /resume, /new, /current, /cchelp). */
+/** Handle a native Slack slash command (/cc_sessions, /cc_resume, /cc_new, /cc_current, /cchelp). */
 function onSlash(slashCmd: SlashCommand): void {
   // Slash commands always use channel scope (no thread_ts).
   const sKey = sessionStore.channelKey(slashCmd.channelId);
@@ -307,7 +307,7 @@ function onEvent(event: StoredEvent): void {
     ?.channel_type as string | undefined;
   const tKey = scopeKey(event.channel, replyThreadTs, channelType);
 
-  // Session commands (/sessions, /resume, /new, /current, /help) bypass the
+  // Session commands (/cc_sessions, /cc_resume, /cc_new, /cc_current, /help) bypass the
   // AI reply path — handle them directly, but still on the scope chain so
   // ordering/dedup stay consistent.
   const cmd = detectCommand(cleanText(event.text || ""));

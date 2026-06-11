@@ -45,7 +45,7 @@ Goal: make Slack usable as an operator surface, not just a message pipe.
 
 Initial commands:
 
-- `/cchelp`, `/current`, `/sessions`, `/resume`, `/new` polish.
+- `/cchelp`, `/cc_current`, `/cc_sessions`, `/cc_resume`, `/cc_new` polish.
 - `/status` for daemon/session/queue/agent health.
 - `/cancel` for in-flight work.
 - `/approve` and `/deny` once session-host/runtime command injection exists.

@@ -17,21 +17,21 @@
 
 | 命令 | 行为 |
 |------|------|
-| `/sessions` | 列出 `memory/sessions.md` 里所有已知 session，标注当前绑定 |
-| `/resume N` | 把当前频道绑定到列表第 N 个 session |
-| `/resume <uuid>` | 前缀匹配 UUID，绑定到指定 session |
-| `/new` | 重置当前频道的 session 绑定（下条消息开新对话）|
-| `/current` | 显示当前频道绑定的 session UUID 和最后使用时间 |
+| `/cc_sessions` | 列出 `memory/sessions.md` 里所有已知 session，标注当前绑定 |
+| `/cc_resume N` | 把当前频道绑定到列表第 N 个 session |
+| `/cc_resume <uuid>` | 前缀匹配 UUID，绑定到指定 session |
+| `/cc_new` | 重置当前频道的 session 绑定（下条消息开新对话）|
+| `/cc_current` | 显示当前频道绑定的 session UUID 和最后使用时间 |
 | `/cchelp` | 列出上述命令帮助 |
 
-> 用 `/cchelp` 而不是 `/help`，避免与 Slack 内置 `/help` 冲突。
+> 用 `/cchelp` 而不是 `/help`，避免与 Slack 内置 `/help` 冲突。所有 CC 命令都以 `cc_` 为前缀，避免与 Hermes 等其他应用的命令冲突。
 
 ---
 
 ## 实现架构
 
 ```
-Slack 用户输入 /sessions
+Slack 用户输入 /cc_sessions
       │
       ▼ Socket Mode slash_commands 事件
 socket-manager.ts
@@ -40,7 +40,7 @@ socket-manager.ts
       │
       ▼
 gateway.ts: onSlash()
-  detectCommand("/sessions")
+  detectCommand("/cc_sessions")
   per-key 串行队列（channelKey）
       │
       ▼
@@ -87,7 +87,7 @@ Slack slash command 通过独立的 Socket Mode 事件投递，payload 结构不
 3. **信息过多**：gateway 只需要 UUID，不需要解析对话内容
 4. **速度慢**：扫描 + 解析文件比查内存 Map 慢
 
-现在的方案：`/sessions` 直接列 `sessionStore.entries()`，数据来自 gateway 自己维护的 `memory/sessions.md`。session UUID 本身就是 `--session-id` 创建的，可以直接 `--resume`，不需要额外映射。
+现在的方案：`/cc_sessions` 直接列 `sessionStore.entries()`，数据来自 gateway 自己维护的 `memory/sessions.md`。session UUID 本身就是 `--session-id` 创建的，可以直接 `--resume`，不需要额外映射。
 
 ## Session Scope 与"新聊天"隔离
 
@@ -95,7 +95,7 @@ session scope 决定了多条消息是否共用同一个 Claude session：
 
 ### channel scope（默认）
 
-key = `channel:<channel_id>`，整个频道/DM 共用一个长期 session。slash command（`/resume`、`/new`）操作的就是这个 key，对频道内所有后续消息生效。
+key = `channel:<channel_id>`，整个频道/DM 共用一个长期 session。slash command（`/cc_resume`、`/cc_new`）操作的就是这个 key，对频道内所有后续消息生效。
 
 ### thread scope（`GATEWAY_SESSION_SCOPE=thread`）
 
@@ -114,7 +114,7 @@ key = `<channel>:<thread_ts>`，每个 Slack 线程独立 session，适合频道
 - DM 里：点一次"新聊天" = 一个固定 `thread_ts`，该聊天内所有消息共享它，关闭/重新点"新聊天"才会变
 - 频道里：某条消息的第一条回复创建线程，该线程所有回复共享根消息的 `ts` 作为 `thread_ts`
 
-用户在 Claude Code 终端用 `claude --resume` picker 看到一个 session UUID → 在 Slack 发 `/resume <uuid>` → 下次 gateway 回复就在同一个 session 里继续。反之亦然。
+用户在 Claude Code 终端用 `claude --resume` picker 看到一个 session UUID → 在 Slack 发 `/cc_resume <uuid>` → 下次 gateway 回复就在同一个 session 里继续。反之亦然。
 
 这是"gateway 当无状态路由器"设计的直接收益：session UUID 既是 gateway 的 key，也是 claude CLI 的参数，两端天然互通。
 
@@ -122,7 +122,7 @@ key = `<channel>:<thread_ts>`，每个 Slack 线程独立 session，适合频道
 
 ## 串行保护
 
-slash command 走 `onSlash()` → 也进入 per-key 串行队列（`channelKey` 为 key）。和普通消息共用同一队列，保证 `/resume` 的写操作不会和正在进行的 `--resume <uuid>` 并发。
+slash command 走 `onSlash()` → 也进入 per-key 串行队列（`channelKey` 为 key）。和普通消息共用同一队列，保证 `/cc_resume` 的写操作不会和正在进行的 `--resume <uuid>` 并发。
 
 ---
 

@@ -4,11 +4,11 @@
 // Lets a Slack user list and switch the Claude session bound to the current
 // channel/thread, enabling shared sessions across Slack and Claude Code:
 //
-//   /sessions          list sessions tracked in memory/sessions.md
-//   /resume N | <uuid> bind THIS scope to session N (or a specific UUID)
-//   /new               drop this scope's binding (next msg starts fresh)
-//   /current           show this scope's bound session
-//   /cchelp            list commands
+//   /cc_sessions       list sessions tracked in memory/sessions.md
+//   /cc_resume N|<uuid> bind THIS scope to session N (or a specific UUID)
+//   /cc_new             drop this scope's binding (next msg starts fresh)
+//   /cc_current         show this scope's bound session
+//   /cchelp             list commands
 //
 // Source of truth is sessionStore (memory/sessions.md) — no .jsonl reading.
 // ============================================================
@@ -40,19 +40,24 @@ export function detectCommand(text: string): Command | null {
   const arg = rest.join(" ").trim();
 
   switch (cmd) {
+    case "cc_sessions":
     case "sessions":
     case "list":
       return { kind: "sessions" };
+    case "cc_resume":
     case "resume":
     case "switch":
       return { kind: "resume", arg };
+    case "cc_new":
     case "new":
     case "reset":
       return { kind: "new" };
+    case "cc_current":
     case "current":
     case "whoami":
       return { kind: "current" };
     case "cchelp":
+    case "cc_help":
     case "help":
       return { kind: "help" };
     default:
@@ -88,10 +93,10 @@ export async function handleCommand(
       await post(
         [
           "*可用命令：*",
-          "`/sessions` — 列出已知的 Claude Code 会话",
-          "`/resume N` 或 `/resume <uuid>` — 把当前频道绑定到某个会话",
-          "`/new` — 重置当前频道，下条消息开新会话",
-          "`/current` — 显示当前频道绑定的会话",
+          "`/cc_sessions` — 列出已知的 Claude Code 会话",
+          "`/cc_resume N` 或 `/cc_resume <uuid>` — 把当前频道绑定到某个会话",
+          "`/cc_new` — 重置当前频道，下条消息开新会话",
+          "`/cc_current` — 显示当前频道绑定的会话",
           "`/cchelp` — 显示本帮助",
         ].join("\n")
       );
@@ -136,14 +141,14 @@ export async function handleCommand(
       await post(
         `*已知会话（${all.length} 个）：*\n\n` +
           lines.join("\n") +
-          "\n\n用 `/resume N` 切换到对应会话。"
+          "\n\n用 `/cc_resume N` 切换到对应会话。"
       );
       return;
     }
 
     case "resume": {
       if (!cmd.arg) {
-        await post("用法：`/resume N`（编号）或 `/resume <session-uuid>`。");
+        await post("用法：`/cc_resume N`（编号）或 `/cc_resume <session-uuid>`。");
         return;
       }
       const all = sessionStore
@@ -162,7 +167,7 @@ export async function handleCommand(
 
       if (!target) {
         await post(
-          `没找到会话 \`${cmd.arg}\`。先用 \`/sessions\` 看看可用编号。`
+          `没找到会话 \`${cmd.arg}\`。先用 \`/cc_sessions\` 看看可用编号。`
         );
         return;
       }

@@ -193,7 +193,7 @@ GATEWAY_PLATFORMS=slack,feishu  # 默认只 slack
    - `src/tools/feishu-*.ts` 工具集
    - sender-only 飞书 MCP 配置生成
 4. **飞书命令支持**
-   - 通过消息关键词模拟 slash command（`/new`、`/sessions` 等）
+   - 通过消息关键词模拟 slash command（`/cc_new`、`/cc_sessions` 等）
 5. **文档 + 飞书 App 配置向导**
 
 ---

@@ -16,26 +16,26 @@
     },
     "slash_commands": [
       {
-        "command": "/sessions",
+        "command": "/cc_sessions",
         "url": "https://claudecode.local/slack/commands",
         "description": "列出本频道的 Claude Code 会话",
         "should_escape": false
       },
       {
-        "command": "/resume",
+        "command": "/cc_resume",
         "url": "https://claudecode.local/slack/commands",
         "description": "把本频道切换到某个会话",
         "usage_hint": "[N | session-uuid]",
         "should_escape": false
       },
       {
-        "command": "/new",
+        "command": "/cc_new",
         "url": "https://claudecode.local/slack/commands",
         "description": "重置本频道会话（下条消息开新对话）",
         "should_escape": false
       },
       {
-        "command": "/current",
+        "command": "/cc_current",
         "url": "https://claudecode.local/slack/commands",
         "description": "显示本频道当前绑定的会话",
         "should_escape": false

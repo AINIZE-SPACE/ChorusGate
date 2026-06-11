@@ -82,7 +82,7 @@ src/
   socket-manager.ts   Socket Mode 连接管理 + 事件/slash 分发
   reply-engine.ts     spawn claude -p，解析 stream-json
   session-store.ts    channel/thread → session UUID 映射，持久化到 memory/sessions.md
-  session-commands.ts 原生 slash command 处理（/sessions /resume /new /current /cchelp）
+  session-commands.ts 原生 slash command 处理（/cc_sessions /cc_resume /cc_new /cc_current /cchelp）
   event-store.ts      内存环形缓冲（MCP server 用，transient）
   slack-clients.ts    WebClient / getAppToken 单例
   gateway-paths.ts    .gateway/ 控制文件路径常量
