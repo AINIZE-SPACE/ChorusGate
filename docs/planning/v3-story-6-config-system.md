@@ -26,7 +26,8 @@ SLACK_BOT_TOKEN_CODEX=xoxb-codex-bot-token
 SLACK_APP_TOKEN_CODEX=xapp-codex-app-token
 GATEWAY_PROVIDER_CODEX=codex
 GATEWAY_CWD_CODEX=E:\project-b
-OPENAI_API_KEY=sk-...
+# Optional where supported; Codex may also use local ChatGPT/Codex login.
+CODEX_API_KEY=...
 
 # ---- 全局 ----
 GATEWAY_MAX_CONCURRENT=5

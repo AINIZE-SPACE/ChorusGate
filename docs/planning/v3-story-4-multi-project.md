@@ -52,12 +52,32 @@ SessionStore 增加 `projectDir` 字段：
 | Scope Key | Session UUID | Provider | Project Dir | Started | Last Used |
 |-----------|-------------|----------|-------------|---------|-----------|
 | channel:C01 | 0fb487e1… | claude | E:\project-a | yes | 2026-06-12 |
-| channel:C01 | thread_abc | codex | E:\project-b | yes | 2026-06-12 |
+| channel:C01 | 019ebaf3… | codex | E:\project-b | yes | 2026-06-12 |
 ```
 
 - 新建 session 时，cwd 默认从 `GATEWAY_DEFAULT_CWD` 或当前环境取
 - `/cc_new` / `/cc_resume` 命令支持 `--project <dir>` 切换工作目录
 - 同一个 channel scope key 下可以有多个 session（按 provider 区分）
+
+### 可选：Session 级 git worktree 隔离（参考 CC Pocket）
+
+会话级 `cwd` 解决"不同项目"问题，但不解决"同一 repo 多个长任务并行修改同一工作树"问题。CC Pocket 的做法是每个 session 使用独立 git worktree；v3 可以把它作为后续能力，而不是 M1/M2 阻塞项。
+
+建议配置：
+
+```env
+GATEWAY_WORKTREE_MODE=off        # off | per-session
+GATEWAY_WORKTREE_ROOT=.gateway/worktrees
+```
+
+行为：
+
+- 默认 `off`，保持当前 cwd 行为。
+- `per-session` 时，首次创建 session 时从 `projectDir` 派生一个 worktree。
+- SessionStore 记录 `projectDir` 和 `worktreeDir`。
+- session 结束或显式 `/cc_cleanup` 时清理 worktree。
+
+这项需要代码实现，已用 [#33](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/33) 跟踪，不直接塞进当前 story 的 P0 验收。
 
 ### Slash Command 扩展
 
@@ -93,3 +113,4 @@ GATEWAY_CWD_CODEX=E:\project-b
 - [ ] `/cc_new --project <dir>` 将新 session 绑定到指定目录
 - [ ] Claude 和 Codex session 在同一频道互不干扰
 - [ ] 未指定 `--project` 时使用默认目录
+- [ ] 后续 worktree 隔离方案有独立 issue 跟踪，不阻塞会话级 cwd

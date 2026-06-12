@@ -73,6 +73,8 @@ unresolved code-review bugs:
 | [#26](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/26) | 统一 Session 模型 — CC UUID + Codex thread_id | P0 | 📋 planned |
 | [#27](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/27) | 多 Agent/App 配置系统 — GATEWAY_PROFILES | P0 | 📋 planned |
 | [#28](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/28) | Codex Slack MCP Tools — TOML 配置生成 | P1 | 📋 planned |
+| [#32](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/32) | Slack approval/control loop for runtime requests | P1 | 📋 planned |
+| [#33](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/33) | Session-level git worktree isolation | P1 | 📋 planned |
 
 ### v3 里程碑
 

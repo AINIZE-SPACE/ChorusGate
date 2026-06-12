@@ -19,6 +19,8 @@
 | [STORY-5](./v3-story-5-session-model.md) | 统一 Session 模型（CC + Codex） | P0 | STORY-1, STORY-2 |
 | [STORY-6](./v3-story-6-config-system.md) | 多 Agent/多 App 配置系统 | P0 | STORY-3, STORY-4 |
 | [STORY-7](./v3-story-7-codex-slack-tools.md) | Codex Slack MCP Tools | P1 | STORY-2 |
+| [#32](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/32) | Slack approval/control loop | P1 | STORY-1, STORY-5 |
+| [#33](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/33) | Session worktree isolation | P1 | STORY-4, STORY-5 |
 
 ---
 
@@ -50,6 +52,12 @@
 - `/cc_new --project <dir>` 切换工作目录
 - Codex Slack MCP Tools（gateway-only，MCP server 保持 CC first）
 
+### M4：控制面增强（参考 CC Pocket）
+- Slack interactive approval loop：runtime 请求审批 → Slack 按钮 → approve/deny 回写 runtime
+- 消息状态机和断线恢复：`pending → processing → replied/failed → retry`
+- Session 级 git worktree 隔离：同一 repo 的并行长任务不共享工作树
+- 服务化安装补齐：Windows Task Scheduler / macOS launchd / Linux systemd
+
 ---
 
 ## 关键架构决策（待确认）
@@ -58,3 +66,4 @@
 2. **Slack app → provider 映射**：1:1（一个 app 对应一个 agent），按 token 后缀区分
 3. **多项目范围**：会话级（每个 session 可绑定不同 cwd），不引入 workspace 概念
 4. **Codex session ID**：首次 `codex exec` 从 JSONL 解析 `thread_id`（UUID 格式，已 M0 实测确认），回写 sessionStore
+5. **CC Pocket 参考边界**：复用 Slack 作为 UI/control plane，不引入自建 WebSocket；借鉴 approval loop、offline queue、worktree isolation 和 service lifecycle。

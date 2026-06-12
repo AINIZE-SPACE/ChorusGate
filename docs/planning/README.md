@@ -30,6 +30,7 @@
 | [runtime-adapters.md](./runtime-adapters.md) | 运行时适配器方案 | 参考 |
 | [tracking.md](./tracking.md) | 追踪/日志方案 | 参考 |
 | [version-planning-2026-06.md](./version-planning-2026-06.md) | 版本规划（2026-06）| 参考 |
+| [../reference/ccpocket.md](../reference/ccpocket.md) | CC Pocket Bridge/App 参考分析：approval loop、worktree、offline queue、service lifecycle | 参考 |
 
 ## 与已实现文档的关系
 

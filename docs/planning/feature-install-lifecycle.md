@@ -6,6 +6,8 @@
 
 让 slack4ccmcp 可以像正式的系统服务一样运行：开机自动启动、崩溃自动重启、一条命令完成安装或卸载。同时提供 `install` 脚本自动检测并安装 Claude Code CLI 依赖。
 
+参考 CC Pocket Bridge：它把本地 Bridge Server 注册为后台服务，让手机/桌面 UI 随时可连接。slack4ccmcp 不需要自建 App/Bridge 连接，但 gateway 同样应该成为可靠的本地常驻服务。
+
 ---
 
 ## 1. 一键安装脚本（install-all）
@@ -22,6 +24,7 @@
 5. 检测 .env 是否存在：
    - 没有 → 从 .env.example 复制，提示用户填写三个 token
 6. 可选 --service flag：自动注册系统服务
+7. 可选 --doctor flag：验证 Slack token、Socket Mode、agent CLI、项目目录和服务状态
 ```
 
 **检测 claude CLI 的逻辑**：
@@ -155,6 +158,15 @@ WantedBy=default.target
 3. macOS launchd 支持
 4. Linux systemd 支持
 5. `/update` slash command
+
+## 6. CC Pocket 参考差异
+
+| 能力 | CC Pocket Bridge | slack4ccmcp 取舍 |
+|------|------------------|------------------|
+| 配对 | QR code / mDNS / Tailscale URL | Slack App 安装 + token 配置，不新增 QR 配对 |
+| 常驻 | `bridge setup` 注册系统服务 | `slack-gateway service-install` 注册系统服务 |
+| 远程访问 | 自建 WebSocket | Slack Socket Mode，不暴露本地端口 |
+| 运行诊断 | Bridge flags / allowed dirs | `doctor` 检测 token、Socket Mode、agent CLI、cwd、service |
 
 ---
 

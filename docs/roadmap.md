@@ -79,6 +79,7 @@
 **关键细节**：
 - 状态：`pending` → `processing` → `replied` / `failed`
 - 幂等：event ts 作为唯一 key，同一 ts 只处理一次
+- 参考 CC Pocket：断线期间排队，重连后恢复流式更新或补发结果。
 
 ---
 
@@ -92,9 +93,29 @@
 
 **影响**：支持全部操作命令，响应更快（无进程启动开销），但复杂度大幅上升，单独立项。
 
+### 3.1 Slack 审批循环（参考 CC Pocket）
+
+**问题**：移动端/Slack 场景下，agent 的 approve/deny/question 不能只靠 prompt 模拟；它是控制面事件。
+
+**方案**：runtime 产出 approval request → gateway 发 Slack interactive message（Approve / Deny / Answer）→ `block_actions` 回传 → runtime `sendControl()`。
+
+**约束**：需要 Session Host 或支持 control event 的 runtime；`claude -p` 一次性进程只能先做有限降级。
+
+**跟踪**：[#32](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/32)
+
 ### 4. 多工作区 / 多 profile 支持
 
 支持多组 Slack/飞书 tokens（`--profile work` / `--profile personal`），每个 profile 独立 session store。
+
+### 4.1 Session 级 git worktree 隔离
+
+**问题**：会话级 cwd 不能防止同一 repo 的两个长任务同时修改一个工作树。
+
+**方案**：可选 `GATEWAY_WORKTREE_MODE=per-session`，为每个 session 创建独立 git worktree，并把 `worktreeDir` 写入 SessionStore。
+
+**来源**：CC Pocket 用 worktree 保证并行 session 隔离，适合作为 v3 多项目之后的增强。
+
+**跟踪**：[#33](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/33)
 
 ---
 
