@@ -66,11 +66,11 @@ unresolved code-review bugs:
 
 | Issue | Story | Priority | Status |
 |-------|-------|----------|--------|
-| [#22](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/22) | Provider 抽象层 — AgentProvider 接口 + Parser 抽象 | P0 | 📋 planned |
+| [#22](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/22) | Provider 抽象层 — AgentProvider 接口 + Parser 抽象 | P0 | 🟡 in_progress |
 | [#23](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/23) | Codex Provider — \`codex exec\` spawn + JSONL 解析 | P0 | 📋 planned |
 | [#24](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/24) | 多 Slack App Socket Mode — 多 SocketModeClient 实例 | P0 | 📋 planned |
 | [#25](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/25) | 会话级多项目 — sessionStore.projectDir | P1 | 📋 planned |
-| [#26](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/26) | 统一 Session 模型 — CC UUID + Codex thread.id | P0 | 📋 planned |
+| [#26](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/26) | 统一 Session 模型 — CC UUID + Codex thread_id | P0 | 📋 planned |
 | [#27](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/27) | 多 Agent/App 配置系统 — GATEWAY_PROFILES | P0 | 📋 planned |
 | [#28](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/28) | Codex Slack MCP Tools — TOML 配置生成 | P1 | 📋 planned |
 

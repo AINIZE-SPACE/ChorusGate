@@ -29,20 +29,24 @@ const projectRoot = resolve(__dirname, "..");
 const MEMORY_DIR = resolve(projectRoot, "memory");
 const SESSIONS_MD = resolve(MEMORY_DIR, "sessions.md");
 
-const MD_HEADER = `# Slack Scope → Claude Session Map
+const MD_HEADER = `# Slack Scope → Session Map
 
-每个 Slack scope（channel 或 thread）绑定一个持久 Claude session UUID。
-gateway 用 \`claude -p --resume <uuid>\` 续接，使同一 scope 跨消息保留上下文。
-本文件只存路由 meta —— 真正的对话/记忆在 Claude agent 自己的 session
-存储和它的 memory md 里，不在这里。由 gateway 自动维护；可由 git 追踪。
+每个 Slack scope（channel 或 thread）绑定一个持久 Agent session UUID。
+gateway 用 \`claude -p --resume <uuid>\` 或 \`codex exec resume <tid>\` 续接。
+本文件只存路由 meta —— 真正的对话/记忆在 Agent 自己的 session 存储里。
+由 gateway 自动维护；可由 git 追踪。
 
-| Scope Key | Session UUID | Started | Last Used |
-|------------|--------------|---------|-----------|
+| Scope Key | Session UUID | Provider | Project Dir | Started | Last Used |
+|-----------|-------------|----------|-------------|---------|-----------|
 `;
 
 export interface ThreadSession {
-  /** Stable Claude session UUID for this scope. */
+  /** Stable session UUID (CC: pre-generated UUID; Codex: codex-generated UUID). */
   sessionId: string;
+  /** Agent provider: "claude" | "codex" */
+  provider?: string;
+  /** Project working directory for this session. */
+  projectDir?: string;
   /** Whether the first turn has run (decides --session-id vs --resume). */
   started: boolean;
   /** Epoch ms of last use, for idle eviction. */
@@ -155,12 +159,16 @@ export class SessionStore {
   entries(): Array<{
     key: string;
     sessionId: string;
+    provider?: string;
+    projectDir?: string;
     started: boolean;
     lastUsed: number;
   }> {
     return Array.from(this.sessions.entries()).map(([key, s]) => ({
       key,
       sessionId: s.sessionId,
+      provider: s.provider,
+      projectDir: s.projectDir,
       started: s.started,
       lastUsed: s.lastUsed,
     }));
@@ -187,11 +195,30 @@ export class SessionStore {
           .slice(1, -1)
           .map((c) => c.trim());
         if (cells.length < 4) continue;
-        const [key, sessionId, startedRaw, lastUsedRaw] = cells;
+        // Backward compat: old format = 4 cols (key, uuid, started, lastUsed)
+        // New format = 6 cols (key, uuid, provider, projectDir, started, lastUsed)
+        const [key, sessionId, col3, col4, col5, col6] = cells;
         if (!key || !sessionId) continue;
+        let provider: string | undefined;
+        let projectDir: string | undefined;
+        let startedRaw: string;
+        let lastUsedRaw: string;
+        if (cells.length >= 6) {
+          // New format
+          provider = col3 || undefined;
+          projectDir = col4 || undefined;
+          startedRaw = col5;
+          lastUsedRaw = col6;
+        } else {
+          // Old format (4 cols): col3 = started, col4 = lastUsed
+          startedRaw = col3;
+          lastUsedRaw = col4;
+        }
         const lastUsedMs = Date.parse(lastUsedRaw);
         this.sessions.set(key, {
           sessionId,
+          provider,
+          projectDir,
           started: startedRaw.toLowerCase() === "yes",
           lastUsed: Number.isNaN(lastUsedMs) ? Date.now() : lastUsedMs,
         });
@@ -225,7 +252,9 @@ export class SessionStore {
         .map(([key, s]) => {
           const started = s.started ? "yes" : "no";
           const lastUsed = new Date(s.lastUsed).toISOString();
-          return `| ${key} | ${s.sessionId} | ${started} | ${lastUsed} |`;
+          const provider = s.provider || "";
+          const projectDir = s.projectDir || "";
+          return `| ${key} | ${s.sessionId} | ${provider} | ${projectDir} | ${started} | ${lastUsed} |`;
         });
       writeFileSync(this.sessionsFile, MD_HEADER + rows.join("\n") + "\n");
     } catch (err) {
