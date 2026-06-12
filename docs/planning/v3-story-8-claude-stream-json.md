@@ -1,111 +1,86 @@
-# STORY-8: Claude 双向 stream-json 控制面
+# STORY-8: Claude 双向 stream-json 控制面（SPEC）
 
-> 状态：规划中 | Epic: [v3 EPIC](./v3-epic.md) | 优先级：P0 | 里程碑：M2
-> 日程提前：原 M4 审批循环提前，因发现 `--input-format stream-json` 支持双向 JSON 管道
-> 跟踪: [#32](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/32)
+> 状态：🟡 开发中 | Epic: [v3 EPIC](./v3-epic.md) | M2 | P0
+> 跟踪: [#34](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/34) | [#32](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/32)
+> 分支: `v3/story-8-claude-stream-json`
 
-## 发现
-
-`claude -p` 支持双向 stream-json 协议：
-
-```bash
-claude -p --input-format stream-json --output-format stream-json --replay-user-messages
-```
-
-- `--input-format stream-json`：stdin 接受 JSON 消息（newline-delimited），**不关闭**
-- `--output-format stream-json`：stdout 发出 JSON 事件（newline-delimited）
-- `--replay-user-messages`：将 stdin 的用户消息回显到输出流
-
-**不需要 Claude SDK npm 包。** 这是 `claude -p` 的内置能力。
-
-## 协议
-
-### stdin → claude（JSON 消息）
+## M0 Spike 实测 JSONL 格式（已捕获）
 
 ```jsonl
-{"type":"user","message":{"role":"user","content":"帮我重构这个函数"}}
-{"type":"approve","message":{"decision":"approve","toolName":"Bash","toolUseId":"toolu_xxx"}}
-{"type":"approve","message":{"decision":"deny","toolName":"Bash","toolUseId":"toolu_yyy"}}
+{"type":"system","subtype":"init","session_id":"a9a8feff-...","cwd":"...","model":"deepseek-v4-pro[1m]","tools":[...]}
+{"type":"user","message":{"role":"user","content":"say hi"},"isReplay":true}
+{"type":"assistant","message":{"content":[{"type":"text","text":"Hi"}]}}
+{"type":"result","subtype":"success","result":"Hi","duration_ms":...}
 ```
 
-### stdout ← claude（JSON 事件）
+> :white_check_mark: M0 Spike 完成 (2026-06-13). `permission_request` 格式已从 Discord bridge 项目确认真实格式。
+> 实测 fixture: `tests/fixtures/claude-stream-init.jsonl`（init/user/assistant/result 事件链路）
+> 参考 fixture: `tests/fixtures/claude-stream-permission-request.jsonl`（含 permission_request 事件）
+>
+> **Spike 纠正了设计文档两处错误:**
+> 1. permission_request 用 `request_id` 而非 `tool_use_id`
+> 2. stdin 审批响应格式是 `{"type":"permission_response","request_id":"...","granted":true/false}` 而非 `{"type":"approve","decision":"approve","tool_use_id":"..."}`
 
-```jsonl
-{"type":"stream_event","event":{"type":"permission_request","tool":{"name":"Bash","id":"toolu_xxx","input":{"command":"rm -rf /"}}}}
-{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"我来帮你..."}}}
-{"type":"stream_event","event":{"type":"tool_use","tool":{"name":"Write","id":"toolu_zzz"}}}
-{"type":"result","result":"重构完成"}
-```
-
-### 关键事件
-
-| 事件 | 含义 | 处理 |
-|------|------|------|
-| `permission_request` | Claude 请求工具审批 | 暂停 stdout 消费 → Slack 发 interactive 按钮 → 等待用户点击 → stdin 回写 `approve`/`deny` → 继续消费 stdout |
-| `content_block_delta` | 文本流增量 | 累积 + onProgress 更新 |
-| `tool_use` | 工具调用开始 | onProgress 工具标签 |
-| `result` | 本轮完成 | 获取最终文本，关闭 stdin |
-
-## 实现
+## 实现方案
 
 ### ClaudeStreamProvider
 
 ```typescript
-// 对比旧 ClaudeProvider
-class ClaudeStreamProvider implements AgentProvider {
-  id = "claude-stream";
-  bin = "claude";
-
-  async createSession(prompt, opts): Promise<SessionOutput> {
-    // 1. spawn claude -p --input-format stream-json --output-format stream-json --replay-user-messages
-    // 2. stdin.write('{"type":"user","message":{"role":"user","content":"<prompt>"}}\n')
-    // 3. stdin 保持打开（不 close）
-    // 4. 逐行消费 stdout JSONL
-    // 5. 遇到 permission_request → onPermissionRequest 回调
-    // 6. 等待 approve/deny 决策 → stdin.write(decision)
-    // 7. 遇到 result → 返回
-  }
-}
+spawn("claude", [
+  "-p",
+  "--input-format", "stream-json",     // stdin JSON messages
+  "--output-format", "stream-json",    // stdout JSON events
+  "--verbose",                         // required for stream-json
+  "--replay-user-messages",            // echo user messages
+  "--permission-mode", "bypassPermissions",  // default, configurable
+  "--mcp-config", senderMCPConfigPath,
+  "--session-id", sessionId,
+]);
+// stdin stays open — don't close after writing prompt
+// stdout parsed line-by-line for events
 ```
 
-### 审批循环
+### 审批流（M0 Spike 已确认格式）
 
 ```
-claude stdout: {"type":"stream_event","event":{"type":"permission_request",...}}
-    ↓ gateway 拦截
-chat.postMessage(channel, {
-  text: "Claude 请求执行: rm -rf /",
-  blocks: [Approve按钮, Deny按钮]
-})
-    ↓ 用户点击 Approve
-block_actions 事件 → gateway
-    ↓
-claude stdin: {"type":"approve","message":{"decision":"approve",...}}
-    ↓
-claude stdout: 继续输出...
+stdout: {"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","id":"toolu_xxx",...}]}}
+  ↓ 如果是需要审批的工具
+stdout: {"type":"system","subtype":"permission_request","request_id":"req_abc123","tool_name":"Bash","tool_input":{"command":"rm -rf dist/"},"session_id":"..."}
+  ↓ gateway 拦截 → parser 触发 onPermissionRequest 回调
+Slack: chat.postMessage(interactive blocks: Approve / Deny)
+  ↓ 用户点击
+Slack block_actions → gateway
+  ↓ 写回 stdin
+stdin: {"type":"permission_response","request_id":"req_abc123","granted":true}
+  ↓ or
+stdin: {"type":"permission_response","request_id":"req_abc123","granted":false}
 ```
 
-### 与旧 ClaudeProvider 的关系
+**关键纠正:**
+- `permission_request` 使用 `request_id`（不是 `tool_use_id`）
+- stdin 响应格式是 `{"type":"permission_response","request_id":"...","granted":true/false}`
+- `assistant` 事件中的 `tool_use.id` 可与 `permission_request.request_id` 关联（但不相同）
 
-| 维度 | 旧（单向 `-p`） | 新（双向 stream-json） |
-|------|-----------------|----------------------|
-| stdin | prompt 文本，一次性关闭 | JSON 消息，保持打开 |
-| stdout | NDJSON stream | JSONL stream |
-| approve/deny | ❌ | ✅ stdin 回写 |
-| 协议 | 自定义 | Claude 官方 stream-json 协议 |
-| 进度 | `assistant` + `tool_use` 事件 | `content_block_delta` + `tool_use` 事件 |
+## 实现清单
 
-### 迁移策略
-
-- Phase 1：新建 `ClaudeStreamProvider`，保持 `ClaudeProvider` 并存
-- Phase 2：gateway 默认切到 `ClaudeStreamProvider`（`GATEWAY_CLAUDE_MODE=stream`）
-- Phase 3：`ClaudeProvider` 标记 deprecated，后续移除
+- [x] M0 Spike fixture: `tests/fixtures/claude-stream-init.jsonl`, `claude-stream-permission-request.jsonl`
+- [ ] `src/providers/claude-stream-parser.ts` — 扩展 ClaudeEventParser，新增:
+  - `system/subtype:init` → 记录 session_id / model / tools
+  - `system/subtype:permission_request` → 触发 `onPermissionRequest` 回调
+  - `system/subtype:api_retry` → 日志记录
+  - `user` (isReplay) → 跳过或记录
+- [ ] `src/providers/claude-stream.ts` — ClaudeStreamProvider:
+  - spawn `claude -p --input-format stream-json --output-format stream-json --verbose --replay-user-messages`
+  - **stdin 保持打开**（不调用 `child.stdin.end()`）
+  - 提供 `sendPermissionResponse(requestId, granted)` 方法写 stdin
+  - 返回 `ClaudeStreamSession` 对象（含 stdin 写入能力 + stdout 事件流）
+- [ ] `src/reply-engine.ts` — 增加 `provider` 选项，支持选择 `claude` / `claude-stream`
+- [ ] `src/gateway.ts` — 增加 `GATEWAY_CLAUDE_MODE=stream` 切换
 
 ## 验收标准
 
-- [ ] M0 spike: 真实运行 `claude -p --input-format stream-json --output-format stream-json` 1 轮
-- [ ] stdin JSON 消息正确发送，stdout JSON 事件正确解析
-- [ ] `permission_request` 事件触发审批回调
-- [ ] stdin 回写 `approve`/`deny` 后 claude 继续执行
-- [ ] `--replay-user-messages` 验证
-- [ ] 与现有 `ClaudeProvider` 并存，gateway flag 切换
+- [ ] `ClaudeStreamProvider` spawn 正确，stdin 保持打开
+- [ ] stdout JSONL 正确解析（assistant、result、permission_request）
+- [ ] `sendPermissionResponse()` 写回 stdin 后 Claude 继续执行
+- [ ] 与旧 `ClaudeProvider` 并存，flag 切换
+- [ ] gateway 行为向后兼容

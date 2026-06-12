@@ -18,14 +18,18 @@ const PERMISSION_MODE =
 
 /**
  * Generate a reply via the configured AgentProvider.
- * Default: ClaudeProvider. Future: opts.provider for Codex selection.
+ * Set GATEWAY_CLAUDE_MODE=stream for ClaudeStreamProvider (bidirectional).
+ * Default: ClaudeProvider (legacy one-shot).
  */
 export async function generateReply(
   prompt: string,
   opts: ReplyEngineOptions = {}
 ): Promise<ReplyResult> {
-  const { claudeProvider } = await import("./providers/claude.js");
-  const provider = claudeProvider;
+  const mode = process.env.GATEWAY_CLAUDE_MODE || "legacy";
+  const provider =
+    mode === "stream"
+      ? (await import("./providers/claude-stream.js")).claudeStreamProvider
+      : (await import("./providers/claude.js")).claudeProvider;
 
   const timeoutMs = opts.timeoutMs ?? 180_000;
   const cwd = opts.cwd ?? process.cwd();
