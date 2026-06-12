@@ -29,6 +29,7 @@ import { channelHistoryTool } from "./tools/channel-history.js";
 import { threadRepliesTool } from "./tools/thread-replies.js";
 import { listChannelsTool } from "./tools/list-channels.js";
 import { getUserInfoTool } from "./tools/get-user.js";
+import { serializeToolError } from "./tool-errors.js";
 
 // ============================================================
 // Tool Registry
@@ -114,13 +115,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       ],
     };
   } catch (err) {
-    const message = (err as Error).message;
-    console.error(`[slack-socket-mcp] Tool error (${name}):`, message);
+    const error = serializeToolError(err);
+    console.error(
+      `[slack-socket-mcp] Tool error (${name}/${error.code}):`,
+      error.message
+    );
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({ error: message }),
+          text: JSON.stringify({ ok: false, error }, null, 2),
         },
       ],
       isError: true,

@@ -159,10 +159,14 @@ export interface ThreadRepliesOutput {
 export interface ListChannelsInput {
   /** Max channels to return (default: 50) */
   limit?: number;
+  /** Optional Slack pagination cursor from a previous response */
+  cursor?: string;
 }
 
 export interface ListChannelsOutput {
   channels: SlackChannelInfo[];
+  /** Cursor for the next page, if more channels are available */
+  next_cursor?: string;
 }
 
 export interface SlackChannelInfo {

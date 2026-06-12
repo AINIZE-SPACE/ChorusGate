@@ -5,6 +5,7 @@
 import type { ReplyInput, ReplyOutput } from "../types.js";
 import { getWebClient } from "../slack-clients.js";
 import { eventStore } from "../event-store.js";
+import { slackApiError } from "../tool-errors.js";
 
 export const replyTool = {
   name: "slack_reply",
@@ -45,7 +46,7 @@ export const replyTool = {
     });
 
     if (!result.ok) {
-      throw new Error(`Failed to send reply: ${result.error}`);
+      throw slackApiError("Failed to send reply", result.error);
     }
 
     // Mark the corresponding event(s) as handled. We match on channel +

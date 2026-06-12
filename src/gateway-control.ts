@@ -10,9 +10,9 @@ import { spawn } from "node:child_process";
 import { openSync, readFileSync, rmSync } from "node:fs";
 import {
   ensureGatewayDir,
-  PID_FILE,
-  LOG_FILE,
-  STATUS_FILE,
+  getLogFile,
+  getPidFile,
+  getStatusFile,
   BIN_FILE,
   type GatewayStatus,
 } from "./gateway-paths.js";
@@ -21,7 +21,7 @@ import {
 
 function readPid(): number | null {
   try {
-    const raw = readFileSync(PID_FILE, "utf8").trim();
+    const raw = readFileSync(getPidFile(), "utf8").trim();
     const pid = Number(raw);
     return Number.isInteger(pid) && pid > 0 ? pid : null;
   } catch {
@@ -42,7 +42,7 @@ function isAlive(pid: number): boolean {
 
 function readStatus(): GatewayStatus | null {
   try {
-    return JSON.parse(readFileSync(STATUS_FILE, "utf8")) as GatewayStatus;
+    return JSON.parse(readFileSync(getStatusFile(), "utf8")) as GatewayStatus;
   } catch {
     return null;
   }
@@ -55,8 +55,8 @@ function livePid(): number | null {
   if (isAlive(pid)) return pid;
   // Stale PID file — process is gone.
   try {
-    rmSync(PID_FILE, { force: true });
-    rmSync(STATUS_FILE, { force: true });
+    rmSync(getPidFile(), { force: true });
+    rmSync(getStatusFile(), { force: true });
   } catch {
     // ignore
   }
@@ -90,7 +90,8 @@ export async function start(): Promise<void> {
   }
 
   ensureGatewayDir();
-  const out = openSync(LOG_FILE, "a");
+  const logFile = getLogFile();
+  const out = openSync(logFile, "a");
   const child = spawn(process.execPath, [BIN_FILE, "run"], {
     detached: true,
     stdio: ["ignore", out, out],
@@ -104,7 +105,7 @@ export async function start(): Promise<void> {
     await sleep(300);
     const pid = livePid();
     if (pid !== null && readStatus()) {
-      console.error(`gateway started (pid ${pid}). Logs: ${LOG_FILE}`);
+      console.error(`gateway started (pid ${pid}). Logs: ${logFile}`);
       return;
     }
   }
@@ -112,7 +113,7 @@ export async function start(): Promise<void> {
   // Didn't come up — surface the tail of the log to explain why.
   let tail = "";
   try {
-    tail = readFileSync(LOG_FILE, "utf8").split("\n").slice(-15).join("\n");
+    tail = readFileSync(logFile, "utf8").split("\n").slice(-15).join("\n");
   } catch {
     // ignore
   }
@@ -145,8 +146,8 @@ export async function stop(): Promise<void> {
     await sleep(300);
     if (!isAlive(pid)) {
       try {
-        rmSync(PID_FILE, { force: true });
-        rmSync(STATUS_FILE, { force: true });
+        rmSync(getPidFile(), { force: true });
+        rmSync(getStatusFile(), { force: true });
       } catch {
         // ignore
       }

@@ -4,6 +4,7 @@
 
 import type { ChannelHistoryInput, ChannelHistoryOutput, SlackMessageInfo } from "../types.js";
 import { getWebClient } from "../slack-clients.js";
+import { slackApiError } from "../tool-errors.js";
 
 export const channelHistoryTool = {
   name: "slack_channel_history",
@@ -34,7 +35,7 @@ export const channelHistoryTool = {
     });
 
     if (!result.ok) {
-      throw new Error(`Failed to get channel history: ${result.error}`);
+      throw slackApiError("Failed to get channel history", result.error);
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

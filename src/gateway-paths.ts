@@ -16,21 +16,33 @@ import { mkdirSync } from "node:fs";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 
-/** Control-plane directory (gitignored). Created under cwd. */
-export const GATEWAY_DIR = resolve(process.cwd(), ".gateway");
-/** PID of the running daemon. */
-export const PID_FILE = resolve(GATEWAY_DIR, "gateway.pid");
-/** Daemon stdout/stderr when started in the background. */
-export const LOG_FILE = resolve(GATEWAY_DIR, "gateway.log");
-/** Periodic runtime snapshot the daemon writes for status/list. */
-export const STATUS_FILE = resolve(GATEWAY_DIR, "status.json");
 /** Absolute path to the bin dispatcher (for detached spawn, always relative to
  *  the package root regardless of cwd). */
 export const BIN_FILE = resolve(projectRoot, "bin", "slack-gateway.mjs");
 
+/** Control-plane directory (gitignored). Created under cwd. */
+export function getGatewayDir(): string {
+  return resolve(process.cwd(), ".gateway");
+}
+
+/** PID of the running daemon. */
+export function getPidFile(): string {
+  return resolve(getGatewayDir(), "gateway.pid");
+}
+
+/** Daemon stdout/stderr when started in the background. */
+export function getLogFile(): string {
+  return resolve(getGatewayDir(), "gateway.log");
+}
+
+/** Periodic runtime snapshot the daemon writes for status/list. */
+export function getStatusFile(): string {
+  return resolve(getGatewayDir(), "status.json");
+}
+
 /** Ensure the control-plane directory exists. */
 export function ensureGatewayDir(): void {
-  mkdirSync(GATEWAY_DIR, { recursive: true });
+  mkdirSync(getGatewayDir(), { recursive: true });
 }
 
 /** Shape of status.json written by the daemon. */

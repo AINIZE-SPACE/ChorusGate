@@ -4,7 +4,7 @@
 
 import type { StoredEvent, SlackEventType } from "./types.js";
 
-const MAX_EVENTS = 500;
+const DEFAULT_MAX_EVENTS = 500;
 
 // Generate simple unique IDs
 let idCounter = 0;
@@ -13,8 +13,10 @@ function nextId(): string {
   return `evt_${Date.now()}_${idCounter}`;
 }
 
-class EventStore {
+export class EventStore {
   private events: StoredEvent[] = [];
+
+  constructor(private readonly maxEvents = DEFAULT_MAX_EVENTS) {}
 
   /** Push a new event into the store */
   push(event: Omit<StoredEvent, "id" | "handled" | "received_at">): StoredEvent {
@@ -28,8 +30,8 @@ class EventStore {
     this.events.push(stored);
 
     // Trim to max capacity (ring-buffer behavior: drop oldest)
-    if (this.events.length > MAX_EVENTS) {
-      this.events = this.events.slice(-MAX_EVENTS);
+    if (this.events.length > this.maxEvents) {
+      this.events = this.events.slice(-this.maxEvents);
     }
 
     return stored;

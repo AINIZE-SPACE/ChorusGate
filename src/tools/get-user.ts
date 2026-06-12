@@ -4,6 +4,7 @@
 
 import type { GetUserInfoInput, GetUserInfoOutput } from "../types.js";
 import { getWebClient } from "../slack-clients.js";
+import { slackApiError } from "../tool-errors.js";
 
 export const getUserInfoTool = {
   name: "slack_get_user_info",
@@ -25,9 +26,7 @@ export const getUserInfoTool = {
     const result = await web.users.info({ user: input.user_id });
 
     if (!result.ok || !result.user) {
-      throw new Error(
-        `Failed to get user info: ${result.error || "user not found"}`
-      );
+      throw slackApiError("Failed to get user info", result.error || "user_not_found");
     }
 
     const user = result.user as Record<string, unknown>;

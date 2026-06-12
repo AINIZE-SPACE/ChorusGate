@@ -4,6 +4,7 @@
 
 import type { AddReactionInput, AddReactionOutput } from "../types.js";
 import { getWebClient } from "../slack-clients.js";
+import { slackApiError } from "../tool-errors.js";
 
 export const addReactionTool = {
   name: "slack_add_reaction",
@@ -40,7 +41,7 @@ export const addReactionTool = {
     });
 
     if (!result.ok) {
-      throw new Error(`Failed to add reaction: ${result.error}`);
+      throw slackApiError("Failed to add reaction", result.error);
     }
 
     return { ok: true };

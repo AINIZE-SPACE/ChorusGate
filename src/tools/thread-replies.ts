@@ -4,6 +4,7 @@
 
 import type { ThreadRepliesInput, ThreadRepliesOutput, SlackMessageInfo } from "../types.js";
 import { getWebClient } from "../slack-clients.js";
+import { slackApiError } from "../tool-errors.js";
 
 export const threadRepliesTool = {
   name: "slack_thread_replies",
@@ -34,7 +35,7 @@ export const threadRepliesTool = {
     });
 
     if (!result.ok) {
-      throw new Error(`Failed to get thread replies: ${result.error}`);
+      throw slackApiError("Failed to get thread replies", result.error);
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

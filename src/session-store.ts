@@ -49,11 +49,22 @@ export interface ThreadSession {
   lastUsed: number;
 }
 
-class SessionStore {
+export interface SessionStoreOptions {
+  sessionsFile?: string;
+  persistDebounceMs?: number;
+}
+
+export class SessionStore {
   private sessions = new Map<string, ThreadSession>();
   private persistTimer: NodeJS.Timeout | null = null;
+  private readonly sessionsFile: string;
+  private readonly memoryDir: string;
+  private readonly persistDebounceMs: number;
 
-  constructor() {
+  constructor(options: SessionStoreOptions = {}) {
+    this.sessionsFile = options.sessionsFile ?? SESSIONS_MD;
+    this.memoryDir = dirname(this.sessionsFile);
+    this.persistDebounceMs = options.persistDebounceMs ?? 1000;
     this.load();
   }
 
@@ -161,7 +172,7 @@ class SessionStore {
   load(): void {
     let text: string;
     try {
-      text = readFileSync(SESSIONS_MD, "utf8");
+      text = readFileSync(this.sessionsFile, "utf8");
     } catch {
       return; // no file yet — start empty
     }
@@ -201,14 +212,14 @@ class SessionStore {
     this.persistTimer = setTimeout(() => {
       this.persistTimer = null;
       this.persist();
-    }, 1000);
+    }, this.persistDebounceMs);
     this.persistTimer.unref?.();
   }
 
   /** Render the in-memory map to memory/sessions.md as a markdown table. */
   persist(): void {
     try {
-      mkdirSync(MEMORY_DIR, { recursive: true });
+      mkdirSync(this.memoryDir, { recursive: true });
       const rows = Array.from(this.sessions.entries())
         .sort((a, b) => b[1].lastUsed - a[1].lastUsed)
         .map(([key, s]) => {
@@ -216,7 +227,7 @@ class SessionStore {
           const lastUsed = new Date(s.lastUsed).toISOString();
           return `| ${key} | ${s.sessionId} | ${started} | ${lastUsed} |`;
         });
-      writeFileSync(SESSIONS_MD, MD_HEADER + rows.join("\n") + "\n");
+      writeFileSync(this.sessionsFile, MD_HEADER + rows.join("\n") + "\n");
     } catch (err) {
       console.error(
         "[session-store] WARNING: failed to write memory/sessions.md:",

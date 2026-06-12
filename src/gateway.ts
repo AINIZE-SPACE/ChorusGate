@@ -30,8 +30,8 @@ import { sessionStore } from "./session-store.js";
 import { detectCommand, handleCommand } from "./session-commands.js";
 import {
   ensureGatewayDir,
-  PID_FILE,
-  STATUS_FILE,
+  getPidFile,
+  getStatusFile,
   type GatewayStatus,
 } from "./gateway-paths.js";
 import { writeFileSync, rmSync } from "node:fs";
@@ -491,7 +491,7 @@ async function main(): Promise<void> {
   ensureGatewayDir();
   const startedAt = Date.now();
   try {
-    writeFileSync(PID_FILE, String(process.pid));
+    writeFileSync(getPidFile(), String(process.pid));
   } catch (err) {
     console.error(
       "[gateway] WARNING: could not write PID file:",
@@ -510,7 +510,7 @@ async function main(): Promise<void> {
       sessions: sessionStore.entries(),
     };
     try {
-      writeFileSync(STATUS_FILE, JSON.stringify(snapshot, null, 2));
+      writeFileSync(getStatusFile(), JSON.stringify(snapshot, null, 2));
     } catch {
       // best effort
     }
@@ -547,8 +547,8 @@ async function shutdown(): Promise<void> {
   await stopSocketMode();
   // Clean up control-plane files so `status` reports stopped.
   try {
-    rmSync(PID_FILE, { force: true });
-    rmSync(STATUS_FILE, { force: true });
+    rmSync(getPidFile(), { force: true });
+    rmSync(getStatusFile(), { force: true });
   } catch {
     // ignore
   }

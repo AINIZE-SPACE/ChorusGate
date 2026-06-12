@@ -4,6 +4,7 @@
 
 import type { SendMessageInput, SendMessageOutput } from "../types.js";
 import { getWebClient } from "../slack-clients.js";
+import { slackApiError } from "../tool-errors.js";
 
 export const sendMessageTool = {
   name: "slack_send_message",
@@ -43,7 +44,7 @@ export const sendMessageTool = {
     });
 
     if (!result.ok) {
-      throw new Error(`Failed to send message: ${result.error}`);
+      throw slackApiError("Failed to send message", result.error);
     }
 
     return {
