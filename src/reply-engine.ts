@@ -63,30 +63,46 @@ const projectRoot = resolve(__dirname, "..");
 // JSON has its quotes stripped by cmd. The config launches our MCP server via
 // `node bin/slack-socket-mcp.mjs` (absolute path — robust on Windows) with
 // MCP_SENDER_ONLY=1 so it exposes Slack tools without opening Socket Mode.
-const SENDER_MCP_CONFIG = resolve(projectRoot, "config", "sender-mcp.generated.json");
-const SENDER_BIN = resolve(projectRoot, "bin", "slack-socket-mcp.mjs");
-try {
-  writeFileSync(
-    SENDER_MCP_CONFIG,
-    JSON.stringify(
-      {
-        mcpServers: {
-          slack: {
-            command: "node",
-            args: [SENDER_BIN],
-            env: { MCP_SENDER_ONLY: "1" },
+//
+// Tokens are injected into env explicitly (not left to the MCP server to find
+// .env on disk) so the config is self-contained and works regardless of cwd.
+function ensureSenderMCPConfig(): string {
+  const SENDER_MCP_CONFIG = resolve(projectRoot, "config", "sender-mcp.generated.json");
+  const SENDER_BIN = resolve(projectRoot, "bin", "slack-socket-mcp.mjs");
+  try {
+    writeFileSync(
+      SENDER_MCP_CONFIG,
+      JSON.stringify(
+        {
+          mcpServers: {
+            slack: {
+              command: "node",
+              args: [SENDER_BIN],
+              env: {
+                MCP_SENDER_ONLY: "1",
+                SLACK_BOT_TOKEN: process.env.SLACK_BOT_TOKEN || "",
+                SLACK_APP_TOKEN: process.env.SLACK_APP_TOKEN || "",
+              },
+            },
           },
         },
-      },
-      null,
-      2
-    )
-  );
-} catch (err) {
-  console.error(
-    "[reply-engine] WARNING: could not write sender MCP config:",
-    (err as Error).message
-  );
+        null,
+        2
+      ),
+    );
+  } catch (err) {
+    console.error(
+      "[reply-engine] WARNING: could not write sender MCP config:",
+      (err as Error).message,
+    );
+  }
+  return SENDER_MCP_CONFIG;
+}
+
+let _senderMCPConfig: string | null = null;
+function getSenderMCPConfig(): string {
+  if (_senderMCPConfig === null) _senderMCPConfig = ensureSenderMCPConfig();
+  return _senderMCPConfig;
 }
 
 /** Map a tool name (incl. mcp__slack__* and built-ins) to a progress label. */
@@ -130,7 +146,7 @@ export function generateReply(
       PERMISSION_MODE,
       "--strict-mcp-config",
       "--mcp-config",
-      SENDER_MCP_CONFIG,
+      getSenderMCPConfig(),
     ];
 
     // Bind to a Claude session for thread continuity:
