@@ -73,13 +73,15 @@ unresolved code-review bugs:
 | [#26](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/26) | 统一 Session 模型 — CC UUID + Codex thread_id | P0 | 📋 planned |
 | [#27](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/27) | 多 Agent/App 配置系统 — GATEWAY_PROFILES | P0 | 📋 planned |
 | [#28](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/28) | Codex Slack MCP Tools — TOML 配置生成 | P1 | 📋 planned |
-| [#32](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/32) | Slack approval/control loop for runtime requests | P1 | 📋 planned |
-| [#33](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/33) | Session-level git worktree isolation | P1 | 📋 planned |
+| [#32](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/32) | Slack approval/control loop (stream-json) | P0 | 📋 planned |
+| [#33](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/33) | Session-level git worktree isolation | P1 | ⏸️ deferred |
+| [#34](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/34) | Claude 双向 stream-json 控制面 — approve/deny | P0 | 📋 planned |
 
 ### v3 里程碑
 
-- **M1: 双 Agent 核心** (#22, #23, #26) — Provider 抽象 + Codex spawn + 统一 session
-- **M2: 多 Slack App** (#24, #27) — 多 profile + 多 Socket Mode 连接 + 配置系统
-- **M3: 多项目 + Slack 工具** (#25, #28) — 会话级 cwd + Codex Slack MCP
+- **M1: 双 Agent 核心** (#22, #23, #26) — Provider 抽象 + Codex spawn + 统一 session ✅
+- **M2: Claude stream-json 控制面** (#34, #32) — 双向 stdin/stdout + Slack approve/deny
+- **M3: 多 Slack App** (#24, #27) — 多 profile + 多 Socket Mode 连接
+- **M4: 多项目 + Slack 工具** (#25, #28) — 会话级 cwd + Codex Slack MCP
 
 详见 [docs/planning/v3-epic.md](./docs/planning/v3-epic.md)

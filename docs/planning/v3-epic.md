@@ -19,6 +19,7 @@
 | [STORY-5](./v3-story-5-session-model.md) | 统一 Session 模型（CC + Codex） | P0 | STORY-1, STORY-2 |
 | [STORY-6](./v3-story-6-config-system.md) | 多 Agent/多 App 配置系统 | P0 | STORY-3, STORY-4 |
 | [STORY-7](./v3-story-7-codex-slack-tools.md) | Codex Slack MCP Tools | P1 | STORY-2 |
+| [STORY-8](./v3-story-8-claude-stream-json.md) | Claude 双向 stream-json 控制面 | P0 | STORY-1 |
 | [#32](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/32) | Slack approval/control loop | P1 | STORY-1, STORY-5 |
 | [#33](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/33) | Session worktree isolation | P1 | STORY-4, STORY-5 |
 
@@ -41,22 +42,30 @@
 - Codex provider（`codex exec` spawn，`thread_id` 解析）
 - Session key 结构化改造（profileId + providerId + scopeKey + projectDir）
 
-### M2：多 Slack App（STORY-3, 6）
+### M2：Claude 双向 stream-json 控制面（新 STORY-8，提前于多 Slack App）
+
+> :zap: **日程提前**。发现 `claude -p --input-format stream-json --output-format stream-json --replay-user-messages` 支持双向 JSON 管道——stdin 不关闭，可回写 approve/deny 响应。不需要 Claude SDK npm 包。
+
+- `ClaudeStreamProvider`：替代当前 `ClaudeProvider` 的单向 `claude -p` spawn
+- stdin 保持打开，发送 JSON 消息（user prompt、approve/deny 响应）
+- stdout 解析 JSON 事件（permission_request、stream_event、result）
+- Slack interactive approve/deny：`permission_request` → Slack 按钮 → 用户点击 → stdin 回写
+- `--replay-user-messages` 回显用户消息到输出流
+- 跟踪: [#32](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/32)
+
+### M3：多 Slack App（STORY-3, 6）
 - 多 SocketModeClient 实例
 - `GATEWAY_PROFILES=cc,codex` 配置系统
 - Per-profile token 注入 MCP config
-- 每个 Slack app → 对应 provider
 
-### M3：多项目 + Slack 工具（STORY-4, 7）
+### M4：多项目 + Slack 工具（STORY-4, 7）
 - 会话级 project cwd
-- `/cc_new --project <dir>` 切换工作目录
-- Codex Slack MCP Tools（gateway-only，MCP server 保持 CC first）
+- Codex Slack MCP Tools（gateway-only）
 
-### M4：控制面增强（参考 CC Pocket）
-- Slack interactive approval loop：runtime 请求审批 → Slack 按钮 → approve/deny 回写 runtime
-- 消息状态机和断线恢复：`pending → processing → replied/failed → retry`
-- Session 级 git worktree 隔离：同一 repo 的并行长任务不共享工作树
-- 服务化安装补齐：Windows Task Scheduler / macOS launchd / Linux systemd
+### M5：远期控制面增强
+- 消息状态机和断线恢复
+- Session 级 git worktree 隔离（远期降级，见 #33）
+- 服务化安装补齐
 
 ---
 
