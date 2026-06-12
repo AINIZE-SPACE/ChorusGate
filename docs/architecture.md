@@ -148,13 +148,22 @@ spawned `claude -p` 得到一个只含 Slack Web API 工具的 MCP config（`MCP
 
 [CC Pocket](./reference/ccpocket.md) 的 Bridge Server 和本项目 gateway 属于同一类本地控制面：用户界面在外部，agent CLI 和代码仍运行在用户自己的机器上。区别是 CC Pocket 自建 WebSocket + App，slack4ccmcp 复用 Slack Socket Mode + Slack UI。
 
+**深度分析揭示的关键参考**（详见 [参考文档](./reference/ccpocket.md) 第二章逐文件分析）：
+
+- **审批循环**：CC Pocket 的 Codex JSON-RPC 审批流（`permission_request` → approve/reject → `respondToServerRequest`）直接对应我们 M2 的 `--input-format stream-json` 方案。CC Pocket 的 `approve()`/`reject()`/`approveAlways()`/`answer()` 四个函数覆盖了全部审批场景。
+- **输入队列 + interrupt**：CC Pocket 的 `sendInput()` 在 agent 忙时自动排队（`pendingInputQueue`），`input_ready` 时自动 drain。`interrupt()` 可在 turn 进行中中止 + 保留排队消息。
+- **Worktree 隔离**：CC Pocket 用 `ccpocket/<session-id>` 分支命名 + `--gtrconfig` 钩子文件复制，提供完整的 session 沙箱。我们 #33 可直接参考其 `createWorktree()` + `removeWorktree()` lifecycle。
+- **Provider 抽象**：CC Pocket 用 EventEmitter 模式管理持久进程（`SdkProcess`, `CodexProcess`），统一 `on("message")` / `on("status")` / `on("exit")` 事件接口，上层 `SessionManager` 不感知 provider 差异。
+- **安全限制**：`allowedDirs` 限制 agent 只能在授权目录运行，防止 prompt injection。
+- **Auth 错误分级**：`auth_login_required` / `auth_token_expired` / `auth_api_error` + 修复指引，启动时友好提示。
+
 可直接借鉴的原则：
 
 - **代码不离开开发机**：Gateway 只转发事件、命令、进度和结果，不托管代码仓库。
 - **控制面与运行时分离**：Slack 是 UI/control plane，agent runtime 只负责执行 turn。
-- **审批循环要变成一等能力**：未来 `/approve`、`/deny` 不应是普通 prompt，而应通过 runtime control event + Slack interactive action 回传。
+- **审批循环要变成一等能力**：未来 `/approve`、`/deny` 不应是普通 prompt，而应通过 runtime control event + Slack interactive action 回传。实现路径已在 CC Pocket 的 Codex JSON-RPC 审批流中验证。
 - **离线/断线要有状态机**：Socket 重连、gateway 重启、Slack API 失败都应落入 `pending -> processing -> replied/failed/retry` 状态。
-- **并行任务需要工作区隔离**：会话级 `cwd` 是第一步；同仓库并行长任务应升级为 session 级 git worktree。
+- **并行任务需要工作区隔离**：会话级 `cwd` 是第一步；同仓库并行长任务应升级为 session 级 git worktree。CC Pocket 的 `worktree.ts` 提供了可直接参考的实现。
 
 ---
 
