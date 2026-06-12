@@ -4,6 +4,7 @@ dist/
 *.log
 config/sender-mcp.generated.json
 .gateway/
+tmp/
 
 # NOTE: memory/ is intentionally NOT ignored — memory/sessions.md (the
 # channel/thread → session routing map) is git-tracked for versioning.
