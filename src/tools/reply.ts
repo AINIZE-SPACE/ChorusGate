@@ -48,6 +48,25 @@ export const replyTool = {
       throw new Error(`Failed to send reply: ${result.error}`);
     }
 
+    // Mark the corresponding event(s) as handled. We match on channel +
+    // the thread_ts we replied to (which is the triggering event's ts).
+    // This is best-effort — events may have already been marked by the
+    // gateway, or may not exist in the short-lived in-memory store.
+    const recent = eventStore.getRecent(50);
+    for (const evt of recent) {
+      if (evt.channel === input.channel && evt.ts === input.thread_ts) {
+        eventStore.markHandled(evt.id);
+      }
+      // Also mark thread replies whose thread_ts matches.
+      if (
+        evt.channel === input.channel &&
+        evt.thread_ts === input.thread_ts &&
+        !evt.handled
+      ) {
+        eventStore.markHandled(evt.id);
+      }
+    }
+
     return {
       ok: true,
       ts: result.ts || "",

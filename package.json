@@ -16,7 +16,10 @@
     "list": "node bin/slack-gateway.mjs list",
     "gateway": "tsx src/gateway.ts",
     "mcp": "tsx src/index.ts",
-    "dev": "tsx watch src/index.ts"
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
   },
   "keywords": ["slack", "socket-mode", "mcp", "claude-code"],
   "license": "MIT",

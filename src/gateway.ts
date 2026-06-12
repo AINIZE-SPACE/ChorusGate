@@ -13,17 +13,11 @@
 // Reuses the connection + send primitives from the MCP server modules.
 // ============================================================
 
-// Load .env from global (~/.gateway/.env) + cwd (./.env).
-import { loadEnv, fixMcpPlaceholders } from "./load-env.js";
+import { bootstrap } from "./bootstrap.js";
 
-const dotEnvParsed = loadEnv();
-fixMcpPlaceholders(dotEnvParsed, ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"]);
+bootstrap();
 
-for (const key of ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"] as const) {
-  console.error(`[gateway] ${key}: ${process.env[key]}`);
-}
-
-import { initSlackClients, getWebClient } from "./slack-clients.js";
+import { getWebClient } from "./slack-clients.js";
 import {
   startSocketMode,
   stopSocketMode,
@@ -44,22 +38,7 @@ import { writeFileSync, rmSync } from "node:fs";
 import type { StoredEvent } from "./types.js";
 
 // ============================================================
-// Config / validation
-// ============================================================
-
-const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
-const SLACK_APP_TOKEN = process.env.SLACK_APP_TOKEN;
-
-if (!SLACK_BOT_TOKEN || !SLACK_APP_TOKEN) {
-  console.error(
-    "[gateway] FATAL: SLACK_BOT_TOKEN and SLACK_APP_TOKEN are required (check .env)"
-  );
-  process.exit(1);
-}
-
-initSlackClients({ botToken: SLACK_BOT_TOKEN, appToken: SLACK_APP_TOKEN });
-
-// Optional: directory the spawned `claude -p` runs in (for tool/file access)
+// Config
 const CLAUDE_CWD = process.env.GATEWAY_CLAUDE_CWD || process.cwd();
 const REPLY_TIMEOUT_MS = Number(process.env.GATEWAY_REPLY_TIMEOUT_MS || 180_000);
 // Long-task timeout (e.g. channel summary, multi-tool chains). Set

@@ -234,8 +234,9 @@ export function generateReply(
 
     child.stdout.on("data", (chunk) => {
       stdoutBuf += chunk.toString();
-      // Process complete lines; keep the last partial line buffered.
-      const lines = stdoutBuf.split("\n");
+      // Split into lines. Windows may emit \r\n; strip \r first so JSON.parse
+      // never sees a trailing carriage return.
+      const lines = stdoutBuf.replace(/\r/g, "").split("\n");
       stdoutBuf = lines.pop() ?? "";
       for (const line of lines) handleLine(line);
     });

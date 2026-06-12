@@ -2,12 +2,9 @@
 // Slack Socket Mode MCP Server — Main Entry Point
 // ============================================================
 
-// Load .env from global (~/.gateway/.env) + cwd (./.env).
-// MCP config placeholders like "${SLACK_BOT_TOKEN}" are also fixed up.
-import { loadEnv, fixMcpPlaceholders } from "./load-env.js";
+import { bootstrap } from "./bootstrap.js";
 
-const dotEnvParsed = loadEnv();
-fixMcpPlaceholders(dotEnvParsed, ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"]);
+bootstrap();
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -20,7 +17,6 @@ import {
   UnsubscribeRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { StoredEvent } from "./types.js";
-import { initSlackClients } from "./slack-clients.js";
 import { startSocketMode, stopSocketMode, enrichEvent } from "./socket-manager.js";
 import { eventStore } from "./event-store.js";
 
@@ -33,47 +29,6 @@ import { channelHistoryTool } from "./tools/channel-history.js";
 import { threadRepliesTool } from "./tools/thread-replies.js";
 import { listChannelsTool } from "./tools/list-channels.js";
 import { getUserInfoTool } from "./tools/get-user.js";
-
-// ============================================================
-// Config & Validation
-// ============================================================
-
-const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
-const SLACK_APP_TOKEN = process.env.SLACK_APP_TOKEN;
-
-if (!SLACK_BOT_TOKEN) {
-  console.error(
-    "[slack-socket-mcp] FATAL: SLACK_BOT_TOKEN environment variable is required"
-  );
-  process.exit(1);
-}
-
-if (!SLACK_APP_TOKEN) {
-  console.error(
-    "[slack-socket-mcp] FATAL: SLACK_APP_TOKEN environment variable is required"
-  );
-  process.exit(1);
-}
-
-// Validate token formats
-if (!SLACK_BOT_TOKEN.startsWith("xoxb-")) {
-  console.error(
-    "[slack-socket-mcp] WARNING: SLACK_BOT_TOKEN should start with 'xoxb-'. " +
-      "Got: " + SLACK_BOT_TOKEN.substring(0, 5) + "..."
-  );
-}
-if (!SLACK_APP_TOKEN.startsWith("xapp-")) {
-  console.error(
-    "[slack-socket-mcp] WARNING: SLACK_APP_TOKEN should start with 'xapp-'. " +
-      "Got: " + SLACK_APP_TOKEN.substring(0, 5) + "..."
-  );
-}
-
-// Initialize Slack clients
-initSlackClients({
-  botToken: SLACK_BOT_TOKEN,
-  appToken: SLACK_APP_TOKEN,
-});
 
 // ============================================================
 // Tool Registry
