@@ -20,9 +20,24 @@ export interface SlashCommand {
 }
 export type SlashCallback = (cmd: SlashCommand) => void | Promise<void>;
 
+/** A block_actions interaction (e.g. Approve/Deny button click). */
+export interface BlockAction {
+  type: "block_actions";
+  channelId: string;
+  userId: string;
+  /** The value field from the button's block element */
+  actionValue: string;
+  /** The action_id of the clicked button */
+  actionId: string;
+  /** The ts of the interactive message */
+  messageTs: string;
+}
+export type BlockActionCallback = (action: BlockAction) => void | Promise<void>;
+
 let socketClient: SocketModeClient | null = null;
 let onEventCallback: EventCallback | null = null;
 let onSlashCallback: SlashCallback | null = null;
+let onBlockActionCallback: BlockActionCallback | null = null;
 
 // Track our own bot user ID to filter out self-messages
 let botUserId: string | null = null;
@@ -34,11 +49,13 @@ let botUserId: string | null = null;
  */
 export async function startSocketMode(
   onEvent: EventCallback,
-  onSlash?: SlashCallback
+  onSlash?: SlashCallback,
+  onBlockAction?: BlockActionCallback,
 ): Promise<void> {
   const appToken = getAppToken();
   onEventCallback = onEvent;
   onSlashCallback = onSlash ?? null;
+  onBlockActionCallback = onBlockAction ?? null;
 
   // Resolve our own bot user ID to filter self-messages
   try {
@@ -138,6 +155,43 @@ export async function startSocketMode(
         console.error(
           "[slack-socket-mcp] slash command handler error:",
           (err as Error).message
+        );
+      }
+    }
+  });
+
+  // block_actions — interactive message button clicks (e.g. Approve/Deny)
+  socketClient.on("interactive", async ({ body, ack }) => {
+    const payload = body as Record<string, unknown>;
+    if (payload.type !== "block_actions") {
+      await ack();
+      return;
+    }
+    await ack(); // ack immediately — 3s timeout
+    if (!onBlockActionCallback) return;
+
+    const actions = payload.actions as Array<Record<string, unknown>> | undefined;
+    if (!actions || actions.length === 0) return;
+
+    for (const action of actions) {
+      const ch = payload.channel as Record<string, unknown> | undefined;
+      const usr = payload.user as Record<string, unknown> | undefined;
+      const msg = payload.message as Record<string, unknown> | undefined;
+      const container = payload.container as Record<string, unknown> | undefined;
+      const blockAction: BlockAction = {
+        type: "block_actions",
+        channelId: ((ch?.id || payload.channel_id || "") as string),
+        userId: ((usr?.id || payload.user_id || "") as string),
+        actionValue: (action.value as string) || "",
+        actionId: (action.action_id as string) || "",
+        messageTs: ((msg?.ts || container?.message_ts || "") as string),
+      };
+      try {
+        await onBlockActionCallback(blockAction);
+      } catch (err) {
+        console.error(
+          "[slack-socket-mcp] block_action handler error:",
+          (err as Error).message,
         );
       }
     }

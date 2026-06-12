@@ -6,9 +6,11 @@
 // backward compat with gateway.ts.
 //
 // 跟踪: [#22](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/22)
+// 跟踪: [#34](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/34) — M2 stream mode
 // ============================================================
 
 import type { ReplyEngineOptions, ReplyResult } from "./providers/types.js";
+import type { PermissionRequest } from "./providers/claude-stream-parser.js";
 
 // Re-export for backward compat
 export type { ReplyEngineOptions, ReplyResult };
@@ -60,6 +62,68 @@ export async function generateReply(
       ok: false,
       text: "",
       error: `provider error: ${(err as Error).message}`,
+    };
+  }
+}
+
+/**
+ * 双向 stream-json reply（M2）。
+ *
+ * 与 generateReply() 不同，此函数:
+ *   - 使用 createStreamSession()（stdin 保持打开）
+ *   - 通过 onPermission callback 接收实时审批请求
+ *   - onPermission 返回 true=approve, false=deny
+ *   - stdin 写回 permission_response 后 Claude 继续执行
+ *
+ * 仅在 GATEWAY_CLAUDE_MODE=stream 时可用。
+ */
+export async function generateReplyStream(
+  prompt: string,
+  opts: ReplyEngineOptions & {
+    /** 审批回调: 收到 permission_request 时调用，返回 approve(true)/deny(false) */
+    onPermission?: (req: PermissionRequest) => Promise<boolean>;
+  } = {}
+): Promise<ReplyResult> {
+  const { createStreamSession } = await import(
+    "./providers/claude-stream.js"
+  );
+
+  const timeoutMs = opts.timeoutMs ?? 180_000;
+  const cwd = opts.cwd ?? process.cwd();
+
+  try {
+    const session = createStreamSession(prompt, {
+      cwd,
+      timeoutMs,
+      mcpConfigPath: "",
+      permissionMode: PERMISSION_MODE,
+      sessionId: opts.sessionId,
+      onProgress: opts.onProgress,
+    });
+
+    // 绑定审批回调（如果有的话）
+    if (opts.onPermission) {
+      session.parser.onPermissionRequest = async (req) => {
+        try {
+          const granted = await opts.onPermission!(req);
+          session.sendPermissionResponse(req.requestId, granted);
+        } catch (err) {
+          console.error(
+            "[reply-engine] permission callback error, denying:",
+            (err as Error).message,
+          );
+          session.sendPermissionResponse(req.requestId, false);
+        }
+      };
+    }
+
+    const result = await session.result;
+    return { ok: result.ok, text: result.text, error: result.error };
+  } catch (err) {
+    return {
+      ok: false,
+      text: "",
+      error: `stream provider error: ${(err as Error).message}`,
     };
   }
 }

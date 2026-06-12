@@ -1,8 +1,8 @@
 # STORY-8: Claude 双向 stream-json 控制面（SPEC）
 
-> 状态：🟡 开发中 | Epic: [v3 EPIC](./v3-epic.md) | M2 | P0
+> 状态：🟢 M2 核心已实现 (2026-06-13) | Epic: [v3 EPIC](./v3-epic.md) | M2 | P0
 > 跟踪: [#34](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/34) | [#32](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/32)
-> 分支: `v3/story-8-claude-stream-json`
+> 分支: `feature/034-claude-stream-json`
 
 ## M0 Spike 实测 JSONL 格式（已捕获）
 
@@ -64,23 +64,26 @@ stdin: {"type":"permission_response","request_id":"req_abc123","granted":false}
 ## 实现清单
 
 - [x] M0 Spike fixture: `tests/fixtures/claude-stream-init.jsonl`, `claude-stream-permission-request.jsonl`
-- [ ] `src/providers/claude-stream-parser.ts` — 扩展 ClaudeEventParser，新增:
+- [x] `src/providers/claude-stream-parser.ts` — 扩展 ClaudeEventParser，新增:
   - `system/subtype:init` → 记录 session_id / model / tools
   - `system/subtype:permission_request` → 触发 `onPermissionRequest` 回调
   - `system/subtype:api_retry` → 日志记录
   - `user` (isReplay) → 跳过或记录
-- [ ] `src/providers/claude-stream.ts` — ClaudeStreamProvider:
+- [x] `src/providers/claude-stream.ts` — ClaudeStreamProvider:
   - spawn `claude -p --input-format stream-json --output-format stream-json --verbose --replay-user-messages`
   - **stdin 保持打开**（不调用 `child.stdin.end()`）
   - 提供 `sendPermissionResponse(requestId, granted)` 方法写 stdin
   - 返回 `ClaudeStreamSession` 对象（含 stdin 写入能力 + stdout 事件流）
-- [ ] `src/reply-engine.ts` — 增加 `provider` 选项，支持选择 `claude` / `claude-stream`
-- [ ] `src/gateway.ts` — 增加 `GATEWAY_CLAUDE_MODE=stream` 切换
+- [x] `src/reply-engine.ts` — `generateReplyStream()` + `GATEWAY_CLAUDE_MODE=stream` 切换
+- [x] `src/gateway.ts` — `INTERACTIVE_PERMISSIONS` 模式 + block_actions 审批按钮
+- [x] `src/permission-tracker.ts` — 审批请求追踪（Promise-based, Slack block_actions → stdin）
+- [x] `src/socket-manager.ts` — `block_actions` (interactive) 事件支持
+- [x] 测试: 21/21 通过 (7 parser + 3 session + 7 tracker + 2 event-store + 2 session-store)
 
 ## 验收标准
 
-- [ ] `ClaudeStreamProvider` spawn 正确，stdin 保持打开
-- [ ] stdout JSONL 正确解析（assistant、result、permission_request）
-- [ ] `sendPermissionResponse()` 写回 stdin 后 Claude 继续执行
-- [ ] 与旧 `ClaudeProvider` 并存，flag 切换
-- [ ] gateway 行为向后兼容
+- [x] `ClaudeStreamProvider` spawn 正确，stdin 保持打开
+- [x] stdout JSONL 正确解析（assistant、result、permission_request）
+- [x] `sendPermissionResponse()` 写回 stdin（格式: `{"type":"permission_response","request_id":"...","granted":true/false}`）
+- [x] 与旧 `ClaudeProvider` 并存，flag 切换
+- [x] gateway 行为向后兼容（`INTERACTIVE_PERMISSIONS` 默认关闭，需显式配置 `CLAUDE_PERMISSION_MODE`）

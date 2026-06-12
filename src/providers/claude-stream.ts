@@ -29,6 +29,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..", "..");
 
 const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
+const PERMISSION_MODE =
+  process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions";
 
 // ---- MCP config (same as claude.ts) ------------------------------------------
 
@@ -189,6 +191,7 @@ export const claudeStreamProvider: AgentProvider = {
       "--output-format", "stream-json",
       "--verbose",
       "--replay-user-messages",
+      "--permission-mode", PERMISSION_MODE,
       "--strict-mcp-config",
       "--mcp-config", getSenderMCPConfig(),
       "--session-id", sessionId,
@@ -231,6 +234,7 @@ export const claudeStreamProvider: AgentProvider = {
       "--output-format", "stream-json",
       "--verbose",
       "--replay-user-messages",
+      "--permission-mode", PERMISSION_MODE,
       "--strict-mcp-config",
       "--mcp-config", getSenderMCPConfig(),
       "--resume", sessionId,
@@ -257,3 +261,123 @@ export const claudeStreamProvider: AgentProvider = {
     return { ...result, sessionId };
   },
 };
+
+// ---- StreamSession: bidirectional API for permission_request flow ----------
+
+/**
+ * 双向 stream-json session。
+ *
+ * 与 AgentProvider.createSession() 返回的 one-shot SessionOutput 不同，
+ * ClaudeStreamSession 保持 stdin 打开，允许在 Claude 运行过程中通过
+ * sendPermissionResponse() 回写 approve/deny 响应。
+ *
+ * 典型流程:
+ *   const session = createStreamSession(prompt, opts);
+ *   session.parser.onPermissionRequest = async (req) => {
+ *     // Slack 发送审批按钮，用户点击后调用:
+ *     session.sendPermissionResponse(req.requestId, true);
+ *   };
+ *   const result = await session.result;  // 等待最终结果
+ *   session.close();
+ */
+export interface ClaudeStreamSession {
+  /** session_id (从 system.init 解析或在 spawn 前预生成) */
+  sessionId: string;
+  /** 事件解析器 (可绑定 onPermissionRequest 等回调) */
+  parser: ClaudeStreamParser;
+  /** 最终结果 Promise */
+  result: Promise<SessionOutput>;
+  /** 发送权限响应回 Claude stdin */
+  sendPermissionResponse(requestId: string, granted: boolean): void;
+  /** 关闭 session (kill 进程 + 清理) */
+  close(): void;
+}
+
+/**
+ * 创建双向 stream-json session (stdin 保持打开)。
+ *
+ * 与 claudeStreamProvider.createSession() 不同:
+ *   - 不等待最终结果即返回
+ *   - stdin 保持打开直到 close() 调用
+ *   - 可通过 sendPermissionResponse() 实时审批
+ */
+export function createStreamSession(
+  prompt: string,
+  opts: CreateSessionOptions,
+): ClaudeStreamSession {
+  const sessionId = opts.sessionId || crypto.randomUUID();
+  const args = [
+    "-p",
+    "--input-format", "stream-json",
+    "--output-format", "stream-json",
+    "--verbose",
+    "--replay-user-messages",
+    "--permission-mode", PERMISSION_MODE,
+    "--strict-mcp-config",
+    "--mcp-config", getSenderMCPConfig(),
+    "--session-id", sessionId,
+  ];
+
+  const parser = new ClaudeStreamParser();
+  parser.onProgress = opts.onProgress;
+  parser.onSessionId = opts.onSessionId;
+
+  const sr = spawnStream(args, opts.cwd, parser);
+
+  // Send user prompt on stdin (keep pipe open)
+  const userMsg =
+    JSON.stringify({
+      type: "user",
+      message: { role: "user", content: prompt },
+    }) + "\n";
+  if (sr.child.stdin) {
+    sr.child.stdin.write(userMsg);
+  } else {
+    console.error("[claude-stream] WARNING: stdin is null, cannot write prompt");
+  }
+
+  const resultPromise = streamToResult(
+    { ...sr, parser } as StreamSpawnResult & { parser: ClaudeStreamParser },
+    opts.timeoutMs,
+  );
+
+  return {
+    sessionId,
+    parser,
+
+    result: resultPromise,
+
+    sendPermissionResponse(requestId: string, granted: boolean): void {
+      if (sr.settled) {
+        console.error(
+          "[claude-stream] WARNING: session already settled, ignoring permission_response",
+        );
+        return;
+      }
+      const msg =
+        JSON.stringify({
+          type: "permission_response",
+          request_id: requestId,
+          granted,
+        }) + "\n";
+      if (sr.child.stdin) {
+        sr.child.stdin.write(msg);
+      } else {
+        console.error(
+          "[claude-stream] WARNING: stdin is null, cannot send permission_response",
+        );
+      }
+    },
+
+    close(): void {
+      if (sr.settled) return;
+      sr.settled = true;
+      try {
+        if (sr.child.stdin) sr.child.stdin.end();
+      } catch {
+        // ignore
+      }
+      sr.child.kill("SIGKILL");
+    },
+  };
+}

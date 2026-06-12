@@ -25,8 +25,12 @@ import {
   type SlashCommand,
 } from "./socket-manager.js";
 import { eventStore } from "./event-store.js";
-import { generateReply } from "./reply-engine.js";
+import { generateReply, generateReplyStream } from "./reply-engine.js";
 import { sessionStore } from "./session-store.js";
+import {
+  PermissionTracker,
+  buildApprovalBlocks,
+} from "./permission-tracker.js";
 import { detectCommand, handleCommand } from "./session-commands.js";
 import {
   ensureGatewayDir,
@@ -64,6 +68,23 @@ const PROGRESS_ENABLED = process.env.GATEWAY_PROGRESS !== "0";
 const SESSION_SCOPE = (
   process.env.GATEWAY_SESSION_SCOPE || "channel"
 ) as "channel" | "thread";
+// Permission mode for spawned claude processes.
+const PERMISSION_MODE =
+  process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions";
+
+// Interactive permission approval: when CLAUDE_PERMISSION_MODE is NOT
+// "bypassPermissions" (i.e. "default" or "acceptEdits"), the gateway will
+// intercept permission_request events and post Slack buttons for approve/deny.
+// Set GATEWAY_INTERACTIVE_PERMISSIONS=0 to disable this behavior even when
+// permission mode would otherwise trigger it.
+const INTERACTIVE_PERMISSIONS =
+  process.env.GATEWAY_INTERACTIVE_PERMISSIONS !== "0" &&
+  PERMISSION_MODE !== "bypassPermissions";
+
+// M2: Claude 双向 stream-json 控制面
+// 跟踪: [#34](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/34)
+const STREAM_MODE = process.env.GATEWAY_CLAUDE_MODE === "stream";
+
 // Rotating heartbeat phrases shown while the agent works with no tool activity.
 const HEARTBEAT_PHRASES = [
   "🤔 正在思考…",
@@ -229,6 +250,9 @@ function releaseSlot(): void {
 // would corrupt session state. We chain each scope's work on a promise;
 // different scopes still run in parallel (bounded by the global semaphore).
 const threadChains = new Map<string, Promise<void>>();
+
+// M2: Permission tracker for interactive approve/deny via Slack buttons
+const permissionTracker = new PermissionTracker();
 
 /** Handle a native Slack slash command (/cc_sessions, /cc_resume, /cc_new, /cc_current, /cchelp). */
 function onSlash(slashCmd: SlashCommand): void {
@@ -404,17 +428,64 @@ async function processEvent(
       heartbeatTimer.unref?.();
     }
 
-    const result = await generateReply(prompt, {
+    const replyOpts = {
       timeoutMs,
       cwd: CLAUDE_CWD,
       sessionId: session.sessionId,
       resume,
-      onProgress: (label) => {
+      onProgress: (label: string) => {
         lastLabel = label;
         lastToolAt = Date.now();
         updatePlaceholder(label, true);
       },
-    });
+    };
+
+    const result = INTERACTIVE_PERMISSIONS
+      ? await generateReplyStream(prompt, {
+          ...replyOpts,
+          onPermission: async (req) => {
+            // Post Slack interactive message with Approve/Deny buttons
+            if (placeholderTs) {
+              // Update the placeholder to show the permission request
+              await stopProgress();
+            }
+            const blocks = buildApprovalBlocks(
+              req.toolName,
+              req.toolInput,
+              req.requestId,
+            );
+            try {
+              await web.chat.postMessage({
+                channel: event.channel,
+                thread_ts: replyThreadTs,
+                blocks,
+                text: `Claude 请求执行 \`${req.toolName}\` — 需要你的批准`,
+              });
+            } catch (err) {
+              console.error(
+                "[gateway] failed to post approval message:",
+                (err as Error).message,
+              );
+            }
+
+            // Wait for user response (auto-denies after timeout)
+            const granted = await permissionTracker.waitForApproval(
+              req.requestId,
+              {
+                toolName: req.toolName,
+                toolInput: req.toolInput,
+                channel: event.channel,
+                threadTs: replyThreadTs,
+              },
+            );
+            console.error(
+              `[gateway] permission ${req.requestId} (${req.toolName}): ` +
+                `${granted ? "approved" : "denied"}`,
+            );
+            return granted;
+          },
+        })
+      : await generateReply(prompt, replyOpts);
 
     await stopProgress();
 
@@ -535,7 +606,10 @@ async function main(): Promise<void> {
   await startSocketMode((event) => {
     // onEvent enqueues onto the thread's serial chain (non-blocking).
     onEvent(event);
-  }, onSlash);
+  }, onSlash, INTERACTIVE_PERMISSIONS ? async (action) => {
+    // Handle block_actions (Approve/Deny buttons)
+    permissionTracker.handleAction(action.actionValue);
+  } : undefined);
   console.error(
     "[gateway] listening — will auto-reply to @mentions and DMs. " +
       `Sessions are reused per ${SESSION_SCOPE} scope. Ctrl+C to stop.`
