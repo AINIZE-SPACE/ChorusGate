@@ -13,18 +13,14 @@
 // Reuses the connection + send primitives from the MCP server modules.
 // ============================================================
 
-// Load .env from the project root, regardless of cwd (same logic as index.ts)
-import { config as loadDotEnv } from "dotenv";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+// Load .env from global (~/.gateway/.env) + cwd (./.env).
+import { loadEnv, fixMcpPlaceholders } from "./load-env.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const projectRoot = resolve(__dirname, "..");
-const dotEnvResult = loadDotEnv({ path: resolve(projectRoot, ".env") });
+const dotEnvParsed = loadEnv();
+fixMcpPlaceholders(dotEnvParsed, ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"]);
+
 for (const key of ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"] as const) {
-  if (process.env[key]?.startsWith("${") && dotEnvResult.parsed?.[key]) {
-    process.env[key] = dotEnvResult.parsed[key];
-  }
+  console.error(`[gateway] ${key}: ${process.env[key]}`);
 }
 
 import { initSlackClients, getWebClient } from "./slack-clients.js";
@@ -64,7 +60,7 @@ if (!SLACK_BOT_TOKEN || !SLACK_APP_TOKEN) {
 initSlackClients({ botToken: SLACK_BOT_TOKEN, appToken: SLACK_APP_TOKEN });
 
 // Optional: directory the spawned `claude -p` runs in (for tool/file access)
-const CLAUDE_CWD = process.env.GATEWAY_CLAUDE_CWD || projectRoot;
+const CLAUDE_CWD = process.env.GATEWAY_CLAUDE_CWD || process.cwd();
 const REPLY_TIMEOUT_MS = Number(process.env.GATEWAY_REPLY_TIMEOUT_MS || 180_000);
 // Long-task timeout (e.g. channel summary, multi-tool chains). Set
 // GATEWAY_REPLY_TIMEOUT_MS_LONG to override; defaults to 2× the normal timeout.

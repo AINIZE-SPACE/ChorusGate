@@ -2,23 +2,12 @@
 // Slack Socket Mode MCP Server — Main Entry Point
 // ============================================================
 
-// Load .env file before anything else. If an MCP config passes literal
-// placeholders like "${SLACK_BOT_TOKEN}", replace them with .env values.
-import { config as loadDotEnv } from "dotenv";
-import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
+// Load .env from global (~/.gateway/.env) + cwd (./.env).
+// MCP config placeholders like "${SLACK_BOT_TOKEN}" are also fixed up.
+import { loadEnv, fixMcpPlaceholders } from "./load-env.js";
 
-// Always load .env from the project root, regardless of cwd
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const projectRoot = resolve(__dirname, "..");
-
-const dotEnvResult = loadDotEnv({ path: resolve(projectRoot, ".env") });
-for (const key of ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"] as const) {
-  if (process.env[key]?.startsWith("${") && dotEnvResult.parsed?.[key]) {
-    process.env[key] = dotEnvResult.parsed[key];
-  }
-}
+const dotEnvParsed = loadEnv();
+fixMcpPlaceholders(dotEnvParsed, ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"]);
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";

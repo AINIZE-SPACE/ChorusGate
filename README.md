@@ -36,7 +36,14 @@ A self-hosted gateway that connects Claude Code (`claude -p`) to Slack. @mention
 
 ### 3. Configure .env
 
-Create `.env` in the project root (it's gitignored):
+`.env` is loaded from two locations (later overrides earlier):
+
+1. `~/.gateway/.env` — global defaults, shared across projects
+2. `./.env` — project-specific overrides (gitignored)
+
+Shell environment variables have the highest priority — they will never be overwritten by `.env` files. Both files are optional; missing ones are silently skipped.
+
+Create `./.env` in the project root:
 
 ```env
 SLACK_BOT_TOKEN=xoxb-your-bot-token
@@ -103,7 +110,7 @@ Invite the bot to a channel (`/invite @ClaudeCodeApp`), then @mention it or send
 
 ## MCP Server Mode
 
-Create `.mcp.json` in your project root:
+Create `.claude/mcp.json` in your project root (reuses the `.claude` system — no need for a separate root `mcp.json`):
 
 **Standalone (no gateway)**:
 
@@ -153,6 +160,10 @@ Control sessions directly from Slack:
 ---
 
 ## Environment Variables
+
+> **Where to put them:** Gateway-specific variables go in `.env` (loaded from `~/.gateway/.env` and `./.env`).
+> Only `SLACK_BOT_TOKEN` and `SLACK_APP_TOKEN` may also appear in `.claude/mcp.json`'s `env` block (for the MCP server).
+> Shell environment variables always take precedence.
 
 | Variable | Default | Description |
 |----------|---------|-------------|

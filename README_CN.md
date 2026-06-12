@@ -36,7 +36,14 @@
 
 ### 3. 配置 .env
 
-在项目根目录创建 `.env`（已 gitignore）：
+`.env` 从两个位置加载（后者覆盖前者）：
+
+1. `~/.gateway/.env` — 全局默认配置（所有项目共用）
+2. `./.env` — 项目级覆盖（已 gitignore）
+
+Shell 环境变量优先级最高，不会被 `.env` 文件覆盖。两个文件都是可选的，不存在也不会报错。
+
+在项目根目录创建 `./.env`：
 
 ```env
 SLACK_BOT_TOKEN=xoxb-你的-bot-token
@@ -97,13 +104,13 @@ slack-gateway list     # 列出 channel→session 映射
 
 > **不能同时建两个 Socket Mode 连接。** Slack 把事件负载均衡到同一 app 的所有连接，两个连接 = 事件分流丢失。
 > 
-> 如果需要 Gateway 收事件 + Claude Code 终端也能发消息，在 `.mcp.json` 里给 MCP server 加 `"MCP_SENDER_ONLY": "1"`，它就只用 Web API，不建 WebSocket 连接。
+> 如果需要 Gateway 收事件 + Claude Code 终端也能发消息，在 `.claude/mcp.json` 里给 MCP server 加 `"MCP_SENDER_ONLY": "1"`，它就只用 Web API，不建 WebSocket 连接。
 
 ---
 
 ## MCP Server 模式
 
-在项目根创建 `.mcp.json`：
+在项目根创建 `.claude/mcp.json`（复用 `.claude` 体系，无需在根目录额外建 `mcp.json`）：
 
 **单独使用（不跑 gateway）**：
 
@@ -153,6 +160,10 @@ slack-gateway list     # 列出 channel→session 映射
 ---
 
 ## 环境变量
+
+> **放哪里：** Gateway 专有参数放 `.env`（从 `~/.gateway/.env` 和 `./.env` 加载）。
+> 只有 `SLACK_BOT_TOKEN` 和 `SLACK_APP_TOKEN` 可能也出现在 `.claude/mcp.json` 的 `env` 块中（给 MCP server 用）。
+> Shell 环境变量始终优先。
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|

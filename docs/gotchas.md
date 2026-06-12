@@ -61,8 +61,8 @@
 
 ### 10. MCP config 位置错误
 **现象**：Claude Code `/mcp` 显示 "No MCP servers configured"，明明配置了。  
-**原因**：Claude Code 读项目级 MCP 配置的文件是项目根的 `.mcp.json`，不是 `.claude/mcp.json`。  
-**修复**：把配置文件放到项目根，或用 `mv .claude/mcp.json .mcp.json`。
+**原因**：MCP 配置放在项目根单独文件而非 `.claude/mcp.json`，或者 JSON 格式有语法错误。  
+**修复**：MCP 配置统一放 `.claude/mcp.json`（项目目录和用户目录 `~/.claude/mcp.json` 都可），Claude Code 会自动合并。不要创建根部独立的 `mcp.json`。
 
 ### 11. MCP server 的 cwd 问题
 **现象**：`dotenv` 没有加载 `.env`，token 读不到。  
@@ -71,8 +71,8 @@
 
 ### 12. 子进程 claude 开了第二个 Socket Mode 连接
 **现象**：gateway 偶发漏事件，`num_connections` 变成 2。  
-**原因**：gateway spawn 的 `claude -p` 加载了项目 `.mcp.json`，其中的 `slack-socket-mcp` 又建了一个 Socket Mode 连接。  
-**修复**：`--strict-mcp-config` + 只传 sender-only MCP config（`MCP_SENDER_ONLY=1`），阻止加载项目 `.mcp.json`。
+**原因**：gateway spawn 的 `claude -p` 加载了项目 `.claude/mcp.json`，其中的 `slack-socket-mcp` 又建了一个 Socket Mode 连接。  
+**修复**：`--strict-mcp-config` + 只传 sender-only MCP config（`MCP_SENDER_ONLY=1`），阻止加载项目 `.claude/mcp.json`。
 
 ---
 
