@@ -92,7 +92,7 @@ ccpocket 的核心 UX 是"移动端审批"：
 
 **slack4ccmcp 可以这样做**：Gateway 拦截 `claude -p` 的审批 stream event → 通过 Slack interactive message（按钮）推送给用户 → 用户点击 Approve/Deny → Gateway 把结果喂回 agent。
 
-**落地前提**：一次性 `claude -p` 进程很难完整支持控制回写。真正形态应落到 Session Host / RuntimeControlCommand，而不是把 approve/deny 包成普通用户 prompt。
+**落地前提**：一次性 `claude -p` 很难支持控制回写。**发现** `claude -p --input-format stream-json --output-format stream-json --replay-user-messages` 支持双向 JSON 管道——stdin 保持打开，可回写 approve/deny。不需要 Claude SDK。此为 v3 M2 核心方案（见 [v3-story-8](../planning/v3-story-8-claude-stream-json.md)、[#34](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/34)）。
 
 ### 4. 离线韧性 (Offline Resilience) :med:
 

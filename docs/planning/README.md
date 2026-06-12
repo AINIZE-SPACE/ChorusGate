@@ -17,6 +17,8 @@
 | [v3-story-5-session-model.md](./v3-story-5-session-model.md) | 统一 Session 模型（CC + Codex）| P0 |
 | [v3-story-6-config-system.md](./v3-story-6-config-system.md) | 多 Agent/多 App 配置系统 | P0 |
 | [v3-story-7-codex-slack-tools.md](./v3-story-7-codex-slack-tools.md) | Codex Slack MCP Tools | P1 |
+| [v3-story-8-claude-stream-json.md](./v3-story-8-claude-stream-json.md) | :zap: Claude 双向 stream-json 控制面 — approve/deny 交互 | P0 |
+| [v3-review-response.md](./v3-review-response.md) | v3 设计评审回复 + 里程碑重排 | — |
 
 ### v2 及通用规划
 

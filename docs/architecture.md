@@ -160,7 +160,7 @@ spawned `claude -p` 得到一个只含 Slack Web API 工具的 MCP config（`MCP
 
 ## 已知局限（后续再做）
 
-1. **无 session-host**：`claude -p` 是一次性进程，不支持透传 `/approve` 等操作命令。需维护常驻 claude 进程 + console stream 接管（大工程，单独立项）。
+1. **approve/deny 交互**：v3 M2 用 `claude -p --input-format stream-json --output-format stream-json` 双向 JSON 管道实现（见 [v3-story-8](planning/v3-story-8-claude-stream-json.md)）。旧 `claude -p` 单向模式已确认限制，双向模式无需 Claude SDK。
 2. **无重试/状态机**：消息只跑一次，失败就报错。完整 `pending→processing→replied/failed→retry` 状态机用 md 做，待做。
 3. **slash command 在 App Home Messages tab**：需在 Slack App 管理页面 App Home 里勾选 "Allow users to send Slash commands and messages from the messages tab"，manifest 里 `messages_tab_enabled: true` + `messages_tab_read_only_enabled: false`。Socket Mode 本身支持 slash command 投递，不需要公网 HTTP endpoint；该设置不开则 Slackbot 报"消息列不支持此命令"。
 4. **无 worktree 隔离**：当前只用 session scope 和 cwd 控制上下文；同一 repo 的并行长任务仍可能改同一工作树，需后续 session 级 git worktree。

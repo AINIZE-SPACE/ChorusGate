@@ -85,13 +85,17 @@
 
 ## 中期
 
-### 3. Session Host（真透明转发）
+### 3. Claude stream-json 双向控制面（v3 M2，日程提前）
 
-**问题**：`claude -p` 是一次性进程，无法透传 `/approve`、`/edit` 等交互命令。
+**发现**：`claude -p --input-format stream-json --output-format stream-json --replay-user-messages` 支持双向 JSON 管道——stdin 保持打开可回写 approve/deny 响应。**不需要 Claude SDK npm 包。**
 
-**方案**：常驻 claude 进程 + stdin/stdout stream 接管，gateway 作为 Slack ↔ session host 的双向桥接器。
+**方案**：`ClaudeStreamProvider` 替代单向 `ClaudeProvider`：
+- stdin 发送 JSON 消息（user prompt、approve/deny）
+- stdout 解析 JSON 事件（permission_request、stream_event、result）
+- permission_request → Slack interactive 按钮 → 用户点击 → stdin 回写
+- 见 [v3-story-8](planning/v3-story-8-claude-stream-json.md)、[#34](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/34)
 
-**影响**：支持全部操作命令，响应更快（无进程启动开销），但复杂度大幅上升，单独立项。
+**影响**：支持 approve/deny 交互、多轮对话、无需 Session Host 大工程、复用现有 `claude -p` CLI。
 
 ### 3.1 Slack 审批循环（参考 CC Pocket）
 

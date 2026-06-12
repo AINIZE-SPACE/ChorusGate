@@ -73,8 +73,19 @@
 ## 里程碑调整
 
 ```
-M0 (新增) → M1 (重构后) → M2 → M3
-  ↓            ↓
-JSONL 固化   先拆单例 + session key 重构
-              再做双 Agent provider
+M0 → M1 ✅ → M2 🔥 → M3 → M4
+ ↓      ↓        ↓
+JSONL   Provider  Claude stream-json
+固化    抽象层    双向管道 + approve/deny
+        Codex     (从 M4 提前)
+        Session
+```
+
+### 第二次调整 (2026-06-12)：M2 提到 Claude stream-json
+
+发现 `claude -p --input-format stream-json --output-format stream-json --replay-user-messages` 支持双向 JSON 管道，不需要 Claude SDK。原 M4 审批控制面提前到 M2：
+- M2: Claude stream-json 双向控制面 (#34)
+- M3: 多 Slack App (#24, #27)
+- M4: 多项目 + Slack 工具 (#25, #28)
+- M5: 远期（状态机、git worktree）
 ```
