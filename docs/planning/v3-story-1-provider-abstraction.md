@@ -44,7 +44,7 @@ interface CreateSessionOptions {
   mcpConfigPath: string;
   permissionMode: string; // "bypassPermissions" | "acceptEdits" | "default"
   onProgress?: (label: string) => void;
-  onSessionId?: (sessionId: string) => void; // Codex: thread.id 从输出解析后回调
+  onSessionId?: (sessionId: string) => void; // Codex: thread_id (UUID) 从输出解析后回调
 }
 
 interface ResumeSessionOptions extends CreateSessionOptions {
@@ -53,7 +53,7 @@ interface ResumeSessionOptions extends CreateSessionOptions {
 
 interface SessionOutput {
   text: string;
-  sessionId: string; // CC: 预生成的 UUID; Codex: 解析的 thread.id
+  sessionId: string; // CC: 预生成 UUID; Codex: 解析的 thread_id（UUID 格式，M0 已实测）
   ok: boolean;
   error?: string;
 }
@@ -63,12 +63,12 @@ interface SessionOutput {
 
 | 维度 | Claude | Codex |
 |------|--------|-------|
-| 首次执行 | `claude -p --session-id <uuid>` | `codex exec <prompt> --json --full-auto` |
-| | UUID 预生成 → spawn | spawn → 解析 JSONL 拿到 thread.id |
-| 续接执行 | `claude -p --resume <uuid>` | `codex exec resume <tid> --json --full-auto` |
+| 首次执行 | `claude -p --session-id <uuid>` | `codex exec <prompt> --json` |
+| | UUID 预生成 → spawn | spawn → 解析 JSONL 拿到 `thread_id`（UUID 格式） |
+| 续接执行 | `claude -p --resume <uuid>` | `codex exec resume <tid> <prompt> --json` |
 | MCP 配置格式 | `.mcp.json` (JSON) | `config.toml` (TOML) 或 `--mcp-config` |
-| 事件解析 | Claude stream-json (NDJSON, `type: "assistant"`) | OpenAI Realtime 风格 JSONL (`type: "turn.completed"`) |
-| 权限标志 | `--permission-mode bypassPermissions` | `--full-auto` |
+| 事件解析 | Claude stream-json (NDJSON, `type: "assistant"`) | Codex JSONL（M0 已实测：`thread.started`→`turn.started`→`item.completed`→`turn.completed`） |
+| 权限标志 | `--permission-mode bypassPermissions` | Phase 1 不传 Codex 审批 flag；M0 实测 `codex exec` 不支持 `--ask-for-approval` |
 
 ### 解析器抽象
 
@@ -82,7 +82,7 @@ interface EventParser {
 ```
 
 - `ClaudeEventParser`：现有 `toolLabel()` 逻辑迁移
-- `CodexEventParser`：解析 `turn.completed` / `item.completed` 获取文本
+- `CodexEventParser`：解析 `thread.started.thread_id` 和 `item.completed.item.type="agent_message"` / `item.text`
 
 ### 文件变更
 
@@ -97,6 +97,6 @@ interface EventParser {
 ## 验收标准
 
 - [ ] `ClaudeProvider` 能从任意 cwd spawn `claude -p`，和现有行为一致
-- [ ] `CodexProvider` 能 spawn `codex exec`，正确解析 `thread.id` 和最终文本
+- [ ] `CodexProvider` 能 spawn `codex exec --json`，正确解析 `thread_id`（UUID）和最终文本
 - [ ] `reply-engine.ts` 通过 `AgentProvider` 接口调用，不依赖具体实现
 - [ ] 现有 gateway 行为完全不变（向后兼容）

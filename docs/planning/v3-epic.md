@@ -25,8 +25,8 @@
 ## 里程碑
 
 ### M0：验证 Spike（评审新增）
-- 真实运行 `codex exec <prompt> --json --ask-for-approval never`
-- 固化 JSONL fixture（确认 `thread_id` 字段格式）
+- 真实运行 `codex exec <prompt> --json`
+- 固化 JSONL fixture（确认 `thread_id` 顶层 UUID 字段格式）
 - 固化 resume fixture：`codex exec resume <tid> <prompt> --json`
 - 固化 MCP tool-call fixture（含 tool_use 事件格式）
 - 产物：`tests/fixtures/codex-*.jsonl`
@@ -57,4 +57,4 @@
 1. **一个 gateway 进程 vs 多进程**：统一进程多 provider（推荐，共享 Socket Mode 管理）
 2. **Slack app → provider 映射**：1:1（一个 app 对应一个 agent），按 token 后缀区分
 3. **多项目范围**：会话级（每个 session 可绑定不同 cwd），不引入 workspace 概念
-4. **Codex session ID**：首次 `codex exec` 从 JSONL 解析 `thread.id`，回写 sessionStore
+4. **Codex session ID**：首次 `codex exec` 从 JSONL 解析 `thread_id`（UUID 格式，已 M0 实测确认），回写 sessionStore

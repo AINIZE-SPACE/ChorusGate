@@ -8,7 +8,7 @@ CC 和 Codex 的 session 模型有本质差异：
 
 | 维度 | Claude Code | Codex |
 |------|------------|-------|
-| Session ID 来源 | gateway 预生成 UUID | Codex 返回 `thread.id` |
+| Session ID 来源 | gateway 预生成 UUID | Codex 返回 `thread_id`（UUID 格式，M0 已实测） |
 | ID 格式 | `xxxxxxxx-xxxx-...` | `thread_xxxxxxxx` |
 | 创建时机 | spawn 前已知 | spawn 后从输出解析 |
 | 存储 | `~/.claude/projects/<hash>/` | `~/.codex/sessions/` |
@@ -38,17 +38,18 @@ spawn claude -p --session-id <UUID> → 回复
 sessionStore.markStarted(key)
 ```
 
-**Codex**（新）：
+**Codex**（新，M0 已实测）：
 ```
 sessionStore.getOrCreate(key) → placeholder (started=false)
-spawn codex exec <prompt> --json --full-auto
-→ 解析 thread.started → sessionStore.setSession(key, thread.id)
-→ 解析 turn.completed → 回复文本
+spawn codex exec <prompt> --json --dangerously-bypass-approvals-and-sandbox
+→ 解析 thread.started → sessionStore.setSession(key, thread_id)  // UUID 格式
+→ 解析 item.completed (type="agent_message") → 累积文本
+→ 解析 turn.completed → 回复文本（最终事件，无 done 事件）
 ```
 
 ### Codex 首次 launch 失败处理
 
-如果 `codex exec` 执行失败（没返回 thread.id），session 保持 `started=false`，下次重试（不 resume，重新 exec）。
+如果 `codex exec` 执行失败（没返回 `thread_id`），session 保持 `started=false`，下次重试（不 resume，重新 exec）。
 
 ### `/cc_sessions` 列表增强
 
@@ -80,7 +81,7 @@ SessionStore 里记录了 provider，reply-engine 自动选对应 provider 的 `
 
 ## 验收标准
 
-- [ ] Codex session 首次创建正确解析 thread.id
+- [ ] Codex session 首次创建正确解析 `thread_id`（UUID 格式）
 - [ ] sessionStore 支持 provider + projectDir 字段
 - [ ] `/cc_sessions` 显示 provider 和项目目录
 - [ ] `/cc_resume` 跨 provider 切换正常工作

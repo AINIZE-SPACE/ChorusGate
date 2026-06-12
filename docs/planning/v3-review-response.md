@@ -12,8 +12,8 @@
 
 | 项 | 旧 | 新 |
 |----|-----|-----|
-| Session ID 字段 | `thread.id` | `thread_id`（canonical）+ `thread.id`（兼容） |
-| 权限标志 | `--full-auto`（deprecated）| `--ask-for-approval never` |
+| Session ID 字段 | `thread.id` | `thread_id`（UUID 格式，M0 实测） + `thread.id`（兼容） |
+| 权限标志 | `--full-auto`（deprecated）| `--dangerously-bypass-approvals-and-sandbox`（M0 实测可用） |
 | 文档 | v3-story-2-codex-provider.md | 已修复 |
 | 跟踪 | [#23](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/23) | 已加评论 |
 | 决策单 | — | [#29](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/29) |
