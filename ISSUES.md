@@ -57,3 +57,27 @@ unresolved code-review bugs:
 - #8 multi-agent runtime adapters
 - #9 install/uninstall/doctor lifecycle commands
 - #10 open-source readiness and competitive positioning
+
+---
+
+## v3 EPIC: Multi-Agent Multi-Project Gateway
+
+> 规划文档：[docs/planning/v3-epic.md](./docs/planning/v3-epic.md)
+
+| Issue | Story | Priority | Status |
+|-------|-------|----------|--------|
+| #22 | Provider 抽象层 — AgentProvider 接口 + Parser 抽象 | P0 | 📋 planned |
+| #23 | Codex Provider — `codex exec` spawn + JSONL 解析 | P0 | 📋 planned |
+| #24 | 多 Slack App Socket Mode — 多 SocketModeClient 实例 | P0 | 📋 planned |
+| #25 | 会话级多项目 — sessionStore.projectDir | P1 | 📋 planned |
+| #26 | 统一 Session 模型 — CC UUID + Codex thread.id | P0 | 📋 planned |
+| #27 | 多 Agent/App 配置系统 — GATEWAY_PROFILES | P0 | 📋 planned |
+| #28 | Codex Slack MCP Tools — TOML 配置生成 | P1 | 📋 planned |
+
+### v3 里程碑
+
+- **M1: 双 Agent 核心** (#22, #23, #26) — Provider 抽象 + Codex spawn + 统一 session
+- **M2: 多 Slack App** (#24, #27) — 多 profile + 多 Socket Mode 连接 + 配置系统
+- **M3: 多项目 + Slack 工具** (#25, #28) — 会话级 cwd + Codex Slack MCP
+
+详见 [docs/planning/v3-epic.md](./docs/planning/v3-epic.md)
