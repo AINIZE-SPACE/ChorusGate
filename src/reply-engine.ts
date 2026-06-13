@@ -91,31 +91,31 @@ export async function generateReplyStream(
   const timeoutMs = opts.timeoutMs ?? 180_000;
   const cwd = opts.cwd ?? process.cwd();
 
+  let session: Awaited<ReturnType<typeof createStreamSession>> | null = null;
   try {
-    const session = createStreamSession(prompt, {
+    session = createStreamSession(prompt, {
       cwd,
       timeoutMs,
       mcpConfigPath: "",
       permissionMode: PERMISSION_MODE,
       sessionId: opts.sessionId,
       onProgress: opts.onProgress,
+      // P1-4 fix: 构造时绑定，消除 spawn 后绑定竞态
+      onPermissionRequest: opts.onPermission
+        ? async (req) => {
+            try {
+              const granted = await opts.onPermission!(req);
+              session!.sendPermissionResponse(req.requestId, granted);
+            } catch (err) {
+              console.error(
+                "[reply-engine] permission callback error, denying:",
+                (err as Error).message,
+              );
+              session!.sendPermissionResponse(req.requestId, false);
+            }
+          }
+        : undefined,
     });
-
-    // 绑定审批回调（如果有的话）
-    if (opts.onPermission) {
-      session.parser.onPermissionRequest = async (req) => {
-        try {
-          const granted = await opts.onPermission!(req);
-          session.sendPermissionResponse(req.requestId, granted);
-        } catch (err) {
-          console.error(
-            "[reply-engine] permission callback error, denying:",
-            (err as Error).message,
-          );
-          session.sendPermissionResponse(req.requestId, false);
-        }
-      };
-    }
 
     const result = await session.result;
     return { ok: result.ok, text: result.text, error: result.error };
@@ -125,5 +125,8 @@ export async function generateReplyStream(
       text: "",
       error: `stream provider error: ${(err as Error).message}`,
     };
+  } finally {
+    // P1-5 fix: 确保 stdin 关闭，避免子进程延迟退出
+    session?.close();
   }
 }

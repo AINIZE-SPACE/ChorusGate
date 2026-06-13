@@ -11,6 +11,45 @@
 // 跟踪: [#34](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/34)
 // ============================================================
 
+/** Slack Block Kit 类型（本模块所需子集） */
+interface SlackText {
+  type: "plain_text" | "mrkdwn";
+  text: string;
+  emoji?: boolean;
+}
+
+interface SlackButtonElement {
+  type: "button";
+  text: SlackText;
+  style?: "primary" | "danger";
+  action_id: string;
+  value: string;
+}
+
+interface SlackContextElement {
+  type: "mrkdwn";
+  text: string;
+}
+
+type SlackElement = SlackButtonElement | SlackContextElement;
+
+interface SlackBlock {
+  type: "section" | "actions" | "context";
+  block_id?: string;
+  text?: SlackText;
+  fields?: SlackText[];
+  elements?: SlackElement[];
+}
+
+/** handleAction 返回值 */
+export interface HandleActionResult {
+  handled: boolean;
+  /** 发起审批的用户 ID（从 button value 解析） */
+  requesterUserId?: string;
+  /** 审批结果 */
+  granted?: boolean;
+}
+
 /** 单个待审批项 */
 interface PendingPermission {
   requestId: string;
@@ -18,6 +57,8 @@ interface PendingPermission {
   toolInput: Record<string, unknown>;
   channel: string;
   threadTs: string;
+  /** 发起审批的 Slack 用户 ID */
+  requesterUserId: string;
   /** 用户响应后 resolve */
   resolve: (granted: boolean) => void;
   /** 超时自动拒绝 */
@@ -53,6 +94,8 @@ export class PermissionTracker {
       toolInput: Record<string, unknown>;
       channel: string;
       threadTs: string;
+      /** 发起审批的 Slack 用户 ID（用于鉴权） */
+      requesterUserId: string;
     },
   ): Promise<boolean> {
     // 清理已存在（理论上不会）
@@ -72,6 +115,7 @@ export class PermissionTracker {
         toolInput: details.toolInput,
         channel: details.channel,
         threadTs: details.threadTs,
+        requesterUserId: details.requesterUserId,
         resolve,
         timer,
       });
@@ -79,21 +123,31 @@ export class PermissionTracker {
   }
 
   /** 处理 Slack block_actions 回调 — 解析 action_value 并 resolve */
-  handleAction(actionValue: string): boolean {
-    // action_value 格式: "${action}:${requestId}"
-    // 例如: "approve:req_abc123" 或 "deny:req_abc123"
-    const idx = actionValue.indexOf(":");
-    if (idx === -1) return false;
+  handleAction(actionValue: string): HandleActionResult {
+    // action_value 格式: "${action}:${requestId}:${requesterUserId}"
+    // userId 固定为最后一段 (Slack ID 不含 ":")，requestId 可为中间多段（含 ":" 时）
+    // 例如: "approve:req_abc123:U0B8VHLHJAX"
+    // 或:   "approve:claude:req:a/b:U0B8VHLHJAX"
+    const lastColon = actionValue.lastIndexOf(":");
+    if (lastColon === -1) return { handled: false };
+    const requesterUserId = actionValue.slice(lastColon + 1);
 
-    const action = actionValue.slice(0, idx);
-    const requestId = actionValue.slice(idx + 1);
+    const firstColon = actionValue.indexOf(":");
+    if (firstColon === lastColon) return { handled: false };
+    const action = actionValue.slice(0, firstColon);
+    const requestId = actionValue.slice(firstColon + 1, lastColon);
+
+    const pending = this.pending.get(requestId);
+    if (!pending) return { handled: false };
 
     if (action === "approve") {
-      return this.approve(requestId);
+      const handled = this.approve(requestId);
+      return { handled, requesterUserId: pending.requesterUserId, granted: true };
     } else if (action === "deny") {
-      return this.deny(requestId);
+      const handled = this.deny(requestId);
+      return { handled, requesterUserId: pending.requesterUserId, granted: false };
     }
-    return false;
+    return { handled: false };
   }
 
   /** 批准指定请求 */
@@ -142,14 +196,19 @@ export class PermissionTracker {
 /**
  * 构建审批 Slack 消息的 blocks（interactive message）。
  * 使用 Slack Block Kit 格式。
+ *
+ * @param timeoutMs 审批超时毫秒数，用于生成动态超时文案
+ * @param requesterUserId 发起审批的 Slack 用户 ID，编码到按钮 value 中用于鉴权
  */
 export function buildApprovalBlocks(
   toolName: string,
   toolInput: Record<string, unknown>,
   requestId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): any[] {
+  requesterUserId: string,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+): SlackBlock[] {
   const inputSummary = JSON.stringify(toolInput, null, 2).slice(0, 500);
+  const timeoutMinutes = Math.round(timeoutMs / 60000);
 
   return [
     {
@@ -182,14 +241,14 @@ export function buildApprovalBlocks(
           text: { type: "plain_text", text: "✅ Approve", emoji: true },
           style: "primary",
           action_id: "permission_approve",
-          value: `approve:${requestId}`,
+          value: `approve:${requestId}:${requesterUserId}`,
         },
         {
           type: "button",
           text: { type: "plain_text", text: "❌ Deny", emoji: true },
           style: "danger",
           action_id: "permission_deny",
-          value: `deny:${requestId}`,
+          value: `deny:${requestId}:${requesterUserId}`,
         },
       ],
     },
@@ -198,7 +257,7 @@ export function buildApprovalBlocks(
       elements: [
         {
           type: "mrkdwn",
-          text: `:hourglass_flowing_sand: 2 分钟内未响应将自动拒绝`,
+          text: `:hourglass_flowing_sand: ${timeoutMinutes} 分钟内未响应将自动拒绝`,
         },
       ],
     },

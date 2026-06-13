@@ -4,6 +4,17 @@
 // 使用 `claude -p --input-format stream-json --output-format stream-json`
 // stdin 发送 JSON 消息（保持打开），stdout 解析 JSON 事件。
 //
+// 本模块导出两个 API：
+//   1. claudeStreamProvider  — AgentProvider 接口实现（ONE-SHOT）：
+//      createSession() / resumeSession() 是一次性的（spawn → stdin→end → 等结果）。
+//      用于 GATEWAY_CLAUDE_MODE=stream + INTERACTIVE_PERMISSIONS=false 的简单模式。
+//      与 legacy ClaudeProvider 语义一致：不保持 stdin 打开、不支持审批交互。
+//
+//   2. createStreamSession() — 双向会话（BIDIRECTIONAL）：
+//      stdin 保持打开直到 close()，支持实时 sendPermissionResponse() 回写
+//      approve/deny 响应。用于 GATEWAY_CLAUDE_MODE=stream + INTERACTIVE_PERMISSIONS=true
+//      的完整审批流程。不要用 claudeStreamProvider 替代这个！！！
+//
 // 与单向 ClaudeProvider 的关键差异：
 //   - stdin 不关闭（可回写 approve/deny）
 //   - 解析 system.init 获取 session_id
@@ -184,6 +195,8 @@ export const claudeStreamProvider: AgentProvider = {
     prompt: string,
     opts: CreateSessionOptions,
   ): Promise<SessionOutput> {
+    // createSession is ALWAYS for new sessions (routed by generateReply).
+    // Even if opts.sessionId is truthy (from sessionStore), use --session-id.
     const sessionId = opts.sessionId || crypto.randomUUID();
     const args = [
       "-p",
@@ -300,11 +313,20 @@ export interface ClaudeStreamSession {
  *   - 不等待最终结果即返回
  *   - stdin 保持打开直到 close() 调用
  *   - 可通过 sendPermissionResponse() 实时审批
+ *   - onPermissionRequest 构造时绑定，避免 spawn 后竞态
+ *
+ * @param opts.onPermissionRequest 审批回调 — 必须在 spawn 前绑定，
+ *   防止首条 permission_request 在回调注册前到达而丢失。
  */
 export function createStreamSession(
   prompt: string,
-  opts: CreateSessionOptions,
+  opts: CreateSessionOptions & {
+    /** 审批回调 (构造时绑定以避免竞态) */
+    onPermissionRequest?: (req: import("./claude-stream-parser.js").PermissionRequest) => void;
+  },
 ): ClaudeStreamSession {
+  // 区分新 session (--session-id) vs 续接已有 session (--resume)
+  const isResume = !!opts.sessionId;
   const sessionId = opts.sessionId || crypto.randomUUID();
   const args = [
     "-p",
@@ -315,12 +337,16 @@ export function createStreamSession(
     "--permission-mode", PERMISSION_MODE,
     "--strict-mcp-config",
     "--mcp-config", getSenderMCPConfig(),
-    "--session-id", sessionId,
+    isResume ? "--resume" : "--session-id", sessionId,
   ];
 
   const parser = new ClaudeStreamParser();
   parser.onProgress = opts.onProgress;
   parser.onSessionId = opts.onSessionId;
+  // P1-4 fix: 在 spawn 前绑定审批回调，消除竞态
+  if (opts.onPermissionRequest) {
+    parser.onPermissionRequest = opts.onPermissionRequest;
+  }
 
   const sr = spawnStream(args, opts.cwd, parser);
 

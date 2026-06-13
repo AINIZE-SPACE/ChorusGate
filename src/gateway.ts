@@ -453,6 +453,8 @@ async function processEvent(
               req.toolName,
               req.toolInput,
               req.requestId,
+              event.user,             // P0-3: requesterUserId for auth
+              REPLY_TIMEOUT_MS_LONG,  // P1-2: dynamic timeout text
             );
             try {
               await web.chat.postMessage({
@@ -476,6 +478,7 @@ async function processEvent(
                 toolInput: req.toolInput,
                 channel: event.channel,
                 threadTs: replyThreadTs,
+                requesterUserId: event.user,  // P0-3: store for auth check
               },
             );
             console.error(
@@ -607,8 +610,41 @@ async function main(): Promise<void> {
     // onEvent enqueues onto the thread's serial chain (non-blocking).
     onEvent(event);
   }, onSlash, INTERACTIVE_PERMISSIONS ? async (action) => {
-    // Handle block_actions (Approve/Deny buttons)
-    permissionTracker.handleAction(action.actionValue);
+    // P0-3: 校验按钮点击者是否为审批发起者
+    const result = permissionTracker.handleAction(action.actionValue);
+    if (!result.handled) return;
+
+    if (action.userId !== result.requesterUserId) {
+      console.error(
+        `[gateway] permission block_action from non-requester: ` +
+        `${action.userId} (expected ${result.requesterUserId}), ignoring`,
+      );
+      return;
+    }
+
+    // P0-2: 替换审批按钮为"Approved/Denied by @user"，防止幽灵按钮
+    const statusText = result.granted
+      ? `✅ *Approved* by <@${action.userId}>`
+      : `❌ *Denied* by <@${action.userId}>`;
+    try {
+      const webClient = getWebClient();
+      await webClient.chat.update({
+        channel: action.channelId,
+        ts: action.messageTs,
+        blocks: [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: statusText },
+          },
+        ],
+        text: statusText,
+      });
+    } catch (err) {
+      console.error(
+        "[gateway] failed to update approval message:",
+        (err as Error).message,
+      );
+    }
   } : undefined);
   console.error(
     "[gateway] listening — will auto-reply to @mentions and DMs. " +
