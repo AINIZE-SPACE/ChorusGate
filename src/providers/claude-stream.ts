@@ -40,8 +40,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..", "..");
 
 const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
-const PERMISSION_MODE =
-  process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions";
 
 // ---- MCP config (same as claude.ts) ------------------------------------------
 
@@ -204,7 +202,7 @@ export const claudeStreamProvider: AgentProvider = {
       "--output-format", "stream-json",
       "--verbose",
       "--replay-user-messages",
-      "--permission-mode", PERMISSION_MODE,
+      "--permission-mode", process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
       "--strict-mcp-config",
       "--mcp-config", getSenderMCPConfig(),
       "--session-id", sessionId,
@@ -247,7 +245,7 @@ export const claudeStreamProvider: AgentProvider = {
       "--output-format", "stream-json",
       "--verbose",
       "--replay-user-messages",
-      "--permission-mode", PERMISSION_MODE,
+      "--permission-mode", process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
       "--strict-mcp-config",
       "--mcp-config", getSenderMCPConfig(),
       "--resume", sessionId,
@@ -334,7 +332,7 @@ export function createStreamSession(
     "--output-format", "stream-json",
     "--verbose",
     "--replay-user-messages",
-    "--permission-mode", PERMISSION_MODE,
+    "--permission-mode", process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
     "--strict-mcp-config",
     "--mcp-config", getSenderMCPConfig(),
     isResume ? "--resume" : "--session-id", sessionId,

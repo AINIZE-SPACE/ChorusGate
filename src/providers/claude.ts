@@ -21,9 +21,6 @@ import type {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..", "..");
 
-const PERMISSION_MODE =
-  process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions";
-
 // ---- MCP config (lazy, per-provider) -----------------------------------------
 
 function ensureSenderMCPConfig(): string {
@@ -182,7 +179,7 @@ export const claudeProvider: AgentProvider = {
       "stream-json",
       "--verbose",
       "--permission-mode",
-      PERMISSION_MODE,
+      process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
       "--strict-mcp-config",
       "--mcp-config",
       getSenderMCPConfig(),
@@ -214,7 +211,7 @@ export const claudeProvider: AgentProvider = {
       "stream-json",
       "--verbose",
       "--permission-mode",
-      PERMISSION_MODE,
+      process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
       "--strict-mcp-config",
       "--mcp-config",
       getSenderMCPConfig(),
