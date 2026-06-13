@@ -26,19 +26,17 @@ Refs: #issue1, #issue2"
 
 ### 2. 通知评审/测试
 
-通过 Slack DM 或 Channel 通知。通知模板:
+**必须发到项目共享频道**（非 DM），让下游同事都能看到。
+
+通知模板:
 
 ```
 *{项目} {版本/Epic} — {完成的 Story 列表}*
+<@REVIEWER_ID> 请测试验证。
 
-<@REVIEWER_ID> 以下 Story 已实现完毕，请测试验证：
-
-*{Story 1}*
-• 要点 1
-• 要点 2
-
-*{Story 2}*
-• 要点 1
+*已完成 Stories*
+• *STORY-N* — 标题 (要点)
+...
 
 *测试状态*
 • N/N 测试通过 | TypeScript 零错误
@@ -47,44 +45,15 @@ Refs: #issue1, #issue2"
 *测试要点*
 1. ...
 2. ...
-```
 
-### 3. 更新需求状态
-
-```bash
-gh issue comment {N} --body "**Status: in_review** — implementation complete.
-
-### 实现摘要
-- ...
-"
-```
-
-- 每个完成的 Story/Bug 都要在对应 Issue 里更新进展
-- 状态流转: `in_progress` → `in_review`
-- 如果 Issue 不存在，先创建
-
-### 4. 记录 Memory
-
-在项目 memory 目录记录关键决策:
-
-```markdown
----
-name: {kebab-case-slug}
-description: {一句话}
-metadata:
-  type: project
-  project: ChorusGate
-  issue: {url}
----
-
-{详细决策/产物/教训}
+Issues: #N, #N
 ```
 
 ## 通知目标
 
-| 项目 | 评审人 | Slack ID |
-|------|--------|----------|
-| ChorusGate | 小马 (delez) | U0AHDRREVPD |
+| 项目 | 频道 | 评审人 |
+|------|------|--------|
+| ChorusGate | #所有-ainize (C0AHL7U33EE) | 小马 U0AHDRREVPD |
 
 ## Quality Bar
 
