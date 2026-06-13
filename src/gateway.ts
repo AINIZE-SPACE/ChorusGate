@@ -357,7 +357,11 @@ async function processEvent(
   // longer tasks — the user has already context-built). Fresh sessions get
   // the normal timeout. Both are configurable via env vars.
   const isResume = sessionStore.getOrCreate(tKey).started;
-  const timeoutMs = isResume ? REPLY_TIMEOUT_MS_LONG : REPLY_TIMEOUT_MS;
+  // 动态读取 process.env 而非模块常量——ESM 导入链中可能有模块
+  // 在 bootstrap()/loadEnv() 之前已读取默认值 180000。
+  const _replyTimeoutMs = Number(process.env.GATEWAY_REPLY_TIMEOUT_MS || 180_000);
+  const _replyTimeoutMsLong = Number(process.env.GATEWAY_REPLY_TIMEOUT_MS_LONG || _replyTimeoutMs * 2);
+  const timeoutMs = isResume ? _replyTimeoutMsLong : _replyTimeoutMs;
 
   // Wait for a global concurrency slot (queues if MAX_CONCURRENT reached).
   await acquireSlot();
