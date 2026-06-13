@@ -1,7 +1,7 @@
 # STORY-2: Codex Provider 实现
 
 > 状态：规划中 | Epic: [v3 EPIC](./v3-epic.md) | 优先级：P0 | 依赖：STORY-1
-> 评审决策：详见 [#23](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/23)、[#29](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/29)
+> 评审决策：详见 [#23](https://github.com/AINIZE-SPACE/chorusgate/issues/23)、[#29](https://github.com/AINIZE-SPACE/chorusgate/issues/29)
 
 ## 问题
 
@@ -109,7 +109,7 @@ Phase 1 Codex 是 gateway-only；Codex Slack MCP tools 不阻塞 provider/sessio
 ```toml
 [mcp_servers.slack]
 command = "node"
-args = ["E:\\path\\to\\slack-socket-mcp.mjs"]
+args = ["E:\\path\\to\\chorusgate-mcp.mjs"]
 default_tools_approval_mode = "approve"
 
 [mcp_servers.slack.env]

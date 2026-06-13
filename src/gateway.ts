@@ -85,7 +85,7 @@ const INTERACTIVE_PERMISSIONS =
   PERMISSION_MODE !== "bypassPermissions";
 
 // M2: Claude 双向 stream-json 控制面
-// 跟踪: [#34](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/34)
+// 跟踪: [#34](https://github.com/AINIZE-SPACE/chorusgate/issues/34)
 const STREAM_MODE = process.env.GATEWAY_CLAUDE_MODE === "stream";
 
 // Rotating heartbeat phrases shown while the agent works with no tool activity.
@@ -203,7 +203,7 @@ async function buildPrompt(
   }
 
   return [
-    `You are ClaudeCodeApp, an AI assistant replying in Slack (${where}).`,
+    `You are ChorusGate, an AI assistant replying in Slack (${where}).`,
     `Current channel ID: ${event.channel}.`,
     `${who} wrote: "${userMsg}"`,
     context,
@@ -257,7 +257,7 @@ const threadChains = new Map<string, Promise<void>>();
 // M2: Permission tracker for interactive approve/deny via Slack buttons
 const permissionTracker = new PermissionTracker();
 
-/** Handle a native Slack slash command (/cc_sessions, /cc_resume, /cc_new, /cc_current, /cchelp). */
+/** Handle a native Slack slash command for session control. */
 function onSlash(slashCmd: SlashCommand): void {
   // Slash commands always use channel scope (no thread_ts).
   const sKey = sessionStore.channelKey(slashCmd.channelId);
@@ -309,7 +309,7 @@ function onEvent(event: StoredEvent): void {
     ?.channel_type as string | undefined;
   const tKey = scopeKey(event.channel, replyThreadTs, channelType);
 
-  // Session commands (/cc_sessions, /cc_resume, /cc_new, /cc_current, /help) bypass the
+  // Session commands bypass the
   // AI reply path — handle them directly, but still on the scope chain so
   // ordering/dedup stay consistent.
   const cmd = detectCommand(cleanText(event.text || ""));

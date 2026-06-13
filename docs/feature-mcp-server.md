@@ -65,8 +65,8 @@ MCP server 是给 Claude Code 终端用的被动工具集。Claude Code 启动�
 ```json
 {
   "mcpServers": {
-    "slack-socket": {
-      "command": "slack-socket-mcp",
+    "chorusgate": {
+      "command": "chorusgate-mcp",
       "args": []
     }
   }
@@ -80,8 +80,8 @@ Gateway 共存时加 `MCP_SENDER_ONLY=1` 环境变量：
 ```json
 {
   "mcpServers": {
-    "slack-socket": {
-      "command": "slack-socket-mcp",
+    "chorusgate": {
+      "command": "chorusgate-mcp",
       "args": [],
       "env": { "MCP_SENDER_ONLY": "1" }
     }

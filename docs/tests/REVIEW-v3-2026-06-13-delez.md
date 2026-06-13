@@ -1,4 +1,4 @@
-# Code Review Report - slack4ccmcp M2 (Claude Stream-JSON)
+# Code Review Report - chorusgate M2 (Claude Stream-JSON)
 
 **Date:** 2026-06-13
 **Branch:** `v3/story-8-claude-stream-json` (vs `main`)

@@ -9,7 +9,7 @@
 //   - user (isReplay)              → stdin 回显消息
 //
 // M2: Claude 双向 stream-json 控制面
-// 跟踪: [#34](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/34)
+// 跟踪: [#34](https://github.com/AINIZE-SPACE/chorusgate/issues/34)
 // ============================================================
 
 import { ClaudeEventParser } from "./claude-parser.js";

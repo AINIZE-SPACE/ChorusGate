@@ -1,7 +1,7 @@
 # STORY-8: Claude 双向 stream-json 控制面（SPEC）
 
 > 状态：🟢 M2 核心已实现 (2026-06-13) | Epic: [v3 EPIC](./v3-epic.md) | M2 | P0
-> 跟踪: [#34](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/34) | [#32](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/32)
+> 跟踪: [#34](https://github.com/AINIZE-SPACE/chorusgate/issues/34) | [#32](https://github.com/AINIZE-SPACE/chorusgate/issues/32)
 > 分支: `feature/034-claude-stream-json`
 
 ## M0 Spike 实测 JSONL 格式（已捕获）

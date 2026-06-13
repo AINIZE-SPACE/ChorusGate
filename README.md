@@ -32,7 +32,7 @@ so agent runtimes can actively read and write channel context when needed.
 
 1. Go to <https://api.slack.com/apps> → **Create New App** → **From a manifest**
 2. Select your workspace
-3. Paste the contents of [`manifest.json`](./manifest.json) from this repo
+3. Paste the contents of [`manifest.json`](./manifest.json) for a Claude Code style app, or [`manifest.cx.json`](./manifest.cx.json) for a Codex style app. These are just starter manifests for different slash-command prefixes.
 4. Click **Create** → **Install to Workspace** → **Allow**
 
 ### 2. Collect Tokens
@@ -65,7 +65,7 @@ npm install
 npm link
 ```
 
-> :warning: **Don't skip `npm link`.** `npm install` alone won't register the `slack-gateway` and `slack-socket-mcp` commands on your PATH. If you get `command not found` later, re-run `npm link`.
+> :warning: **Don't skip `npm link`.** `npm install` alone won't register the `chorusgate` and `chorusgate-mcp` commands on your PATH. If you get `command not found` later, re-run `npm link`.
 
 ### 5. Verify Claude CLI
 
@@ -82,17 +82,17 @@ If it prints "pong", you're good. The gateway spawns `claude -p` and inherits th
 **Foreground** (good for first run / debugging):
 
 ```bash
-npm run gateway        # or: slack-gateway run
+npm run gateway        # or: chorusgate run
 ```
 
 **Background daemon** (recommended for ongoing use):
 
 ```bash
-slack-gateway start    # start in the background
-slack-gateway status   # check status (pid, uptime, active sessions)
-slack-gateway stop     # stop
-slack-gateway restart  # restart
-slack-gateway list     # list channel→session mappings
+chorusgate start    # start in the background
+chorusgate status   # check status (pid, uptime, active sessions)
+chorusgate stop     # stop
+chorusgate restart  # restart
+chorusgate list     # list channel→session mappings
 ```
 
 `npm run start|stop|restart|status|list` are aliases. Logs go to `.gateway/gateway.log`.
@@ -125,8 +125,8 @@ Create `.claude/mcp.json` in your project root (reuses the `.claude` system — 
 ```json
 {
   "mcpServers": {
-    "slack-socket": {
-      "command": "slack-socket-mcp",
+    "chorusgate": {
+      "command": "chorusgate-mcp",
       "args": []
     }
   }
@@ -138,8 +138,8 @@ Create `.claude/mcp.json` in your project root (reuses the `.claude` system — 
 ```json
 {
   "mcpServers": {
-    "slack-socket": {
-      "command": "slack-socket-mcp",
+    "chorusgate": {
+      "command": "chorusgate-mcp",
       "args": [],
       "env": { "MCP_SENDER_ONLY": "1" }
     }
@@ -157,13 +157,19 @@ Control sessions directly from Slack:
 
 | Command | Description |
 |---------|-------------|
-| `/cc_sessions` | List all known sessions |
+| `/cc_sessions` | List all known sessions for this app profile |
 | `/cc_resume N` or `/cc_resume <uuid>` | Switch the current channel to a specific session |
-| `/cc_new` | Reset the current session (next message starts fresh) |
+| `/cc_new` | Reset the current session binding for this channel or DM |
 | `/cc_current` | Show the currently bound session |
 | `/cchelp` | Show help |
 
 > To use slash commands in DMs: Slack App settings → **App Home** → enable "Allow users to send Slash commands and messages from the messages tab".
+>
+> The `cc_` prefix is only a Slack command namespace. Internally the gateway
+> should reason in terms of app profiles and providers, not hard-code `cc` or
+> `cx` semantics. If you run multiple Claude Code style assistants for one human
+> owner, each one should use its own Slack app/profile and may use a different
+> prefix through `GATEWAY_COMMAND_PREFIX`.
 
 ---
 
@@ -180,6 +186,7 @@ Control sessions directly from Slack:
 | `GATEWAY_REPLY_TIMEOUT_MS_LONG` | `360000` | Per-reply timeout for resume turns (ms) |
 | `GATEWAY_SESSION_SCOPE` | `channel` | `channel` (shared per channel) or `thread` (isolated per thread) |
 | `GATEWAY_SESSION_IDLE_MS` | `86400000` | Idle time before a session mapping is evicted (ms) |
+| `GATEWAY_COMMAND_PREFIX` | `cc` | Slash-command prefix for this app profile. This is a Slack-facing namespace only. |
 | `GATEWAY_PROGRESS` | `1` | Set to `0` to disable live progress messages |
 | `GATEWAY_CLAUDE_CWD` | project root | Working directory for spawned claude processes |
 | `CLAUDE_BIN` | `claude` | Path to the Claude CLI binary |
@@ -206,9 +213,9 @@ Slack App settings → **App Home** → check "Allow users to send Slash command
 
 Long resume turns use `GATEWAY_REPLY_TIMEOUT_MS_LONG` (default 360s). If you see timeouts on long tasks, increase it. If the placeholder message is stuck on a tool label, restart the gateway — the latest code fixes drain-queue ordering.
 
-**`slack-gateway: command not found`**
+**`chorusgate: command not found`**
 
-`npm install` doesn't register global commands — run `npm link` to wire `slack-gateway` and `slack-socket-mcp` onto your PATH.
+`npm install` doesn't register global commands — run `npm link` to wire `chorusgate` and `chorusgate-mcp` onto your PATH.
 
 More in [`docs/gotchas.md`](./docs/gotchas.md).
 

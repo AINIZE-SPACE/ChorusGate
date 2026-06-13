@@ -49,7 +49,7 @@ npm run service:install    # 注册开机自启服务
 npm run service:uninstall  # 注销服务
 ```
 
-实现在 `src/gateway-service.ts`，`serviceInstall()` / `serviceUninstall()` 函数，由 `bin/slack-gateway.mjs` 分发（新增 `service-install` / `service-uninstall` 子命令）。
+实现在 `src/gateway-service.ts`，`serviceInstall()` / `serviceUninstall()` 函数，由 `bin/chorusgate.mjs` 分发（新增 `service-install` / `service-uninstall` 子命令）。
 
 ### 2.1 Windows — Task Scheduler（推荐）
 
@@ -134,7 +134,7 @@ WantedBy=default.target
 | 进程层（已实现）| `gateway.pid` + SIGTERM | 手动 start/stop，正常使用 |
 | 系统层（规划中）| Task Scheduler / launchd / systemd | 开机自启、崩溃重启 |
 
-系统服务触发的是 `slack-gateway run`（前台模式），日志走 `.gateway/gateway.log`，和 `start`（后台守护）共用同一套 PID 探活逻辑。注册系统服务后，不需要再手动 `npm run start`。
+系统服务触发的是 `chorusgate run`（前台模式），日志走 `.gateway/gateway.log`，和 `start`（后台守护）共用同一套 PID 探活逻辑。注册系统服务后，不需要再手动 `npm run start`。
 
 ---
 
@@ -164,7 +164,7 @@ WantedBy=default.target
 | 能力 | CC Pocket Bridge | ChorusGate 取舍 |
 |------|------------------|------------------|
 | 配对 | QR code / mDNS / Tailscale URL | Slack App 安装 + token 配置，不新增 QR 配对 |
-| 常驻 | `bridge setup` 注册系统服务 | `slack-gateway service-install` 注册系统服务 |
+| 常驻 | `bridge setup` 注册系统服务 | `chorusgate service-install` 注册系统服务 |
 | 远程访问 | 自建 WebSocket | Slack Socket Mode，不暴露本地端口 |
 | 运行诊断 | Bridge flags / allowed dirs | `doctor` 检测 token、Socket Mode、agent CLI、cwd、service |
 
@@ -176,5 +176,5 @@ WantedBy=default.target
 |------|------|
 | `scripts/install.mjs` | 一键安装脚本 |
 | `src/gateway-service.ts` | 系统服务注册/卸载逻辑，跨平台 |
-| `bin/slack-gateway.mjs` | 新增 `service-install` / `service-uninstall` 子命令 |
+| `bin/chorusgate.mjs` | 新增 `service-install` / `service-uninstall` 子命令 |
 | `.env.example` | token 配置模板（需先补充完整） |

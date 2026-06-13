@@ -1,22 +1,34 @@
 # STORY-3: 多 Slack App Socket Mode
 
 > 状态：规划中 | Epic: [v3 EPIC](./v3-epic.md) | 优先级：P0 | 依赖：STORY-1
-> 评审决策：详见 [#24](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/24)、[#30](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/30)
+> 评审决策：详见 [#24](https://github.com/AINIZE-SPACE/chorusgate/issues/24)、[#30](https://github.com/AINIZE-SPACE/chorusgate/issues/30)
 
 ## 问题
 
 当前代码是单例结构——Slack runtime 的全部核心组件都是模块级单例。要同时监听 CC 和 Codex 两个 Slack app，必须先拆单例。
 
+Note: Codex already exists as a provider-level implementation in the repo, so
+this story is about app/profile isolation rather than "adding Codex from zero".
+We still need separate manifest, prefix, and lifecycle wiring before Codex is a
+true first-class Slack app profile.
+
+Design note: command prefixes are a Slack namespace concern, not an internal
+identity model. Internally we should describe instances as profiles bound to
+providers. A single human owner may run one Claude Code app plus one Codex app,
+or several Claude Code role apps such as dev/test/manager. In all cases, each
+assistant instance should map to its own Slack app/profile, while prefix remains
+just a configurable Slack-facing wrapper.
+
 ### 当前单例清单（需全部改成 per-profile）
 
 | 文件 | 单例 | 行 |
 |------|------|-----|
-| `slack-clients.ts` | `let webClient: WebClient \| null` | [#7](https://github.com/AINIZE-SPACE/slack4ccmcp/blob/dev/src/slack-clients.ts#L7) |
+| `slack-clients.ts` | `let webClient: WebClient \| null` | [#7](https://github.com/AINIZE-SPACE/chorusgate/blob/dev/src/slack-clients.ts#L7) |
 | `slack-clients.ts` | `let appToken: string \| null` | 全局 |
-| `socket-manager.ts` | `let socketClient: SocketModeClient \| null` | [#23](https://github.com/AINIZE-SPACE/slack4ccmcp/blob/dev/src/socket-manager.ts#L23) |
-| `socket-manager.ts` | `let botUserId: string \| null` | [#28](https://github.com/AINIZE-SPACE/slack4ccmcp/blob/dev/src/socket-manager.ts#L28) |
-| `socket-manager.ts` | `let onEventCallback: EventCallback \| null` | [#24](https://github.com/AINIZE-SPACE/slack4ccmcp/blob/dev/src/socket-manager.ts#L24) |
-| `socket-manager.ts` | `let onSlashCallback: SlashCallback \| null` | [#25](https://github.com/AINIZE-SPACE/slack4ccmcp/blob/dev/src/socket-manager.ts#L25) |
+| `socket-manager.ts` | `let socketClient: SocketModeClient \| null` | [#23](https://github.com/AINIZE-SPACE/chorusgate/blob/dev/src/socket-manager.ts#L23) |
+| `socket-manager.ts` | `let botUserId: string \| null` | [#28](https://github.com/AINIZE-SPACE/chorusgate/blob/dev/src/socket-manager.ts#L28) |
+| `socket-manager.ts` | `let onEventCallback: EventCallback \| null` | [#24](https://github.com/AINIZE-SPACE/chorusgate/blob/dev/src/socket-manager.ts#L24) |
+| `socket-manager.ts` | `let onSlashCallback: SlashCallback \| null` | [#25](https://github.com/AINIZE-SPACE/chorusgate/blob/dev/src/socket-manager.ts#L25) |
 
 ## 方案
 

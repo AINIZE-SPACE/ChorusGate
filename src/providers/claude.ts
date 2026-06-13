@@ -3,7 +3,7 @@
 //
 // 从 reply-engine.ts 原有逻辑迁移，实现 AgentProvider 接口。
 //
-// 跟踪: [#22](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/22)
+// 跟踪: [#22](https://github.com/AINIZE-SPACE/chorusgate/issues/22)
 // ============================================================
 
 import { spawn } from "node:child_process";
@@ -29,7 +29,7 @@ function ensureSenderMCPConfig(): string {
     "config",
     "sender-mcp.generated.json",
   );
-  const senderBin = resolve(projectRoot, "bin", "slack-socket-mcp.mjs");
+  const senderBin = resolve(projectRoot, "bin", "chorusgate-mcp.mjs");
   try {
     writeFileSync(
       senderMcpConfig,

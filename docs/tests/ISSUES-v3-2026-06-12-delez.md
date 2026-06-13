@@ -1,11 +1,11 @@
 > 最新版本化副本: [docs/ISSUES-v3-2026-06-12.md](./docs/ISSUES-v3-2026-06-12.md)
 > 命名规范: `ISSUES-{version}-{YYYY-MM-DD}.md`
 
-# Issue Tracking - slack4ccmcp
+# Issue Tracking - chorusgate
 
 Generated: 2026-06-12  
 Branch: `dev`  
-Repo: AINIZE-SPACE/slack4ccmcp
+Repo: AINIZE-SPACE/chorusgate
 
 ---
 
@@ -69,16 +69,16 @@ unresolved code-review bugs:
 
 | Issue | Story | Priority | Status |
 |-------|-------|----------|--------|
-| [#22](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/22) | Provider 抽象层 — AgentProvider 接口 + Parser 抽象 | P0 | 🟡 in_progress |
-| [#23](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/23) | Codex Provider — \`codex exec\` spawn + JSONL 解析 | P0 | 📋 planned |
-| [#24](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/24) | 多 Slack App Socket Mode — 多 SocketModeClient 实例 | P0 | 📋 planned |
-| [#25](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/25) | 会话级多项目 — sessionStore.projectDir | P1 | 📋 planned |
-| [#26](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/26) | 统一 Session 模型 — CC UUID + Codex thread_id | P0 | 📋 planned |
-| [#27](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/27) | 多 Agent/App 配置系统 — GATEWAY_PROFILES | P0 | 📋 planned |
-| [#28](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/28) | Codex Slack MCP Tools — TOML 配置生成 | P1 | 📋 planned |
-| [#32](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/32) | Slack approval/control loop (stream-json) | P0 | 📋 planned |
-| [#33](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/33) | Session-level git worktree isolation | P1 | ⏸️ deferred |
-| [#34](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/34) | Claude 双向 stream-json 控制面 — approve/deny | P0 | 📋 planned |
+| [#22](https://github.com/AINIZE-SPACE/chorusgate/issues/22) | Provider 抽象层 — AgentProvider 接口 + Parser 抽象 | P0 | 🟡 in_progress |
+| [#23](https://github.com/AINIZE-SPACE/chorusgate/issues/23) | Codex Provider — \`codex exec\` spawn + JSONL 解析 | P0 | 📋 planned |
+| [#24](https://github.com/AINIZE-SPACE/chorusgate/issues/24) | 多 Slack App Socket Mode — 多 SocketModeClient 实例 | P0 | 📋 planned |
+| [#25](https://github.com/AINIZE-SPACE/chorusgate/issues/25) | 会话级多项目 — sessionStore.projectDir | P1 | 📋 planned |
+| [#26](https://github.com/AINIZE-SPACE/chorusgate/issues/26) | 统一 Session 模型 — CC UUID + Codex thread_id | P0 | 📋 planned |
+| [#27](https://github.com/AINIZE-SPACE/chorusgate/issues/27) | 多 Agent/App 配置系统 — GATEWAY_PROFILES | P0 | 📋 planned |
+| [#28](https://github.com/AINIZE-SPACE/chorusgate/issues/28) | Codex Slack MCP Tools — TOML 配置生成 | P1 | 📋 planned |
+| [#32](https://github.com/AINIZE-SPACE/chorusgate/issues/32) | Slack approval/control loop (stream-json) | P0 | 📋 planned |
+| [#33](https://github.com/AINIZE-SPACE/chorusgate/issues/33) | Session-level git worktree isolation | P1 | ⏸️ deferred |
+| [#34](https://github.com/AINIZE-SPACE/chorusgate/issues/34) | Claude 双向 stream-json 控制面 — approve/deny | P0 | 📋 planned |
 
 ### v3 里程碑
 

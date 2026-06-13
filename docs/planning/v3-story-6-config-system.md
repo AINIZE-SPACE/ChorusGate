@@ -6,6 +6,15 @@
 
 当前 `.env` 只有一组 token + 全局配置。多 agent 多 app 需要结构化的 profile 配置。
 
+This story is also where Codex moves from "partial provider support" to a fully
+isolated app profile. Prefix, manifest, and lifecycle settings should live here
+instead of being inferred from runtime code.
+
+The key rule is that `GATEWAY_COMMAND_PREFIX` should stay instance-level and
+Slack-facing. It solves slash-command uniqueness inside a workspace, but the
+gateway core should stay prefix-agnostic and reason in terms of profile id,
+provider id, project dir, and lifecycle state.
+
 ## 方案
 
 ### Profile 配置模型
@@ -58,6 +67,15 @@ function parseProfiles(): Profile[] {
   }));
 }
 ```
+
+Example instance shapes:
+
+- One human, one Claude Code assistant, one Codex assistant:
+  two Slack app profiles.
+- One human, multiple Claude Code roles such as dev/test/manager:
+  multiple Slack app profiles, even when the provider is the same.
+- Prefixes such as `cc`, `cx`, or `cctest` are just workspace-safe command
+  namespaces layered on top of those profiles.
 
 ### 向后兼容
 

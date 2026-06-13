@@ -5,7 +5,7 @@
 // 不再硬编码 `claude -p` spawn 逻辑。
 //
 // 参见: docs/planning/v3-story-1-provider-abstraction.md
-// 跟踪: [#22](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/22)
+// 跟踪: [#22](https://github.com/AINIZE-SPACE/chorusgate/issues/22)
 // ============================================================
 
 // ---- Provider 接口 -----------------------------------------------------------

@@ -2,7 +2,7 @@
 > 命名规范: `REVIEW-{version}-{YYYY-MM-DD}-{reviewer}.md`
 > 多人 review 时各自建文件，互不覆盖。
 
-# Code Review Report - slack4ccmcp (dev branch)
+# Code Review Report - chorusgate (dev branch)
 
 **Date:** 2026-06-12  
 **Branch:** `dev`  

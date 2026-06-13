@@ -21,7 +21,7 @@
 //   - system.permission_request → 审批回调 → stdin 回写
 //   - --replay-user-messages 回显用户消息（isReplay:true 忽略）
 //
-// 跟踪: [#34](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/34)
+// 跟踪: [#34](https://github.com/AINIZE-SPACE/chorusgate/issues/34)
 // ============================================================
 
 import { spawn, type ChildProcess } from "node:child_process";
@@ -49,7 +49,7 @@ function getSenderMCPConfig(): string {
   const senderMcpConfig = resolve(
     projectRoot, "config", "sender-mcp.generated.json",
   );
-  const senderBin = resolve(projectRoot, "bin", "slack-socket-mcp.mjs");
+  const senderBin = resolve(projectRoot, "bin", "chorusgate-mcp.mjs");
   try {
     writeFileSync(
       senderMcpConfig,

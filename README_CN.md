@@ -28,7 +28,7 @@ ChorusGate 是一个 local-first 的协作 channel gateway，用来把 coding ag
 
 1. 打开 <https://api.slack.com/apps> → **Create New App** → **From a manifest**
 2. 选择你的 workspace
-3. 粘贴项目根目录的 [`manifest.json`](./manifest.json) 内容
+3. 粘贴项目根目录的 [`manifest.json`](./manifest.json)?CC app?? [`manifest.cx.json`](./manifest.cx.json)?CX app? 内容
 4. 点 **Create** → **Install to Workspace** → **Allow**
 
 ### 2. 获取 Token
@@ -61,7 +61,7 @@ npm install
 npm link
 ```
 
-> :warning: **不要跳过 `npm link`。** `npm install` 不会把 `slack-gateway` 和 `slack-socket-mcp` 注册到 PATH。后面如果报 `command not found`，先回来跑 `npm link`。
+> :warning: **不要跳过 `npm link`。** `npm install` 不会把 `chorusgate` 和 `chorusgate-mcp` 注册到 PATH。后面如果报 `command not found`，先回来跑 `npm link`。
 
 ### 5. 验证 Claude CLI
 
@@ -78,17 +78,17 @@ claude -p "say pong" --output-format text
 **前台模式**（首次调试推荐）：
 
 ```bash
-npm run gateway        # 或 slack-gateway run
+npm run gateway        # 或 chorusgate run
 ```
 
 **后台守护进程**（日常使用）：
 
 ```bash
-slack-gateway start    # 后台启动
-slack-gateway status   # 查看状态（pid、运行时长、活跃 session 数）
-slack-gateway stop     # 停止
-slack-gateway restart  # 重启
-slack-gateway list     # 列出 channel→session 映射
+chorusgate start    # 后台启动
+chorusgate status   # 查看状态（pid、运行时长、活跃 session 数）
+chorusgate stop     # 停止
+chorusgate restart  # 重启
+chorusgate list     # 列出 channel→session 映射
 ```
 
 `npm run start|stop|restart|status|list` 是对应别名。日志写 `.gateway/gateway.log`。
@@ -121,8 +121,8 @@ slack-gateway list     # 列出 channel→session 映射
 ```json
 {
   "mcpServers": {
-    "slack-socket": {
-      "command": "slack-socket-mcp",
+    "chorusgate": {
+      "command": "chorusgate-mcp",
       "args": []
     }
   }
@@ -134,8 +134,8 @@ slack-gateway list     # 列出 channel→session 映射
 ```json
 {
   "mcpServers": {
-    "slack-socket": {
-      "command": "slack-socket-mcp",
+    "chorusgate": {
+      "command": "chorusgate-mcp",
       "args": [],
       "env": { "MCP_SENDER_ONLY": "1" }
     }
@@ -202,9 +202,9 @@ Slack App 管理页 → App Home → 勾选 "Allow users to send Slash commands 
 
 续轮会话使用 `GATEWAY_REPLY_TIMEOUT_MS_LONG`（默认 360s）。长任务超时就调大它。占位消息卡住的话重启 gateway —— 最新代码已修复进度队列排空顺序。
 
-**`slack-gateway: command not found`**
+**`chorusgate: command not found`**
 
-`npm install` 不会注册全局命令 — 跑一次 `npm link` 把 `slack-gateway` 和 `slack-socket-mcp` 挂到 PATH。
+`npm install` 不会注册全局命令 — 跑一次 `npm link` 把 `chorusgate` 和 `chorusgate-mcp` 挂到 PATH。
 
 更多见 [`docs/gotchas.md`](./docs/gotchas.md)。
 

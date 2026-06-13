@@ -64,7 +64,7 @@ const subscriptions = new Set<string>();
 
 const server = new Server(
   {
-    name: "slack-socket-mcp",
+    name: "chorusgate-mcp",
     version: "1.0.0",
     description:
       "Real-time Slack event bridge via Socket Mode. " +
@@ -117,7 +117,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   } catch (err) {
     const error = serializeToolError(err);
     console.error(
-      `[slack-socket-mcp] Tool error (${name}/${error.code}):`,
+      `[chorusgate-mcp] Tool error (${name}/${error.code}):`,
       error.message
     );
     return {
@@ -205,7 +205,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
 server.setRequestHandler(SubscribeRequestSchema, async (request) => {
   const uri = request.params.uri;
   subscriptions.add(uri);
-  console.error(`[slack-socket-mcp] Subscribed to resource: ${uri}`);
+  console.error(`[chorusgate-mcp] Subscribed to resource: ${uri}`);
   return {};
 });
 
@@ -213,7 +213,7 @@ server.setRequestHandler(SubscribeRequestSchema, async (request) => {
 server.setRequestHandler(UnsubscribeRequestSchema, async (request) => {
   const uri = request.params.uri;
   subscriptions.delete(uri);
-  console.error(`[slack-socket-mcp] Unsubscribed from resource: ${uri}`);
+  console.error(`[chorusgate-mcp] Unsubscribed from resource: ${uri}`);
   return {};
 });
 
@@ -244,7 +244,7 @@ async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  console.error("[slack-socket-mcp] MCP Server ready (stdio)");
+  console.error("[chorusgate-mcp] MCP Server ready (stdio)");
 
   // Sender-only mode: skip Socket Mode so this process does NOT open a second
   // event connection competing with a running gateway. The send/reply/history
@@ -252,7 +252,7 @@ async function main(): Promise<void> {
   // act on Slack while the gateway owns the single event-receiving connection.
   if (process.env.MCP_SENDER_ONLY) {
     console.error(
-      "[slack-socket-mcp] MCP_SENDER_ONLY set — skipping Socket Mode. " +
+      "[chorusgate-mcp] MCP_SENDER_ONLY set — skipping Socket Mode. " +
         "Send/reply/history tools work via Web API; check_events will be empty " +
         "(events go to the gateway's connection)."
     );
@@ -262,12 +262,12 @@ async function main(): Promise<void> {
   // Start Slack Socket Mode
   await startSocketMode(notifySubscribers);
 
-  console.error("[slack-socket-mcp] Socket Mode started, listening for events...");
+  console.error("[chorusgate-mcp] Socket Mode started, listening for events...");
 }
 
 // Graceful shutdown
 async function shutdown(): Promise<void> {
-  console.error("[slack-socket-mcp] Shutting down...");
+  console.error("[chorusgate-mcp] Shutting down...");
   await stopSocketMode();
   await server.close();
   process.exit(0);
@@ -277,6 +277,6 @@ process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
 main().catch((err) => {
-  console.error("[slack-socket-mcp] Fatal error:", (err as Error).message);
+  console.error("[chorusgate-mcp] Fatal error:", (err as Error).message);
   process.exit(1);
 });

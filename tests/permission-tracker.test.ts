@@ -1,7 +1,7 @@
 // ============================================================
 // PermissionTracker 测试
 //
-// 跟踪: [#34](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/34)
+// 跟踪: [#34](https://github.com/AINIZE-SPACE/chorusgate/issues/34)
 // ============================================================
 
 import test from "node:test";

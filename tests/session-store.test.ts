@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { SessionStore } from "../src/session-store.ts";
 
 const withTempSessionsFile = (): { dir: string; file: string } => {
-  const dir = mkdtempSync(join(tmpdir(), "slack4ccmcp-sessions-"));
+  const dir = mkdtempSync(join(tmpdir(), "chorusgate-sessions-"));
   return { dir, file: join(dir, "sessions.md") };
 };
 

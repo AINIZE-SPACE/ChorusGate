@@ -4,7 +4,7 @@
 // Shared between the daemon (gateway.ts) and the control CLI
 // (gateway-control.ts).
 //
-// .gateway/ is created under process.cwd() — run slack-gateway from the
+// .gateway/ is created under process.cwd() — run chorusgate from the
 // directory you want logs/pid/status to live in. BIN_FILE still resolves
 // from the package install location (it never moves).
 // ============================================================
@@ -18,7 +18,7 @@ const projectRoot = resolve(__dirname, "..");
 
 /** Absolute path to the bin dispatcher (for detached spawn, always relative to
  *  the package root regardless of cwd). */
-export const BIN_FILE = resolve(projectRoot, "bin", "slack-gateway.mjs");
+export const BIN_FILE = resolve(projectRoot, "bin", "chorusgate.mjs");
 
 /** Control-plane directory (gitignored). Created under cwd. */
 export function getGatewayDir(): string {

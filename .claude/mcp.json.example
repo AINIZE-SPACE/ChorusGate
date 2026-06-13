@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "slack-socket": {
+    "chorusgate": {
       "command": "cmd",
-      "args": ["/c", "slack-socket-mcp"],
+      "args": ["/c", "chorusgate-mcp"],
       "env": {
         "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}",
         "SLACK_APP_TOKEN": "${SLACK_APP_TOKEN}"

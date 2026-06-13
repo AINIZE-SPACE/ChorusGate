@@ -7,7 +7,7 @@
 //   - thread_id 是 UUID 格式顶层字段
 //   - --ask-for-approval CLI flag 不存在，审批策略在 config.toml
 //
-// 跟踪: [#23](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/23)
+// 跟踪: [#23](https://github.com/AINIZE-SPACE/chorusgate/issues/23)
 // ============================================================
 
 import { spawn } from "node:child_process";

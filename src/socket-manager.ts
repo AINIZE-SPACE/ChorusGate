@@ -63,11 +63,11 @@ export async function startSocketMode(
     const auth = await web.auth.test();
     botUserId = auth.user_id ?? null;
     console.error(
-      `[slack-socket-mcp] Bot user ID: ${botUserId}`
+      `[chorusgate-mcp] Bot user ID: ${botUserId}`
     );
   } catch (err) {
     console.error(
-      "[slack-socket-mcp] Failed to resolve bot user ID, " +
+      "[chorusgate-mcp] Failed to resolve bot user ID, " +
         "self-message filtering disabled:",
       (err as Error).message
     );
@@ -80,32 +80,32 @@ export async function startSocketMode(
 
   // --- Connection lifecycle events ---
   socketClient.on("connecting", () => {
-    console.error("[slack-socket-mcp] Connecting to Slack via Socket Mode...");
+    console.error("[chorusgate-mcp] Connecting to Slack via Socket Mode...");
   });
 
   socketClient.on("connected", () => {
-    console.error("[slack-socket-mcp] Socket Mode connected");
+    console.error("[chorusgate-mcp] Socket Mode connected");
   });
 
   socketClient.on("ready", () => {
-    console.error("[slack-socket-mcp] Socket Mode ready, listening for events");
+    console.error("[chorusgate-mcp] Socket Mode ready, listening for events");
   });
 
   socketClient.on("disconnecting", () => {
-    console.error("[slack-socket-mcp] Socket Mode disconnecting...");
+    console.error("[chorusgate-mcp] Socket Mode disconnecting...");
   });
 
   socketClient.on("reconnecting", () => {
-    console.error("[slack-socket-mcp] Socket Mode reconnecting...");
+    console.error("[chorusgate-mcp] Socket Mode reconnecting...");
   });
 
   socketClient.on("error", (error) => {
-    console.error("[slack-socket-mcp] Socket Mode error:", (error as Error).message);
+    console.error("[chorusgate-mcp] Socket Mode error:", (error as Error).message);
   });
 
   // --- Slack Event Handlers ---
 
-  // app_mention â€” someone @mentions the bot
+  // app_mention â€?someone @mentions the bot
   socketClient.on("app_mention", async ({ event, ack }) => {
     // Enqueue BEFORE ack, so a crash between the two doesn't lose the event
     // (ack tells Slack "got it"; we want it recorded first).
@@ -113,7 +113,7 @@ export async function startSocketMode(
     await ack();
   });
 
-  // message â€” any message in channels the bot is in
+  // message â€?any message in channels the bot is in
   socketClient.on("message", async ({ event, ack }) => {
     // Skip messages from our own bot
     if (botUserId && (event as Record<string, unknown>).user === botUserId) {
@@ -130,13 +130,13 @@ export async function startSocketMode(
     await ack();
   });
 
-  // reaction_added â€” someone adds a reaction
+  // reaction_added â€?someone adds a reaction
   socketClient.on("reaction_added", async ({ event, ack }) => {
     await handleSlackEvent("reaction_added", event);
     await ack();
   });
 
-  // slash_commands â€” native Slack slash commands (registered in manifest)
+  // slash_commands â€?native Slack slash commands (registered in manifest)
   // Slash commands need ack() within 3 seconds. We ack empty (no visible
   // intermediate message) and let the command handler post the real response.
   socketClient.on("slash_commands", async ({ body, ack }) => {
@@ -153,21 +153,21 @@ export async function startSocketMode(
         await onSlashCallback(cmd);
       } catch (err) {
         console.error(
-          "[slack-socket-mcp] slash command handler error:",
+          "[chorusgate-mcp] slash command handler error:",
           (err as Error).message
         );
       }
     }
   });
 
-  // block_actions â€” interactive message button clicks (e.g. Approve/Deny)
+  // block_actions â€?interactive message button clicks (e.g. Approve/Deny)
   socketClient.on("interactive", async ({ body, ack }) => {
     const payload = body as Record<string, unknown>;
     if (payload.type !== "block_actions") {
       await ack();
       return;
     }
-    await ack(); // ack immediately â€” 3s timeout
+    await ack(); // ack immediately â€?3s timeout
     if (!onBlockActionCallback) return;
 
     const actions = payload.actions as Array<Record<string, unknown>> | undefined;
@@ -190,7 +190,7 @@ export async function startSocketMode(
         await onBlockActionCallback(blockAction);
       } catch (err) {
         console.error(
-          "[slack-socket-mcp] block_action handler error:",
+          "[chorusgate-mcp] block_action handler error:",
           (err as Error).message,
         );
       }
@@ -242,7 +242,7 @@ async function handleSlackEvent(
     });
 
     console.error(
-      `[slack-socket-mcp] Event stored: ${stored.type} ` +
+      `[chorusgate-mcp] Event stored: ${stored.type} ` +
         `from ${stored.user} in ${stored.channel} (id: ${stored.id})`
     );
 
@@ -252,7 +252,7 @@ async function handleSlackEvent(
     }
   } catch (err) {
     console.error(
-      "[slack-socket-mcp] Error handling event:",
+      "[chorusgate-mcp] Error handling event:",
       (err as Error).message
     );
   }

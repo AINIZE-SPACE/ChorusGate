@@ -96,7 +96,7 @@ session-commands.ts: handleCommand()
   按 command 路由到具体实现
 ```
 
-新增命令只需在 `session-commands.ts` 的 `handleCommand()` 里加 case，在 `manifest.json` 的 `slash_commands` 数组里注册，重装 Slack app 后生效。
+新增命令只需在 `session-commands.ts` 的 `handleCommand()` 里加 case，在对应 app 的 manifest（例如 `manifest.json` / `manifest.cx.json`）里注册，重装 Slack app 后生效。
 
 `/stop` 等需要控制 in-flight 进程的命令，要求 `gateway.ts` 暴露 `cancelInFlight(key)` 接口，目前不存在。
 

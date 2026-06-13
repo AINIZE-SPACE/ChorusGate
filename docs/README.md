@@ -1,6 +1,6 @@
 # ChorusGate docs/
 
-ChorusGate is the project formerly described as `slack4ccmcp`: a local-first
+ChorusGate is the project formerly described as `chorusgate`: a local-first
 gateway that connects collaboration channels such as Slack and Feishu/Lark to
 coding agent runtimes such as Claude Code and Codex.
 

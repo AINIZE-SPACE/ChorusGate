@@ -102,13 +102,13 @@ Goal: move from "manual setup" to "managed local service".
 
 Commands:
 
-- `slack-gateway install`: create config, validate tokens/scopes, install
+- `chorusgate install`: create config, validate tokens/scopes, install
   daemon/scheduled service, optionally install Slack manifest.
-- `slack-gateway uninstall`: stop service, unregister service, optionally keep
+- `chorusgate uninstall`: stop service, unregister service, optionally keep
   config/session data.
-- `slack-gateway doctor`: validate CLI, tokens, app scopes, Socket Mode,
+- `chorusgate doctor`: validate CLI, tokens, app scopes, Socket Mode,
   commands, file permissions, and runtime availability.
-- `slack-gateway upgrade`: migrate config and manifests.
+- `chorusgate upgrade`: migrate config and manifests.
 
 ### 6. Open Source Readiness
 

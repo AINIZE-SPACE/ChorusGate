@@ -5,8 +5,8 @@
 // This module keeps the legacy ReplyEngineOptions signature for
 // backward compat with gateway.ts.
 //
-// 跟踪: [#22](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/22)
-// 跟踪: [#34](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/34) — M2 stream mode
+// 跟踪: [#22](https://github.com/AINIZE-SPACE/chorusgate/issues/22)
+// 跟踪: [#34](https://github.com/AINIZE-SPACE/chorusgate/issues/34) — M2 stream mode
 // ============================================================
 
 import type { ReplyEngineOptions, ReplyResult } from "./providers/types.js";

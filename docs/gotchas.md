@@ -10,7 +10,7 @@
 **现象**：gateway 运行正常，但大量事件收不到，随机漏。  
 **原因**：Slack 把每个事件投递到同一 app 的**任意一个** Socket Mode 连接。多个连接 = 事件分流。常见场景：遗留的测试进程没杀、Claude Code MCP server 和 gateway 同时连。  
 **诊断**：Socket Mode `hello` 帧里的 `num_connections` 字段，正常应为 1。  
-**修复**：`slack-gateway start` 单实例保证；MCP server 共存时设 `MCP_SENDER_ONLY=1`。
+**修复**：`chorusgate start` 单实例保证；MCP server 共存时设 `MCP_SENDER_ONLY=1`。
 
 ### 2. reaction_added 事件的 channel 位置错误
 **现象**：`reaction_added` 事件收到了，但 channel 字段为空。  
@@ -71,7 +71,7 @@
 
 ### 12. 子进程 claude 开了第二个 Socket Mode 连接
 **现象**：gateway 偶发漏事件，`num_connections` 变成 2。  
-**原因**：gateway spawn 的 `claude -p` 加载了项目 `.claude/mcp.json`，其中的 `slack-socket-mcp` 又建了一个 Socket Mode 连接。  
+**原因**：gateway spawn 的 `claude -p` 加载了项目 `.claude/mcp.json`，其中的 `chorusgate-mcp` 又建了一个 Socket Mode 连接。  
 **修复**：`--strict-mcp-config` + 只传 sender-only MCP config（`MCP_SENDER_ONLY=1`），阻止加载项目 `.claude/mcp.json`。
 
 ---
