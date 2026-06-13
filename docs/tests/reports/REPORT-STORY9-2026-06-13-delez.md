@@ -20,6 +20,8 @@
 | T1-5 | `src/` 全局不再引用 `slack_check_events` | ✅ 0 处引用 |
 | T1-6 | `src/` 全局不再引用 `MCP_SENDER_ONLY` | ✅ 0 处引用 |
 | T1-7 | `src/types.ts` 移除 `CheckEventsInput`/`CheckEventsOutput` | ✅ 类型已删除 |
+| T1-8 | `.claude/mcp.json` 不包含 `MCP_SENDER_ONLY` | ✅ 0 处引用 |
+| T1-9 | `.claude/mcp.json` 与 `.claude/mcp.json.example` 的 `chorusgate` 配置骨架一致 | ✅ 二者均为 `cmd` + `args: [\"/c\", \"chorusgate-mcp\"]` |
 
 `src/index.ts` 从 268 行缩减到 139 行（-129 行），净删除：
 - 4 个 MCP resource handler（list/read/subscribe/unsubscribe）
@@ -39,8 +41,9 @@
 | T2-4 | `docs/feature-mcp-server.md` 正确描述 Web API-only 边界 | ✅ 运行边界表格已更新 |
 | T2-5 | `docs/architecture.md` 正确描述 socket mode 只有 gateway 持有 | ✅ 关键边界章节已重写 |
 | T2-6 | `docs/gotchas.md` 不再推荐 `MCP_SENDER_ONLY` 作为修复方案 | ✅ 第 1/8/12 条已更新 |
+| T2-7 | `docs/feature-mcp-server.md` 的配置示例与 `.claude/mcp.json.example` 一致 | ✅ 文档主示例已改为 Windows wrapper，并补充非 Windows 替代写法 |
 
-文档中 `MCP_SENDER_ONLY` 仅在 `docs/planning/v3-story-9-mcp-webapi-only.md`（spec 本身）中出现，作为背景描述和验收标准声明，属于正确的历史记录。
+文档中 `MCP_SENDER_ONLY` 仅在 `docs/planning/v3-story-9-mcp-webapi-only.md`（spec 本身）中出现，作为背景描述和验收标准声明，属于正确的历史记录。`.claude/mcp.json` 已同步清零该字段。
 
 ## T3: Codex MCP 配置 — PASS ✓
 

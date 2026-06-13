@@ -20,6 +20,8 @@
 | T1-5 | `src/` 全局不再引用 `slack_check_events` | `grep -rn` |
 | T1-6 | `src/` 全局不再引用 `MCP_SENDER_ONLY` | `grep -rn` |
 | T1-7 | `src/types.ts` 移除 `CheckEventsInput`/`CheckEventsOutput` | `grep` |
+| T1-8 | `.claude/mcp.json` 不包含 `MCP_SENDER_ONLY` | `grep` |
+| T1-9 | `.claude/mcp.json` 与 `.claude/mcp.json.example` 的 `chorusgate` 配置骨架一致 | 人工审查 |
 
 ### T2: 文档一致性验证
 
@@ -31,6 +33,7 @@
 | T2-4 | `docs/feature-mcp-server.md` 正确描述 Web API-only 边界 | 人工审查 |
 | T2-5 | `docs/architecture.md` 正确描述 socket mode 只有 gateway 持有 | 人工审查 |
 | T2-6 | `docs/gotchas.md` 不再推荐 `MCP_SENDER_ONLY` 作为修复方案 | 人工审查 |
+| T2-7 | `docs/feature-mcp-server.md` 的配置示例与 `.claude/mcp.json.example` 一致 | 人工审查 |
 
 ### T3: Codex MCP 配置验证
 
@@ -57,6 +60,7 @@ grep -rn "MCP_SENDER_ONLY" src/
 grep -rn "slack_check_events" src/
 grep -n "startSocketMode|stopSocketMode|MCP resources|SubscribeRequest" src/index.ts
 ls src/tools/check-events.ts
+grep -n "MCP_SENDER_ONLY" .claude/mcp.json
 
 # T2: 文档一致性
 grep -rn "MCP_SENDER_ONLY" README.md README_CN.md INSTALL.md docs/
