@@ -345,17 +345,19 @@ export class SessionStore {
 
         // Old format (6 cols): key | uuid | provider | projectDir | started | lastUsed
         if (cells.length >= 6) {
-          const [key, sessionId, provider, projectDir, startedRaw, lastUsedRaw] = cells;
-          if (!key || !sessionId) continue;
-          const identity = parseIdentityKey(key) ?? {
+          const [oldKey, sessionId, provider, projectDir, startedRaw, lastUsedRaw] = cells;
+          if (!oldKey || !sessionId) continue;
+          const identity = parseIdentityKey(oldKey) ?? {
             profileId: "default",
             providerId: provider || "claude",
-            scopeType: key.startsWith("channel:") ? "channel" : "thread",
-            scopeTarget: key.replace(/^(channel:|[^:]+:\d+\.\d+$)/, "").split(":")[0] || key,
+            scopeType: oldKey.startsWith("channel:") ? "channel" : "thread",
+            scopeTarget: oldKey.replace(/^(channel:|[^:]+:\d+\.\d+$)/, "").split(":")[0] || oldKey,
             projectDir: projectDir || undefined,
           };
+          // Rewrite old key to new structured format so getOrCreate() matches.
+          const newKey = formatIdentityKey(identity);
           const lastUsedMs = Date.parse(lastUsedRaw);
-          this.sessions.set(key, {
+          this.sessions.set(newKey, {
             sessionId,
             identity,
             started: startedRaw.toLowerCase() === "yes",
@@ -365,16 +367,18 @@ export class SessionStore {
         }
 
         // Very old format (4 cols): key | uuid | started | lastUsed
-        const [key, sessionId, startedRaw, lastUsedRaw] = cells;
-        if (!key || !sessionId) continue;
-        const identity = parseIdentityKey(key) ?? {
+        const [oldKey, sessionId, startedRaw, lastUsedRaw] = cells;
+        if (!oldKey || !sessionId) continue;
+        const identity = parseIdentityKey(oldKey) ?? {
           profileId: "default",
           providerId: "claude",
-          scopeType: key.startsWith("channel:") ? "channel" : "thread",
-          scopeTarget: key.replace("channel:", ""),
+          scopeType: oldKey.startsWith("channel:") ? "channel" : "thread",
+          scopeTarget: oldKey.replace("channel:", ""),
         };
+        // Rewrite old key to new structured format so getOrCreate() matches.
+        const newKey = formatIdentityKey(identity);
         const lastUsedMs = Date.parse(lastUsedRaw);
-        this.sessions.set(key, {
+        this.sessions.set(newKey, {
           sessionId,
           identity,
           started: startedRaw.toLowerCase() === "yes",
