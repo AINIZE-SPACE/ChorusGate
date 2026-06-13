@@ -94,11 +94,17 @@ test("reply-engine: generateReply passes sessionId for new sessions", async () =
 // ---- generateReplyStream contract --------------------------------------
 
 test("reply-engine: generateReplyStream accepts onPermission callback", async () => {
-  const { generateReplyStream } = await import("../src/reply-engine.js");
+  // Force spawn failure: use a binary path that does not exist.
+  // Without this, a real `claude` on PATH (e.g. host dev box) would start
+  // and never finish within the 500ms timeout, hanging the test runner.
+  const origBin = process.env.CLAUDE_BIN;
+  process.env.CLAUDE_BIN = "nonexistent-claude-binary-for-stream-test";
 
   let permCallbackCalled = false;
 
   try {
+    const { generateReplyStream } = await import("../src/reply-engine.js");
+
     // This will fail because no real claude, but we're testing the API shape
     const result = await generateReplyStream("test", {
       cwd: process.cwd(),
@@ -113,6 +119,9 @@ test("reply-engine: generateReplyStream accepts onPermission callback", async ()
     assert.equal(result.ok, false);
   } catch {
     // Also acceptable if it throws
+  } finally {
+    if (origBin) process.env.CLAUDE_BIN = origBin;
+    else delete process.env.CLAUDE_BIN;
   }
 });
 
@@ -133,6 +142,12 @@ test("reply-engine: generateReplyStream includes finally block for close()", asy
 // ---- Error propagation ---------------------------------------------------
 
 test("reply-engine: provider error is caught and returned as error string", async () => {
+  // Force spawn failure: same reason as the onPermission test above.
+  // Without this, a real `claude` on PATH could keep running past the
+  // 2000ms spawn timeout and hang the runner.
+  const origBin = process.env.CLAUDE_BIN;
+  process.env.CLAUDE_BIN = "nonexistent-claude-binary-for-error-test";
+
   const { generateReply } = await import("../src/reply-engine.js");
 
   // Set invalid mode to trigger dynamic import error
@@ -154,6 +169,8 @@ test("reply-engine: provider error is caught and returned as error string", asyn
   } finally {
     if (origMode) process.env.GATEWAY_CLAUDE_MODE = origMode;
     else delete process.env.GATEWAY_CLAUDE_MODE;
+    if (origBin) process.env.CLAUDE_BIN = origBin;
+    else delete process.env.CLAUDE_BIN;
   }
 });
 
