@@ -34,6 +34,7 @@ export async function generateReply(
       : (await import("./providers/claude.js")).claudeProvider;
 
   const timeoutMs = opts.timeoutMs ?? 180_000;
+  console.error(`[reply-engine] generateReply opts.timeoutMs=${opts.timeoutMs} → timeoutMs=${timeoutMs}`);
   const cwd = opts.cwd ?? process.cwd();
 
   try {

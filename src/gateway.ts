@@ -50,6 +50,9 @@ const REPLY_TIMEOUT_MS = Number(process.env.GATEWAY_REPLY_TIMEOUT_MS || 180_000)
 const REPLY_TIMEOUT_MS_LONG = Number(
   process.env.GATEWAY_REPLY_TIMEOUT_MS_LONG || REPLY_TIMEOUT_MS * 2
 );
+console.error(
+  `[gateway] REPLY_TIMEOUT_MS/REPLY_TIMEOUT_MS_LONG: ${REPLY_TIMEOUT_MS}/${REPLY_TIMEOUT_MS_LONG}`
+);
 // Max concurrent `claude -p` replies. Excess events queue and run as slots free.
 const maxConcurrentRaw = Number(process.env.GATEWAY_MAX_CONCURRENT || 3);
 const MAX_CONCURRENT =
@@ -440,6 +443,7 @@ async function processEvent(
       },
     };
 
+    console.error(`[gateway] generating reply — timeoutMs=${timeoutMs} isResume=${isResume} replyOpts.timeoutMs=${replyOpts.timeoutMs}`);
     const result = INTERACTIVE_PERMISSIONS
       ? await generateReplyStream(prompt, {
           ...replyOpts,
