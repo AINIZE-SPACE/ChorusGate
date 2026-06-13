@@ -32,7 +32,10 @@
 | [runtime-adapters.md](./runtime-adapters.md) | 运行时适配器方案 | 参考 |
 | [tracking.md](./tracking.md) | 追踪/日志方案 | 参考 |
 | [version-planning-2026-06.md](./version-planning-2026-06.md) | 版本规划（2026-06）| 参考 |
-| [../reference/ccpocket.md](../reference/ccpocket.md) | CC Pocket Bridge/App 参考分析：approval loop、worktree、offline queue、service lifecycle | 参考 |
+| [../reference/ccpocket.md](../reference/ccpocket.md) | CC Pocket Bridge/App 参考分析 | 参考 |
+| [../reference/summit-saw-skills-analysis.md](../reference/summit-saw-skills-analysis.md) | Summit-Saw reflection-skill-evolution 参考分析 | 参考 |
+| [../reference/workflow-skills-evolution.md](../reference/workflow-skills-evolution.md) | :zap: 增强工作流技能：研究→设计→开发→通知→评审 (含 Slack mention 模板) | 参考 |
+| [../reference/notification-templates.md](../reference/notification-templates.md) | Channel 通知模板：Review/测试/发布 (含 Slack mention 语法) | 参考 |
 
 ## 与已实现文档的关系
 
