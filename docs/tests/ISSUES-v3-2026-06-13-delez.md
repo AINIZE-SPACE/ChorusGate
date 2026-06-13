@@ -1,4 +1,4 @@
-# Issue Tracking - slack4ccmcp M2 Code Review (delez / 小马)
+# Issue Tracking - chorusgate M2 Code Review (delez / 小马)
 
 **Generated:** 2026-06-13
 **Branch:** 

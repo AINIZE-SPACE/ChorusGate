@@ -11,7 +11,7 @@
 //   {"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"Hello!"}}
 //   {"type":"turn.completed","usage":{...}}
 //
-// 跟踪: [#23](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/23)
+// 跟踪: [#23](https://github.com/AINIZE-SPACE/chorusgate/issues/23)
 // ============================================================
 
 import type { EventParser } from "./types.js";

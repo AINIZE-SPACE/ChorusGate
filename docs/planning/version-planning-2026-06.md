@@ -2,9 +2,9 @@
 
 ## Positioning
 
-slack4ccmcp should evolve from "Slack bridge for Claude Code" into a lightweight
-workspace gateway for coding agents. Slack remains the first-class channel, but
-the durable value is the channel/runtime boundary:
+ChorusGate should evolve from "Slack bridge for Claude Code" into a lightweight
+collaboration-channel gateway for coding agents. Slack remains the first-class
+channel, but the durable value is the channel/runtime boundary:
 
 - Channels normalize events, commands, threads, reactions, files, and delivery.
 - Agent runtimes normalize how work is started, resumed, approved, cancelled, and
@@ -102,13 +102,13 @@ Goal: move from "manual setup" to "managed local service".
 
 Commands:
 
-- `slack-gateway install`: create config, validate tokens/scopes, install
+- `chorusgate install`: create config, validate tokens/scopes, install
   daemon/scheduled service, optionally install Slack manifest.
-- `slack-gateway uninstall`: stop service, unregister service, optionally keep
+- `chorusgate uninstall`: stop service, unregister service, optionally keep
   config/session data.
-- `slack-gateway doctor`: validate CLI, tokens, app scopes, Socket Mode,
+- `chorusgate doctor`: validate CLI, tokens, app scopes, Socket Mode,
   commands, file permissions, and runtime availability.
-- `slack-gateway upgrade`: migrate config and manifests.
+- `chorusgate upgrade`: migrate config and manifests.
 
 ### 6. Open Source Readiness
 

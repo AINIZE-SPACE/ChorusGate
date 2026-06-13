@@ -1,14 +1,18 @@
-# slack4ccmcp
+# ChorusGate
 
 [English](./README.md)
 
-把 Claude Code (`claude -p`) 接入 Slack 的自托管网关。在 Slack 里 @mention 机器人或发 DM，自动交给 Claude 处理并回复。同时提供 MCP server，让 Claude Code 终端主动读写 Slack。
+ChorusGate 是一个 local-first 的协作 channel gateway，用来把 coding agents 接入 Slack、飞书/Lark 等工作频道。
+它最初是 Claude Code + Slack 桥接器，现在范围扩展为 Slack、飞书规划、Claude Code、Codex 和更多 agent runtime 的通用网关。
+
+在 Slack 里 @mention 机器人或发 DM，ChorusGate 会把消息路由给配置的 agent runtime 并回帖。同时提供 MCP server，让 agent runtime 能主动读写频道上下文。
 
 **特点：**
 
-- **零公网**：基于 Slack Socket Mode，WebSocket 向外连，无需公网 IP 或 ngrok
-- **完整上下文**：每个频道/DM 绑定一个持久 Claude session，对话不中断
-- **自托管**：Token 不出自己的机器
+- **Local-first**：运行在自己的机器或私有服务器，token 不出本地
+- **Channel-oriented**：Slack 已支持，飞书/Lark 在规划中
+- **Agent-oriented**：Claude Code 已支持，Codex 和更多 runtime 在范围内
+- **持久上下文**：每个频道/DM 可绑定一个长期 agent session
 
 ---
 
@@ -24,7 +28,7 @@
 
 1. 打开 <https://api.slack.com/apps> → **Create New App** → **From a manifest**
 2. 选择你的 workspace
-3. 粘贴项目根目录的 [`manifest.json`](./manifest.json) 内容
+3. 粘贴项目根目录的 [`manifest.json`](./manifest.json)?CC app?? [`manifest.cx.json`](./manifest.cx.json)?CX app? 内容
 4. 点 **Create** → **Install to Workspace** → **Allow**
 
 ### 2. 获取 Token
@@ -57,7 +61,7 @@ npm install
 npm link
 ```
 
-> :warning: **不要跳过 `npm link`。** `npm install` 不会把 `slack-gateway` 和 `slack-socket-mcp` 注册到 PATH。后面如果报 `command not found`，先回来跑 `npm link`。
+> :warning: **不要跳过 `npm link`。** `npm install` 不会把 `chorusgate` 和 `chorusgate-mcp` 注册到 PATH。后面如果报 `command not found`，先回来跑 `npm link`。
 
 ### 5. 验证 Claude CLI
 
@@ -74,24 +78,24 @@ claude -p "say pong" --output-format text
 **前台模式**（首次调试推荐）：
 
 ```bash
-npm run gateway        # 或 slack-gateway run
+npm run gateway        # 或 chorusgate run
 ```
 
 **后台守护进程**（日常使用）：
 
 ```bash
-slack-gateway start    # 后台启动
-slack-gateway status   # 查看状态（pid、运行时长、活跃 session 数）
-slack-gateway stop     # 停止
-slack-gateway restart  # 重启
-slack-gateway list     # 列出 channel→session 映射
+chorusgate start    # 后台启动
+chorusgate status   # 查看状态（pid、运行时长、活跃 session 数）
+chorusgate stop     # 停止
+chorusgate restart  # 重启
+chorusgate list     # 列出 channel→session 映射
 ```
 
 `npm run start|stop|restart|status|list` 是对应别名。日志写 `.gateway/gateway.log`。
 
 ### 7. 在 Slack 里使用
 
-把机器人加入频道（`/invite @ClaudeCodeApp`），然后 @mention 它，或者直接发 DM。
+把机器人加入频道（`/invite @ChorusGate`），然后 @mention 它，或者直接发 DM。
 
 ---
 
@@ -100,11 +104,11 @@ slack-gateway list     # 列出 channel→session 映射
 | 模式 | 文件 | 适合场景 |
 |------|------|---------|
 | **Gateway 守护进程** | `src/gateway.ts` | 自动回复，常驻后台，无需人工干预 |
-| **MCP Server** | `src/index.ts` | Claude Code 终端主动调用 Slack 工具 |
+| **MCP Server** | `src/index.ts` | agent runtime 主动调用 Slack 工具 |
 
 > **不能同时建两个 Socket Mode 连接。** Slack 把事件负载均衡到同一 app 的所有连接，两个连接 = 事件分流丢失。
-> 
-> 如果需要 Gateway 收事件 + Claude Code 终端也能发消息，在 `.claude/mcp.json` 里给 MCP server 加 `"MCP_SENDER_ONLY": "1"`，它就只用 Web API，不建 WebSocket 连接。
+>
+> 现在 `chorusgate-mcp` 固定只提供 Web API 工具，不再建立 Socket Mode。Gateway 负责收事件，agent runtime 可直接复用同一份 `.claude/mcp.json`。
 
 ---
 
@@ -112,34 +116,20 @@ slack-gateway list     # 列出 channel→session 映射
 
 在项目根创建 `.claude/mcp.json`（复用 `.claude` 体系，无需在根目录额外建 `mcp.json`）。可从 `.claude/mcp.json.example` 复制：
 
-**单独使用（不跑 gateway）**：
-
 ```json
 {
   "mcpServers": {
-    "slack-socket": {
-      "command": "slack-socket-mcp",
+    "chorusgate": {
+      "command": "chorusgate-mcp",
       "args": []
     }
   }
 }
 ```
 
-**与 gateway 共存**（必须加 `MCP_SENDER_ONLY=1`）：
+同一份配置既可单独使用，也可与 gateway 共存，因为 `chorusgate-mcp` 已不再建立 Socket Mode。
 
-```json
-{
-  "mcpServers": {
-    "slack-socket": {
-      "command": "slack-socket-mcp",
-      "args": [],
-      "env": { "MCP_SENDER_ONLY": "1" }
-    }
-  }
-}
-```
-
-可用的 MCP tools：`slack_check_events` / `slack_reply` / `slack_send_message` / `slack_add_reaction` / `slack_channel_history` / `slack_thread_replies` / `slack_list_channels` / `slack_get_user_info`
+可用的 MCP tools：`slack_reply` / `slack_send_message` / `slack_add_reaction` / `slack_channel_history` / `slack_thread_replies` / `slack_list_channels` / `slack_get_user_info`
 
 ---
 
@@ -176,15 +166,13 @@ slack-gateway list     # 列出 channel→session 映射
 | `GATEWAY_CLAUDE_CWD` | 项目根 | spawned claude 的工作目录 |
 | `CLAUDE_BIN` | `claude` | claude CLI 路径 |
 | `CLAUDE_PERMISSION_MODE` | `bypassPermissions` | headless 模式权限策略 |
-| `MCP_SENDER_ONLY` | — | 设为 `1` 只保留 Web API 工具，不建 Socket Mode 连接 |
-
 ---
 
 ## 常见问题
 
 **事件丢失，机器人时而收不到消息**
 
-同一 Slack app 只能有一个 Socket Mode 连接。多个连接导致 Slack 分流事件。确保只有 gateway 建 Socket Mode 连接；MCP server 加 `MCP_SENDER_ONLY=1`。
+同一 Slack app 只能有一个 Socket Mode 连接。多个连接会导致 Slack 分流事件。确保只有 gateway 建 Socket Mode 连接；`chorusgate-mcp` 已不再建第二条连接。
 
 **Slash command 在 DM 里不工作**
 
@@ -198,9 +186,9 @@ Slack App 管理页 → App Home → 勾选 "Allow users to send Slash commands 
 
 续轮会话使用 `GATEWAY_REPLY_TIMEOUT_MS_LONG`（默认 360s）。长任务超时就调大它。占位消息卡住的话重启 gateway —— 最新代码已修复进度队列排空顺序。
 
-**`slack-gateway: command not found`**
+**`chorusgate: command not found`**
 
-`npm install` 不会注册全局命令 — 跑一次 `npm link` 把 `slack-gateway` 和 `slack-socket-mcp` 挂到 PATH。
+`npm install` 不会注册全局命令 — 跑一次 `npm link` 把 `chorusgate` 和 `chorusgate-mcp` 挂到 PATH。
 
 更多见 [`docs/gotchas.md`](./docs/gotchas.md)。
 

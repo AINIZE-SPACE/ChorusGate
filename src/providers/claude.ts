@@ -3,13 +3,14 @@
 //
 // 从 reply-engine.ts 原有逻辑迁移，实现 AgentProvider 接口。
 //
-// 跟踪: [#22](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/22)
+// MCP: `claude -p` 继承父进程环境，直接加载 `.claude/mcp.json`。
+// ChorusGate MCP 只提供 Web API 工具，不再承担 Socket Mode 收事件。
+// 因此 gateway 和 spawned claude 可以共享同一份 MCP 配置。
+//
+// 跟踪: [#22](https://github.com/AINIZE-SPACE/chorusgate/issues/22)
 // ============================================================
 
-import { spawn } from "node:child_process";
-import { writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { spawn, type SpawnOptions } from "node:child_process";
 import { ClaudeEventParser } from "./claude-parser.js";
 import type {
   AgentProvider,
@@ -18,58 +19,18 @@ import type {
   SessionOutput,
 } from "./types.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const projectRoot = resolve(__dirname, "..", "..");
+const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
 
-const PERMISSION_MODE =
-  process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions";
+// ---- spawn helper ------------------------------------------------------------
 
-// ---- MCP config (lazy, per-provider) -----------------------------------------
-
-function ensureSenderMCPConfig(): string {
-  const senderMcpConfig = resolve(
-    projectRoot,
-    "config",
-    "sender-mcp.generated.json",
-  );
-  const senderBin = resolve(projectRoot, "bin", "slack-socket-mcp.mjs");
-  try {
-    writeFileSync(
-      senderMcpConfig,
-      JSON.stringify(
-        {
-          mcpServers: {
-            slack: {
-              command: "node",
-              args: [senderBin],
-              env: {
-                MCP_SENDER_ONLY: "1",
-                SLACK_BOT_TOKEN: process.env.SLACK_BOT_TOKEN || "",
-                SLACK_APP_TOKEN: process.env.SLACK_APP_TOKEN || "",
-              },
-            },
-          },
-        },
-        null,
-        2,
-      ),
-    );
-  } catch (err) {
-    console.error(
-      "[claude-provider] WARNING: could not write sender MCP config:",
-      (err as Error).message,
-    );
-  }
-  return senderMcpConfig;
+/** Build spawn env, injecting per-profile tokens when provided (STORY-7). */
+function buildSpawnEnv(opts: CreateSessionOptions): Record<string, string | undefined> {
+  const env: Record<string, string | undefined> = { ...process.env };
+  // Per-profile: override tokens so spawned claude picks up the right Slack app.
+  if (opts.botToken) env.SLACK_BOT_TOKEN = opts.botToken;
+  if (opts.appToken) env.SLACK_APP_TOKEN = opts.appToken;
+  return env;
 }
-
-let _senderMcpConfig: string | null = null;
-function getSenderMCPConfig(): string {
-  if (_senderMcpConfig === null) _senderMcpConfig = ensureSenderMCPConfig();
-  return _senderMcpConfig;
-}
-
-// ---- Provider 实现 -----------------------------------------------------------
 
 function spawnClaude(
   bin: string,
@@ -78,9 +39,9 @@ function spawnClaude(
   cwd: string,
   timeoutMs: number,
   parser: ClaudeEventParser,
+  env?: Record<string, string | undefined>,
 ): Promise<SessionOutput> {
   return new Promise<SessionOutput>((resolve) => {
-    // Windows: shell:true for .cmd shims; concat args ourselves to avoid DEP0190
     const win = process.platform === "win32";
     const cmd = win
       ? `"${bin}" ${args
@@ -88,15 +49,18 @@ function spawnClaude(
           .join(" ")}`
       : bin;
     const spawnArgs = win ? [] : args;
-    const child = spawn(cmd, spawnArgs, {
+    const opts: SpawnOptions = {
       cwd,
       stdio: ["pipe", "pipe", "pipe"],
       shell: win,
       windowsHide: true,
-    });
+    };
+    if (env) opts.env = env;
 
-    child.stdin.write(prompt);
-    child.stdin.end();
+    const child = spawn(cmd, spawnArgs, opts);
+
+    child.stdin!.write(prompt);
+    child.stdin!.end();
 
     let stdoutBuf = "";
     let stderr = "";
@@ -114,14 +78,14 @@ function spawnClaude(
       });
     }, timeoutMs);
 
-    child.stdout.on("data", (chunk) => {
+    child.stdout!.on("data", (chunk) => {
       stdoutBuf += chunk.toString();
       const lines = stdoutBuf.split("\n");
       stdoutBuf = lines.pop() ?? "";
       for (const line of lines) parser.feed(line);
     });
 
-    child.stderr.on("data", (chunk) => {
+    child.stderr!.on("data", (chunk) => {
       stderr += chunk.toString();
     });
 
@@ -133,7 +97,7 @@ function spawnClaude(
         ok: false,
         text: "",
         sessionId: "",
-        error: `failed to spawn ${bin}: ${err.message}`,
+        error: `failed to spawn ${CLAUDE_BIN}: ${err.message}`,
       });
     });
 
@@ -166,41 +130,34 @@ function spawnClaude(
   });
 }
 
+// ---- Provider ----------------------------------------------------------------
+
 export const claudeProvider: AgentProvider = {
   id: "claude",
-  bin: process.env.CLAUDE_BIN || "claude",
+  bin: CLAUDE_BIN,
 
   async createSession(
     prompt: string,
     opts: CreateSessionOptions,
   ): Promise<SessionOutput> {
     const sessionId = opts.sessionId || crypto.randomUUID();
-
     const args = [
       "-p",
-      "--output-format",
-      "stream-json",
+      "--output-format", "stream-json",
       "--verbose",
       "--permission-mode",
-      PERMISSION_MODE,
-      "--strict-mcp-config",
-      "--mcp-config",
-      getSenderMCPConfig(),
-      "--session-id",
-      sessionId,
+      process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
+      "--session-id", sessionId,
     ];
 
     const parser = new ClaudeEventParser();
     parser.onProgress = opts.onProgress;
+    parser.onSessionId = opts.onSessionId;
 
-    return spawnClaude(
-      this.bin,
-      args,
-      prompt,
-      opts.cwd,
-      opts.timeoutMs,
-      parser,
-    ).then((r) => ({ ...r, sessionId }));
+    const env = buildSpawnEnv(opts);
+    return spawnClaude(CLAUDE_BIN, args, prompt, opts.cwd, opts.timeoutMs, parser, env).then(
+      (r) => ({ ...r, sessionId: r.sessionId || sessionId }),
+    );
   },
 
   async resumeSession(
@@ -210,28 +167,19 @@ export const claudeProvider: AgentProvider = {
   ): Promise<SessionOutput> {
     const args = [
       "-p",
-      "--output-format",
-      "stream-json",
+      "--output-format", "stream-json",
       "--verbose",
       "--permission-mode",
-      PERMISSION_MODE,
-      "--strict-mcp-config",
-      "--mcp-config",
-      getSenderMCPConfig(),
-      "--resume",
-      sessionId,
+      process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
+      "--resume", sessionId,
     ];
 
     const parser = new ClaudeEventParser();
     parser.onProgress = opts.onProgress;
 
-    return spawnClaude(
-      this.bin,
-      args,
-      prompt,
-      opts.cwd,
-      opts.timeoutMs,
-      parser,
-    ).then((r) => ({ ...r, sessionId }));
+    const env = buildSpawnEnv(opts);
+    return spawnClaude(CLAUDE_BIN, args, prompt, opts.cwd, opts.timeoutMs, parser, env).then(
+      (r) => ({ ...r, sessionId }),
+    );
   },
 };

@@ -14,15 +14,17 @@
 // ============================================================
 
 import { bootstrap } from "./bootstrap.js";
+import type { ProfileConfig } from "./profile-config.js";
 
-bootstrap();
+const profiles = bootstrap();
 
 import { getWebClient } from "./slack-clients.js";
 import {
-  startSocketMode,
-  stopSocketMode,
+  getSocketManager,
   enrichEvent,
+  type SocketManager,
   type SlashCommand,
+  type BlockAction,
 } from "./socket-manager.js";
 import { eventStore } from "./event-store.js";
 import { generateReply, generateReplyStream } from "./reply-engine.js";
@@ -32,6 +34,7 @@ import {
   buildApprovalBlocks,
 } from "./permission-tracker.js";
 import { detectCommand, handleCommand } from "./session-commands.js";
+import { type SessionIdentity, formatIdentityKey } from "./session-store.js";
 import {
   ensureGatewayDir,
   getPidFile,
@@ -49,6 +52,9 @@ const REPLY_TIMEOUT_MS = Number(process.env.GATEWAY_REPLY_TIMEOUT_MS || 180_000)
 // GATEWAY_REPLY_TIMEOUT_MS_LONG to override; defaults to 2× the normal timeout.
 const REPLY_TIMEOUT_MS_LONG = Number(
   process.env.GATEWAY_REPLY_TIMEOUT_MS_LONG || REPLY_TIMEOUT_MS * 2
+);
+console.error(
+  `[gateway] REPLY_TIMEOUT_MS/REPLY_TIMEOUT_MS_LONG: ${REPLY_TIMEOUT_MS}/${REPLY_TIMEOUT_MS_LONG}`
 );
 // Max concurrent `claude -p` replies. Excess events queue and run as slots free.
 const maxConcurrentRaw = Number(process.env.GATEWAY_MAX_CONCURRENT || 3);
@@ -82,8 +88,33 @@ const INTERACTIVE_PERMISSIONS =
   PERMISSION_MODE !== "bypassPermissions";
 
 // M2: Claude 双向 stream-json 控制面
-// 跟踪: [#34](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/34)
+// 跟踪: [#34](https://github.com/AINIZE-SPACE/chorusgate/issues/34)
 const STREAM_MODE = process.env.GATEWAY_CLAUDE_MODE === "stream";
+
+// ---- multi-profile routing ---------------------------------------------------
+// Build a lookup map from profile id → ProfileConfig for O(1) routing.
+const profileMap = new Map<string, ProfileConfig>();
+for (const p of profiles) {
+  profileMap.set(p.id, p);
+}
+
+// Per-scope project directory overrides (set by /cc_new --project).
+const scopeProjectOverrides = new Map<string, string>();
+
+/** Get the CLI working directory for a profile. */
+function profileCwd(profileId: string): string {
+  return profileMap.get(profileId)?.cwd || CLAUDE_CWD;
+}
+
+/** Get the command prefix for a profile. */
+function profilePrefix(profileId: string): string {
+  return profileMap.get(profileId)?.commandPrefix || "cc";
+}
+
+/** Get the provider id for a profile. */
+function profileProvider(profileId: string): string {
+  return profileMap.get(profileId)?.providerId || "claude";
+}
 
 // Rotating heartbeat phrases shown while the agent works with no tool activity.
 const HEARTBEAT_PHRASES = [
@@ -100,26 +131,40 @@ const TOOL_LABEL_STICKY_MS = 6000;
 // ============================================================
 
 /**
- * Compute the session scope key for a channel+thread pair.
+ * Compute the session identity for a channel+thread+profile combination.
  * - "channel" scope (default): one shared session per channel/DM,
  *   EXCEPT assistant threads in DMs — each new chat (distinct thread_ts)
  *   gets its own session so "新聊天" always starts fresh.
  * - "thread" scope: one session per thread everywhere.
  * Slash commands always use channel scope (they carry no thread_ts).
  */
-function scopeKey(
+function sessionIdentity(
   channel: string,
+  profileId: string,
+  providerId: string,
   threadTs?: string,
-  channelType?: string
-): string {
-  if (SESSION_SCOPE === "thread" && threadTs) {
-    return sessionStore.threadKey(channel, threadTs);
+  channelType?: string,
+  projectDir?: string,
+): SessionIdentity {
+  // Check for a per-scope project dir override (set by /cc_new --project).
+  const useThread =
+    (SESSION_SCOPE === "thread" && threadTs) ||
+    (channelType === "im" && threadTs);
+
+  const scopeKey = useThread
+    ? `thread:${channel}:${threadTs}`
+    : `channel:${channel}`;
+  const effectiveProjectDir =
+    scopeProjectOverrides.get(scopeKey) ?? projectDir;
+
+  if (useThread) {
+    return sessionStore.threadIdentity(
+      profileId, providerId, channel, threadTs!, effectiveProjectDir,
+    );
   }
-  // DM assistant threads: isolate each "新聊天" by its thread_ts.
-  if (channelType === "im" && threadTs) {
-    return sessionStore.threadKey(channel, threadTs);
-  }
-  return sessionStore.channelKey(channel);
+  return sessionStore.channelIdentity(
+    profileId, providerId, channel, effectiveProjectDir,
+  );
 }
 
 /** Decide whether a stored event warrants an auto-reply. */
@@ -200,7 +245,7 @@ async function buildPrompt(
   }
 
   return [
-    `You are ClaudeCodeApp, an AI assistant replying in Slack (${where}).`,
+    `You are ChorusGate, an AI assistant replying in Slack (${where}).`,
     `Current channel ID: ${event.channel}.`,
     `${who} wrote: "${userMsg}"`,
     context,
@@ -254,29 +299,46 @@ const threadChains = new Map<string, Promise<void>>();
 // M2: Permission tracker for interactive approve/deny via Slack buttons
 const permissionTracker = new PermissionTracker();
 
-/** Handle a native Slack slash command (/cc_sessions, /cc_resume, /cc_new, /cc_current, /cchelp). */
+/** Handle a native Slack slash command for session control. */
 function onSlash(slashCmd: SlashCommand): void {
-  // Slash commands always use channel scope (no thread_ts).
-  const sKey = sessionStore.channelKey(slashCmd.channelId);
+  const id = sessionIdentity(
+    slashCmd.channelId,
+    slashCmd.profileId,
+    profileProvider(slashCmd.profileId),
+    undefined, // slash commands always channel scope
+    undefined,
+    profileCwd(slashCmd.profileId),
+  );
+  const sKey = formatIdentityKey(id);
+  const prefix = profilePrefix(slashCmd.profileId);
   const command = detectCommand(
-    slashCmd.command + (slashCmd.text ? ` ${slashCmd.text}` : "")
+    slashCmd.command + (slashCmd.text ? ` ${slashCmd.text}` : ""),
+    prefix,
   );
   if (!command) {
     console.error(
-      `[gateway] unrecognized slash command: ${slashCmd.command}`
+      `[gateway] unrecognized slash command: ${slashCmd.command}` +
+        ` (profile: ${slashCmd.profileId})`,
     );
     return;
   }
+
+  // Build a project dir setter for the scope override map.
+  const scopeKey = `channel:${slashCmd.channelId}`;
+  const onSetProjectDir = (dir: string | undefined) => {
+    if (dir) scopeProjectOverrides.set(scopeKey, dir);
+    else scopeProjectOverrides.delete(scopeKey);
+  };
 
   // Run on the channel's serial chain to avoid races with concurrent messages.
   const prev = threadChains.get(sKey) ?? Promise.resolve();
   const next = prev.catch(() => {}).then(async () => {
     try {
-      await handleCommand(command, sKey, { channel: slashCmd.channelId });
+      await handleCommand(command, id, { channel: slashCmd.channelId }, prefix, onSetProjectDir);
     } catch (err) {
       console.error(
         "[gateway] slash command handler failed:",
-        (err as Error).message
+        (err as Error).message,
       );
     }
   });
@@ -287,7 +349,7 @@ function onSlash(slashCmd: SlashCommand): void {
 }
 
 /** Entry point: enqueue an event onto its scope's serial chain. */
-function onEvent(event: StoredEvent): void {
+function onEvent(event: StoredEvent, profileId: string): void {
   if (!shouldReply(event)) {
     eventStore.markHandled(event.id);
     return;
@@ -304,23 +366,37 @@ function onEvent(event: StoredEvent): void {
   const replyThreadTs = event.thread_ts || event.ts;
   const channelType = (event.raw as Record<string, unknown> | undefined)
     ?.channel_type as string | undefined;
-  const tKey = scopeKey(event.channel, replyThreadTs, channelType);
 
-  // Session commands (/cc_sessions, /cc_resume, /cc_new, /cc_current, /help) bypass the
+  const providerId = profileProvider(profileId);
+  const id = sessionIdentity(
+    event.channel, profileId, providerId, replyThreadTs, channelType,
+    profileCwd(profileId),
+  );
+  const tKey = formatIdentityKey(id);
+
+  // Session commands bypass the
   // AI reply path — handle them directly, but still on the scope chain so
   // ordering/dedup stay consistent.
-  const cmd = detectCommand(cleanText(event.text || ""));
+  const prefix = profilePrefix(profileId);
+  const cmd = detectCommand(cleanText(event.text || ""), prefix);
 
   const prev = threadChains.get(tKey) ?? Promise.resolve();
   const next = prev
     .catch(() => {}) // a prior failure shouldn't break the chain
     .then(async () => {
       if (cmd) {
+        const evtScopeKey = replyThreadTs
+          ? `thread:${event.channel}:${replyThreadTs}`
+          : `channel:${event.channel}`;
+        const onSetProjectDir = (dir: string | undefined) => {
+          if (dir) scopeProjectOverrides.set(evtScopeKey, dir);
+          else scopeProjectOverrides.delete(evtScopeKey);
+        };
         try {
-          await handleCommand(cmd, tKey, {
+          await handleCommand(cmd, id, {
             channel: event.channel,
             threadTs: replyThreadTs,
-          });
+          }, prefix, onSetProjectDir);
         } catch (err) {
           console.error("[gateway] command failed:", (err as Error).message);
         } finally {
@@ -329,7 +405,7 @@ function onEvent(event: StoredEvent): void {
         }
         return;
       }
-      return processEvent(event, tKey, replyThreadTs);
+      return processEvent(event, id, tKey, replyThreadTs, profileId);
     });
   threadChains.set(tKey, next);
   // Clean up the map entry once this is the tail of the chain.
@@ -341,8 +417,10 @@ function onEvent(event: StoredEvent): void {
 /** Process one event: reply via the scope's reused Claude session. */
 async function processEvent(
   event: StoredEvent,
+  id: SessionIdentity,
   tKey: string,
-  replyThreadTs: string
+  replyThreadTs: string,
+  profileId: string,
 ): Promise<void> {
   const web = getWebClient();
   let heartbeatTimer: NodeJS.Timeout | undefined;
@@ -353,8 +431,12 @@ async function processEvent(
   // Use the long timeout for resume turns (established sessions tend to be
   // longer tasks — the user has already context-built). Fresh sessions get
   // the normal timeout. Both are configurable via env vars.
-  const isResume = sessionStore.getOrCreate(tKey).started;
-  const timeoutMs = isResume ? REPLY_TIMEOUT_MS_LONG : REPLY_TIMEOUT_MS;
+  const isResume = sessionStore.getOrCreate(id).started;
+  // 动态读取 process.env 而非模块常量——ESM 导入链中可能有模块
+  // 在 bootstrap()/loadEnv() 之前已读取默认值 180000。
+  const _replyTimeoutMs = Number(process.env.GATEWAY_REPLY_TIMEOUT_MS || 180_000);
+  const _replyTimeoutMsLong = Number(process.env.GATEWAY_REPLY_TIMEOUT_MS_LONG || _replyTimeoutMs * 2);
+  const timeoutMs = isResume ? _replyTimeoutMsLong : _replyTimeoutMs;
 
   // Wait for a global concurrency slot (queues if MAX_CONCURRENT reached).
   await acquireSlot();
@@ -372,7 +454,7 @@ async function processEvent(
   try {
     await enrichEvent(event); // resolve user_name / channel_name (best effort)
 
-    const session = sessionStore.getOrCreate(tKey);
+    const session = sessionStore.getOrCreate(id);
     const resume = session.started;
     console.error(
       `[gateway] reply (${running}/${MAX_CONCURRENT} slots, timeout ${timeoutMs / 1000}s) ` +
@@ -428,11 +510,15 @@ async function processEvent(
       heartbeatTimer.unref?.();
     }
 
+    const profile = profileMap.get(profileId);
     const replyOpts = {
       timeoutMs,
-      cwd: CLAUDE_CWD,
+      cwd: profileCwd(profileId),
       sessionId: session.sessionId,
       resume,
+      profileId,
+      botToken: profile?.botToken,
+      appToken: profile?.appToken,
       onProgress: (label: string) => {
         lastLabel = label;
         lastToolAt = Date.now();
@@ -440,6 +526,7 @@ async function processEvent(
       },
     };
 
+    console.error(`[gateway] generating reply — timeoutMs=${timeoutMs} isResume=${isResume} replyOpts.timeoutMs=${replyOpts.timeoutMs}`);
     const result = INTERACTIVE_PERMISSIONS
       ? await generateReplyStream(prompt, {
           ...replyOpts,
@@ -493,9 +580,9 @@ async function processEvent(
     await stopProgress();
 
     if (result.ok) {
-      sessionStore.markStarted(tKey);
+      sessionStore.markStarted(id);
     } else if (!resume) {
-      sessionStore.reset(tKey);
+      sessionStore.reset(id);
     }
 
     const text = result.ok
@@ -606,55 +693,67 @@ async function main(): Promise<void> {
   // Don't keep the process alive just for the eviction timer.
   evictTimer.unref?.();
 
-  await startSocketMode((event) => {
+  const socketManager = getSocketManager();
+  socketManager.setEventCallback((event, profileId) => {
     // onEvent enqueues onto the thread's serial chain (non-blocking).
-    onEvent(event);
-  }, onSlash, INTERACTIVE_PERMISSIONS ? async (action) => {
-    // P0-3: 校验按钮点击者是否为审批发起者
-    const result = permissionTracker.handleAction(action.actionValue);
-    if (!result.handled) return;
+    onEvent(event, profileId);
+  });
+  socketManager.setSlashCallback(onSlash);
+  if (INTERACTIVE_PERMISSIONS) {
+    socketManager.setBlockActionCallback(async (action) => {
+      // P0-3: 校验按钮点击者是否为审批发起者
+      const result = permissionTracker.handleAction(action.actionValue);
+      if (!result.handled) return;
 
-    if (action.userId !== result.requesterUserId) {
-      console.error(
-        `[gateway] permission block_action from non-requester: ` +
-        `${action.userId} (expected ${result.requesterUserId}), ignoring`,
-      );
-      return;
-    }
+      if (action.userId !== result.requesterUserId) {
+        console.error(
+          `[gateway] permission block_action from non-requester: ` +
+          `${action.userId} (expected ${result.requesterUserId}), ignoring`,
+        );
+        return;
+      }
 
-    // P0-2: 替换审批按钮为"Approved/Denied by @user"，防止幽灵按钮
-    const statusText = result.granted
-      ? `✅ *Approved* by <@${action.userId}>`
-      : `❌ *Denied* by <@${action.userId}>`;
-    try {
-      const webClient = getWebClient();
-      await webClient.chat.update({
-        channel: action.channelId,
-        ts: action.messageTs,
-        blocks: [
-          {
-            type: "section",
-            text: { type: "mrkdwn", text: statusText },
-          },
-        ],
-        text: statusText,
-      });
-    } catch (err) {
-      console.error(
-        "[gateway] failed to update approval message:",
-        (err as Error).message,
-      );
-    }
-  } : undefined);
+      // P0-2: 替换审批按钮为"Approved/Denied by @user"，防止幽灵按钮
+      const statusText = result.granted
+        ? `✅ *Approved* by <@${action.userId}>`
+        : `❌ *Denied* by <@${action.userId}>`;
+      try {
+        const webClient = getWebClient();
+        await webClient.chat.update({
+          channel: action.channelId,
+          ts: action.messageTs,
+          blocks: [
+            {
+              type: "section",
+              text: { type: "mrkdwn", text: statusText },
+            },
+          ],
+          text: statusText,
+        });
+      } catch (err) {
+        console.error(
+          "[gateway] failed to update approval message:",
+          (err as Error).message,
+        );
+      }
+    });
+  }
+
+  // Start all profiles — one Socket Mode connection per Slack app.
+  await socketManager.startAll(profiles);
+
   console.error(
-    "[gateway] listening — will auto-reply to @mentions and DMs. " +
+    "[gateway] listening on " +
+      `${profiles.length} Slack app(s) — ` +
+      `will auto-reply to @mentions and DMs. ` +
       `Sessions are reused per ${SESSION_SCOPE} scope. Ctrl+C to stop.`
   );
 }
 
 async function shutdown(): Promise<void> {
   console.error("[gateway] shutting down...");
-  await stopSocketMode();
+  const socketManager = getSocketManager();
+  await socketManager.stopAll();
   // Clean up control-plane files so `status` reports stopped.
   try {
     rmSync(getPidFile(), { force: true });

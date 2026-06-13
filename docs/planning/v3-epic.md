@@ -1,10 +1,10 @@
-# v3 EPIC: 多 Agent 多项目 Slack 网关
+# v3 EPIC: ChorusGate 多 Agent 协作 Channel 网关
 
 > 状态：规划中 | 目标版本：v3.0.0
 
 ## 一句话目标
 
-将 gateway 从"单 Claude Code Slack bot"扩展为"多 AI agent（CC + Codex）+ 多 Slack app + 多项目"的通用 IM→Agent 网关。
+将 gateway 从“单 Claude Code Slack bot”扩展为“多 AI agent（Claude Code + Codex + 后续 runtime）+ 多 channel/app + 多项目”的通用协作 channel → agent 网关。
 
 ---
 
@@ -20,8 +20,8 @@
 | [STORY-6](./v3-story-6-config-system.md) | 多 Agent/多 App 配置系统 | P0 | STORY-3, STORY-4 |
 | [STORY-7](./v3-story-7-codex-slack-tools.md) | Codex Slack MCP Tools | P1 | STORY-2 |
 | [STORY-8](./v3-story-8-claude-stream-json.md) | Claude 双向 stream-json 控制面 | P0 | STORY-1 |
-| [#32](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/32) | Slack approval/control loop | P1 | STORY-1, STORY-5 |
-| [#33](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/33) | Session worktree isolation | P1 | STORY-4, STORY-5 |
+| [#32](https://github.com/AINIZE-SPACE/chorusgate/issues/32) | Slack approval/control loop | P1 | STORY-1, STORY-5 |
+| [#33](https://github.com/AINIZE-SPACE/chorusgate/issues/33) | Session worktree isolation | P1 | STORY-4, STORY-5 |
 
 ---
 
@@ -33,7 +33,7 @@
 - 固化 resume fixture：`codex exec resume <tid> <prompt> --json`
 - 固化 MCP tool-call fixture（含 tool_use 事件格式）
 - 产物：`tests/fixtures/codex-*.jsonl`
-- 详见 [#29](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/29)
+- 详见 [#29](https://github.com/AINIZE-SPACE/chorusgate/issues/29)
 
 ### M1：双 Agent 核心（STORY-1, 2, 5）
 - Per-profile Slack runtime 重构（拆单例）
@@ -51,12 +51,14 @@
 - stdout 解析 JSON 事件（permission_request、stream_event、result）
 - Slack interactive approve/deny：`permission_request` → Slack 按钮 → 用户点击 → stdin 回写
 - `--replay-user-messages` 回显用户消息到输出流
-- 跟踪: [#32](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/32)
+- 跟踪: [#32](https://github.com/AINIZE-SPACE/chorusgate/issues/32)
 
 ### M3：多 Slack App（STORY-3, 6）
 - 多 SocketModeClient 实例
 - `GATEWAY_PROFILES=cc,codex` 配置系统
 - Per-profile token 注入 MCP config
+- Codex is already present as a provider, but app-level first-class support
+  still requires isolated manifest/prefix/lifecycle wiring.
 
 ### M4：多项目 + Slack 工具（STORY-4, 7）
 - 会话级 project cwd

@@ -1,21 +1,21 @@
 # Feature: Gateway 生命周期管理
 
-> 对应文件：`bin/slack-gateway.mjs`、`src/gateway-control.ts`、`src/gateway-paths.ts`
+> 对应文件：`bin/chorusgate.mjs`、`src/gateway-control.ts`、`src/gateway-paths.ts`
 
 ---
 
 ## 功能描述
 
-`slack-gateway` 是 gateway 守护进程的控制工具，支持：
+`chorusgate` 是 gateway 守护进程的控制工具，支持：
 
 | 命令 | 行为 |
 |------|------|
-| `slack-gateway run` | 前台运行（阻塞终端，调试用）|
-| `slack-gateway start` | 后台守护进程（推荐日常使用）|
-| `slack-gateway stop` | 停止守护进程（SIGTERM）|
-| `slack-gateway restart` | stop + start |
-| `slack-gateway status` | 查看运行状态（pid、运行时长、活跃 session 数）|
-| `slack-gateway list` | 列出所有 channel→session 映射 |
+| `chorusgate run` | 前台运行（阻塞终端，调试用）|
+| `chorusgate start` | 后台守护进程（推荐日常使用）|
+| `chorusgate stop` | 停止守护进程（SIGTERM）|
+| `chorusgate restart` | stop + start |
+| `chorusgate status` | 查看运行状态（pid、运行时长、活跃 session 数）|
+| `chorusgate list` | 列出所有 channel→session 映射 |
 
 `npm run start|stop|restart|status|list` 是对应别名。
 

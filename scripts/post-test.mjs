@@ -10,7 +10,7 @@ loadDotEnv({ path: resolve(here, "..", ".env") });
 
 const web = new WebClient(process.env.SLACK_BOT_TOKEN);
 const CHANNEL = "C0B8V9LV8CT"; // #aifitness
-const BOT = "U0B8VHLHJAX"; // ClaudeCodeApp
+const BOT = "U0B8VHLHJAX"; // ChorusGate
 
 const res = await web.chat.postMessage({
   channel: CHANNEL,

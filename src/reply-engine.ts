@@ -5,8 +5,8 @@
 // This module keeps the legacy ReplyEngineOptions signature for
 // backward compat with gateway.ts.
 //
-// 跟踪: [#22](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/22)
-// 跟踪: [#34](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/34) — M2 stream mode
+// 跟踪: [#22](https://github.com/AINIZE-SPACE/chorusgate/issues/22)
+// 跟踪: [#34](https://github.com/AINIZE-SPACE/chorusgate/issues/34) — M2 stream mode
 // ============================================================
 
 import type { ReplyEngineOptions, ReplyResult } from "./providers/types.js";
@@ -14,9 +14,6 @@ import type { PermissionRequest } from "./providers/claude-stream-parser.js";
 
 // Re-export for backward compat
 export type { ReplyEngineOptions, ReplyResult };
-
-const PERMISSION_MODE =
-  process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions";
 
 /**
  * Generate a reply via the configured AgentProvider.
@@ -34,7 +31,12 @@ export async function generateReply(
       : (await import("./providers/claude.js")).claudeProvider;
 
   const timeoutMs = opts.timeoutMs ?? 180_000;
+  console.error(`[reply-engine] generateReply opts.timeoutMs=${opts.timeoutMs} → timeoutMs=${timeoutMs}`);
   const cwd = opts.cwd ?? process.cwd();
+  // 动态读取 env 而非模块常量——ESM 静态 import 链中 PERMISSION_MODE
+  // 可能在 bootstrap()/loadEnv() 之前已被冻结为默认值。沿用 a4f05c1 修法。
+  const permissionMode =
+    process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions";
 
   try {
     if (opts.sessionId && opts.resume) {
@@ -42,7 +44,9 @@ export async function generateReply(
         cwd,
         timeoutMs,
         mcpConfigPath: "",
-        permissionMode: PERMISSION_MODE,
+        permissionMode,
+        botToken: opts.botToken,
+        appToken: opts.appToken,
         onProgress: opts.onProgress,
       });
       return { ok: r.ok, text: r.text, error: r.error };
@@ -52,8 +56,10 @@ export async function generateReply(
       cwd,
       timeoutMs,
       mcpConfigPath: "",
-      permissionMode: PERMISSION_MODE,
+      permissionMode,
       sessionId: opts.sessionId,
+      botToken: opts.botToken,
+      appToken: opts.appToken,
       onProgress: opts.onProgress,
     });
     return { ok: r.ok, text: r.text, error: r.error };
@@ -97,8 +103,11 @@ export async function generateReplyStream(
       cwd,
       timeoutMs,
       mcpConfigPath: "",
-      permissionMode: PERMISSION_MODE,
+      // 同 generateReply：env 在调用点读，避开模块顶层冻结。
+      permissionMode: process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
       sessionId: opts.sessionId,
+      botToken: opts.botToken,
+      appToken: opts.appToken,
       onProgress: opts.onProgress,
       // P1-4 fix: 构造时绑定，消除 spawn 后绑定竞态
       onPermissionRequest: opts.onPermission

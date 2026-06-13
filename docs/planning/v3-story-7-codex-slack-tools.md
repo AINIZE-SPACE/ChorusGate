@@ -1,7 +1,7 @@
 # STORY-7: Codex Slack MCP Tools
 
 > 状态：规划中 | Epic: [v3 EPIC](./v3-epic.md) | 优先级：P1 | 依赖：STORY-2
-> 评审决策：详见 [#28](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/28)、[#31](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/31)
+> 评审决策：详见 [#28](https://github.com/AINIZE-SPACE/chorusgate/issues/28)、[#31](https://github.com/AINIZE-SPACE/chorusgate/issues/31)
 > Phase 1: gateway-only Codex；MCP server 保持 Claude Code first。
 
 ## 问题
@@ -38,10 +38,9 @@ function generateMCPConfig(profile: SlackProfile, provider: AgentProvider): stri
 
 [mcp_servers.slack]
 command = "node"
-args = ["E:\\my_project\\slack4ccmcp\\bin\\slack-socket-mcp.mjs"]
+args = ["E:\\my_project\\chorusgate\\bin\\chorusgate-mcp.mjs"]
 
 [mcp_servers.slack.env]
-MCP_SENDER_ONLY = "1"
 SLACK_BOT_TOKEN = "xoxb-..."
 SLACK_APP_TOKEN = "xapp-..."
 
@@ -84,7 +83,7 @@ function toolLabel(name: string): string {
 - CC 用 `config/sender-mcp.generated.json`（JSON 格式）
 - Codex 用 `config/codex-mcp.generated.toml`（TOML 格式）
 - 两个文件各自生成，互不干扰
-- 都用 `MCP_SENDER_ONLY=1` 的同一份 `slack-socket-mcp.mjs`
+- 都用同一份只含 Web API 工具的 `chorusgate-mcp.mjs`
 
 ## 验收标准
 

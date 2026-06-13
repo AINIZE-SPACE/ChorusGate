@@ -1,11 +1,14 @@
-# Slack Scope → Claude Session Map
+# Slack Scope → Session Map
 
-每个 Slack scope（channel 或 thread）绑定一个持久 Claude session UUID。
-gateway 用 `claude -p --resume <uuid>` 续接，使同一 scope 跨消息保留上下文。
-本文件只存路由 meta —— 真正的对话/记忆在 Claude agent 自己的 session
-存储和它的 memory md 里，不在这里。由 gateway 自动维护；可由 git 追踪。
+每个 Slack scope（channel 或 thread）绑定一个持久 Agent session UUID。
+gateway 用 `claude -p --resume <uuid>` 或 `codex exec resume <tid>` 续接。
+本文件只存路由 meta —— 真正的对话/记忆在 Agent 自己的 session 存储里。
+由 gateway 自动维护；可由 git 追踪。
 
-| Scope Key | Session UUID | Started | Last Used |
-|------------|--------------|---------|-----------|
-| D0B8LES3QUX:1781227342.816499 | 4ddec375-155d-4ff2-a8a5-89f10c3188dc | yes | 2026-06-12T03:01:35.301Z |
-| D0B8LES3QUX:1781227070.272199 | 9df78166-6b98-4500-82ab-9d516e66dec0 | no | 2026-06-12T01:23:34.393Z |
+| Profile | Provider | Scope Key | Session UUID | Project Dir | Started | Last Used |
+|---------|----------|-----------|-------------|-------------|---------|-----------|
+| default | claude | default:claude:channel:C0BAB3Y7LLC:E:\my_project\ainize\ChorusGate_dev | bbecca3f-ef78-4843-89be-5caab52bfc2e | E:\my_project\ainize\ChorusGate_dev | yes | 2026-06-13T15:43:28.984Z |
+| default | claude | default:claude:thread:D0B8LES3QUX:1781344650.541849:E:\my_project\ainize\ChorusGate_dev | 157e59ec-86ac-4ba3-948f-206c5bb76b85 | E:\my_project\ainize\ChorusGate_dev | yes | 2026-06-13T12:33:50.562Z |
+| default | claude | default:claude:thread:D0B8LES3QUX:1781344748.183159:E:\my_project\ainize\ChorusGate_dev | 016453ca-53a1-45e1-81c0-f1d0a97cccd8 | E:\my_project\ainize\ChorusGate_dev | yes | 2026-06-13T10:46:52.063Z |
+| default | claude | default:claude:thread:D0B8LES3QUX:1781266621.800139:E:\my_project\ainize\ChorusGate_dev | cf1e4343-9bbc-42d5-a911-c901e74e617e | E:\my_project\ainize\ChorusGate_dev | yes | 2026-06-13T09:57:35.449Z |
+| default | claude | default:claude:channel:C0BAB3Y7LLC | 567432f0-b7c8-4598-a1b8-0a36a9147167 |  | yes | 2026-06-13T05:30:58.871Z |

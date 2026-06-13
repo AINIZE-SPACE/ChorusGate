@@ -15,8 +15,8 @@
 | Session ID 字段 | `thread.id` | `thread_id`（UUID 格式，M0 实测） + `thread.id`（兼容） |
 | 权限标志 | `--full-auto` / `--ask-for-approval never` | M0 实测：当前 `codex exec` 不支持 `--ask-for-approval`，Phase 1 不传审批 flag |
 | 文档 | v3-story-2-codex-provider.md | 已修复 |
-| 跟踪 | [#23](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/23) | 已加评论 |
-| 决策单 | — | [#29](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/29) |
+| 跟踪 | [#23](https://github.com/AINIZE-SPACE/chorusgate/issues/23) | 已加评论 |
+| 决策单 | — | [#29](https://github.com/AINIZE-SPACE/chorusgate/issues/29) |
 
 ### 2. Per-profile Slack runtime 重构 (P0) ✅
 
@@ -31,8 +31,8 @@
 | `onSlashCallback` | `socket-manager.ts:25` |
 
 | 文档 | v3-story-3-multi-slack-app.md | 已修复 |
-| 跟踪 | [#24](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/24) | 已加评论 |
-| 决策单 | — | [#30](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/30) |
+| 跟踪 | [#24](https://github.com/AINIZE-SPACE/chorusgate/issues/24) | 已加评论 |
+| 决策单 | — | [#30](https://github.com/AINIZE-SPACE/chorusgate/issues/30) |
 
 ### 3. Session key 结构化 (P0) ✅
 
@@ -43,7 +43,7 @@
 新 key 维度：`profileId:providerId:scopeKey:projectDir`
 
 | 文档 | v3-story-4-multi-project.md | 已修复 |
-| 跟踪 | [#25](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/25) | 已加评论 |
+| 跟踪 | [#25](https://github.com/AINIZE-SPACE/chorusgate/issues/25) | 已加评论 |
 
 ### 4. Per-profile MCP token 注入 (P1) ✅
 
@@ -53,8 +53,8 @@
 | CC 和 Codex 共享 sender config | 各生成独立的 MCP config |
 
 | 文档 | v3-story-7-codex-slack-tools.md | 已修复 |
-| 跟踪 | [#28](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/28) | 已加评论 |
-| 决策单 | — | [#31](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/31) |
+| 跟踪 | [#28](https://github.com/AINIZE-SPACE/chorusgate/issues/28) | 已加评论 |
+| 决策单 | — | [#31](https://github.com/AINIZE-SPACE/chorusgate/issues/31) |
 
 ### 5. 新增 M0 验证 Spike 里程碑
 
@@ -66,9 +66,9 @@
 
 | Issue | 标题 | 类型 |
 |-------|------|------|
-| [#29](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/29) | Codex gateway runtime uses实测 `codex exec --json` JSONL 契约 | 决策单 |
-| [#30](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/30) | Use cc/codex Slack profiles with independent Socket Mode tokens | 决策单 |
-| [#31](https://github.com/AINIZE-SPACE/slack4ccmcp/issues/31) | Phase 1 Codex is gateway-only; keep MCP server Claude Code first | 决策单 |
+| [#29](https://github.com/AINIZE-SPACE/chorusgate/issues/29) | Codex gateway runtime uses实测 `codex exec --json` JSONL 契约 | 决策单 |
+| [#30](https://github.com/AINIZE-SPACE/chorusgate/issues/30) | Use cc/codex Slack profiles with independent Socket Mode tokens | 决策单 |
+| [#31](https://github.com/AINIZE-SPACE/chorusgate/issues/31) | Phase 1 Codex is gateway-only; keep MCP server Claude Code first | 决策单 |
 
 ## 里程碑调整
 

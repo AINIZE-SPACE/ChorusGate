@@ -227,7 +227,7 @@ export async function list(): Promise<void> {
 export function help(): void {
   console.error(
     [
-      "Usage: slack-gateway <command>",
+      "Usage: chorusgate <command>",
       "",
       "  run       run the gateway in the foreground (blocks)",
       "  start     start the gateway as a background daemon",

@@ -1,4 +1,9 @@
-# planning/
+# ChorusGate planning/
+
+This directory tracks planned work for ChorusGate, the local-first
+collaboration-channel gateway for coding agents. The current direction is:
+Slack first, Feishu/Lark next, Claude Code today, Codex and other runtimes in
+scope.
 
 > 本目录存放尚未实现的规划文档，与 `docs/` 根目录下已实现功能文档明确区分。
 > 每篇文档顶部有 `> 状态：规划中` 标注。
@@ -32,7 +37,8 @@
 | [runtime-adapters.md](./runtime-adapters.md) | 运行时适配器方案 | 参考 |
 | [tracking.md](./tracking.md) | 追踪/日志方案 | 参考 |
 | [version-planning-2026-06.md](./version-planning-2026-06.md) | 版本规划（2026-06）| 参考 |
-| [../reference/ccpocket.md](../reference/ccpocket.md) | CC Pocket Bridge/App 参考分析：approval loop、worktree、offline queue、service lifecycle | 参考 |
+| [../reference/ccpocket.md](../reference/ccpocket.md) | CC Pocket Bridge/App 参考分析 | 参考 |
+| [../reference/notification-templates.md](../reference/notification-templates.md) | 本项目频道/成员 ID + Slack mention 语法 (通用模板已迁至 dev-e2e-skills) | 参考 |
 
 ## 与已实现文档的关系
 
