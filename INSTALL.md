@@ -1,7 +1,9 @@
-# Installation Guide
+# ChorusGate Installation Guide
 
-Set up the ClaudeCodeApp Slack bot from the provided manifest, then run the
-auto-reply gateway.
+Set up the ChorusGate Slack bot from the provided manifest, then run the
+auto-reply gateway. ChorusGate is the local-first collaboration-channel gateway
+for coding agents; Slack + Claude Code is the first supported path, with
+Feishu/Lark and Codex in scope.
 
 ## 1. Create the Slack app from the manifest
 
@@ -72,7 +74,7 @@ slack-gateway stop        # stop
 Logs go to `.gateway/gateway.log`. Only one daemon runs at a time (single Socket
 Mode connection); `start` refuses if one is already running — use `restart`.
 
-Then, in Slack: invite the bot to a channel (`/invite @ClaudeCodeApp`),
+Then, in Slack: invite the bot to a channel (`/invite @ChorusGate`),
 @mention it, or DM it. Replies are automatic.
 
 ---

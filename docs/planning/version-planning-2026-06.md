@@ -2,9 +2,9 @@
 
 ## Positioning
 
-slack4ccmcp should evolve from "Slack bridge for Claude Code" into a lightweight
-workspace gateway for coding agents. Slack remains the first-class channel, but
-the durable value is the channel/runtime boundary:
+ChorusGate should evolve from "Slack bridge for Claude Code" into a lightweight
+collaboration-channel gateway for coding agents. Slack remains the first-class
+channel, but the durable value is the channel/runtime boundary:
 
 - Channels normalize events, commands, threads, reactions, files, and delivery.
 - Agent runtimes normalize how work is started, resumed, approved, cancelled, and

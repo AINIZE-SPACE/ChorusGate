@@ -6,7 +6,7 @@
 
 ## v2 规划方向
 
-> 版本定位：从个人 Claude Code Slack 桥，扩展为可自托管、多平台、运维完善的 IM → Claude Code 网关。
+> 版本定位：ChorusGate 从个人 Slack + Claude Code 桥，升级为可自托管、多 channel、多 agent、可诊断、可安装的协作 channel gateway。
 
 ### 方向 1：Slack Command 增强
 
@@ -120,7 +120,7 @@
 **方案**：可选 `GATEWAY_WORKTREE_MODE=per-session`，为每个 session 创建独立 git worktree，并把 `worktreeDir` 写入 SessionStore。
 
 **CC Pocket 参考实现**（`worktree.ts`，353 行）：
-- 分支命名：`ccpocket/<session-id>` → 我们可用 `slack4ccmcp/<session-uuid>`
+- 分支命名：`ccpocket/<session-id>` → 我们可用 `chorusgate/<session-uuid>`
 - Worktree 目录：`<project>-worktrees/<branch>`，独立于原项目
 - `.gtrconfig` 支持：可配置初始化钩子（`postCreate = npm install`）
 - 生命周期：`createWorktree()` → session 运行 → `removeWorktree()`（含 preRemove hook）

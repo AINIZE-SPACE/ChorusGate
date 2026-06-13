@@ -144,7 +144,7 @@ CC Pocket's Bridge Server is a useful reference model for this boundary:
   the UI instead of being reduced to one final text blob.
 - Long-running or parallel sessions can be isolated with git worktrees.
 
-For slack4ccmcp, Slack replaces CC Pocket's custom app and WebSocket transport.
+For ChorusGate, Slack currently replaces CC Pocket's custom app and WebSocket transport; Feishu/Lark should enter through the same channel boundary.
 That means we should not add a separate bridge protocol for v3, but we should
 borrow the control-plane responsibilities: approval actions, offline recovery,
 session isolation, and service lifecycle.

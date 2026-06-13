@@ -1,14 +1,18 @@
-# slack4ccmcp
+# ChorusGate
 
 [English](./README.md)
 
-把 Claude Code (`claude -p`) 接入 Slack 的自托管网关。在 Slack 里 @mention 机器人或发 DM，自动交给 Claude 处理并回复。同时提供 MCP server，让 Claude Code 终端主动读写 Slack。
+ChorusGate 是一个 local-first 的协作 channel gateway，用来把 coding agents 接入 Slack、飞书/Lark 等工作频道。
+它最初是 Claude Code + Slack 桥接器，现在范围扩展为 Slack、飞书规划、Claude Code、Codex 和更多 agent runtime 的通用网关。
+
+在 Slack 里 @mention 机器人或发 DM，ChorusGate 会把消息路由给配置的 agent runtime 并回帖。同时提供 MCP server，让 agent runtime 能主动读写频道上下文。
 
 **特点：**
 
-- **零公网**：基于 Slack Socket Mode，WebSocket 向外连，无需公网 IP 或 ngrok
-- **完整上下文**：每个频道/DM 绑定一个持久 Claude session，对话不中断
-- **自托管**：Token 不出自己的机器
+- **Local-first**：运行在自己的机器或私有服务器，token 不出本地
+- **Channel-oriented**：Slack 已支持，飞书/Lark 在规划中
+- **Agent-oriented**：Claude Code 已支持，Codex 和更多 runtime 在范围内
+- **持久上下文**：每个频道/DM 可绑定一个长期 agent session
 
 ---
 
@@ -91,7 +95,7 @@ slack-gateway list     # 列出 channel→session 映射
 
 ### 7. 在 Slack 里使用
 
-把机器人加入频道（`/invite @ClaudeCodeApp`），然后 @mention 它，或者直接发 DM。
+把机器人加入频道（`/invite @ChorusGate`），然后 @mention 它，或者直接发 DM。
 
 ---
 
@@ -100,11 +104,11 @@ slack-gateway list     # 列出 channel→session 映射
 | 模式 | 文件 | 适合场景 |
 |------|------|---------|
 | **Gateway 守护进程** | `src/gateway.ts` | 自动回复，常驻后台，无需人工干预 |
-| **MCP Server** | `src/index.ts` | Claude Code 终端主动调用 Slack 工具 |
+| **MCP Server** | `src/index.ts` | agent runtime 主动调用 Slack 工具 |
 
 > **不能同时建两个 Socket Mode 连接。** Slack 把事件负载均衡到同一 app 的所有连接，两个连接 = 事件分流丢失。
-> 
-> 如果需要 Gateway 收事件 + Claude Code 终端也能发消息，在 `.claude/mcp.json` 里给 MCP server 加 `"MCP_SENDER_ONLY": "1"`，它就只用 Web API，不建 WebSocket 连接。
+>
+> 如果需要 Gateway 收事件 + agent runtime 也能发消息，在 `.claude/mcp.json` 里给 MCP server 加 `"MCP_SENDER_ONLY": "1"`，它就只用 Web API，不建 WebSocket 连接。
 
 ---
 

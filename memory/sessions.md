@@ -7,5 +7,4 @@ gateway 用 `claude -p --resume <uuid>` 续接，使同一 scope 跨消息保留
 
 | Scope Key | Session UUID | Started | Last Used |
 |------------|--------------|---------|-----------|
-| D0B8LES3QUX:1781227342.816499 | 4ddec375-155d-4ff2-a8a5-89f10c3188dc | yes | 2026-06-12T03:01:35.301Z |
-| D0B8LES3QUX:1781227070.272199 | 9df78166-6b98-4500-82ab-9d516e66dec0 | no | 2026-06-12T01:23:34.393Z |
+

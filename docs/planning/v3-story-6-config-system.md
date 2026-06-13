@@ -68,7 +68,7 @@ function parseProfiles(): Profile[] {
 
 ```
 [gateway] loading 2 profiles: cc(claude), codex(codex)
-[gateway] profile 'cc': Socket Mode connecting to Slack (app: ClaudeCodeApp)
+[gateway] profile 'cc': Socket Mode connecting to Slack (app: ChorusGate)
 [gateway] profile 'codex': Socket Mode connecting to Slack (app: CodexApp)
 [gateway] listening on 2 Slack apps. Ctrl+C to stop.
 ```

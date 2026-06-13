@@ -1,7 +1,7 @@
 {
-  "name": "slack-socket-mcp",
+  "name": "chorusgate",
   "version": "1.0.0",
-  "description": "Slack Socket Mode MCP Server — real-time Slack event bridge for Claude Code",
+  "description": "ChorusGate - local-first collaboration-channel gateway for coding agents",
   "type": "module",
   "main": "src/index.ts",
   "bin": {
@@ -20,9 +20,9 @@
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "test": "node --import tsx --test tests/**/*.test.ts"
+    "test": "node --import tsx --test tests/*.test.ts"
   },
-  "keywords": ["slack", "socket-mode", "mcp", "claude-code"],
+  "keywords": ["agent", "gateway", "slack", "feishu", "lark", "codex", "claude-code", "mcp"],
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.0",

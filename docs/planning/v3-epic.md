@@ -1,10 +1,10 @@
-# v3 EPIC: 多 Agent 多项目 Slack 网关
+# v3 EPIC: ChorusGate 多 Agent 协作 Channel 网关
 
 > 状态：规划中 | 目标版本：v3.0.0
 
 ## 一句话目标
 
-将 gateway 从"单 Claude Code Slack bot"扩展为"多 AI agent（CC + Codex）+ 多 Slack app + 多项目"的通用 IM→Agent 网关。
+将 gateway 从“单 Claude Code Slack bot”扩展为“多 AI agent（Claude Code + Codex + 后续 runtime）+ 多 channel/app + 多项目”的通用协作 channel → agent 网关。
 
 ---
 

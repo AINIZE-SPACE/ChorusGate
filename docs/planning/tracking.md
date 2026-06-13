@@ -1,4 +1,4 @@
-# Planning Tracking
+# ChorusGate Planning Tracking
 
 Status: planning index
 

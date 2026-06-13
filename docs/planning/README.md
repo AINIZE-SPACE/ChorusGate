@@ -1,4 +1,9 @@
-# planning/
+# ChorusGate planning/
+
+This directory tracks planned work for ChorusGate, the local-first
+collaboration-channel gateway for coding agents. The current direction is:
+Slack first, Feishu/Lark next, Claude Code today, Codex and other runtimes in
+scope.
 
 > 本目录存放尚未实现的规划文档，与 `docs/` 根目录下已实现功能文档明确区分。
 > 每篇文档顶部有 `> 状态：规划中` 标注。

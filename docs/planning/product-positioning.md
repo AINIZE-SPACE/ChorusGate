@@ -1,14 +1,15 @@
-# Product Positioning
+# ChorusGate Product Positioning
 
 Status: planning
 
 ## One Sentence
 
-slack4ccmcp is a local-first workspace gateway for coding agents.
+ChorusGate is a local-first collaboration-channel gateway for coding agents.
 
 It starts with Slack and Claude Code, but the product should not be limited to
 "Slack support while Claude Code lacks it." The durable product is a small,
-private, hackable gateway that connects work channels to agent runtimes.
+private, hackable gateway that connects collaboration channels to agent
+runtimes.
 
 ## Target Shape
 
@@ -22,9 +23,9 @@ private, hackable gateway that connects work channels to agent runtimes.
 - Extensibility: typed channel and runtime boundaries so new integrations do not
   fork the gateway core.
 
-## Why This Survives Official Claude Code Slack Support
+## Why This Survives Official Agent Slack Support
 
-If Claude Code ships official Slack support, a Slack-only bridge becomes a
+If Claude Code or another agent runtime ships official Slack support, a Slack-only bridge becomes a
 temporary workaround. This project should compete on a broader axis:
 
 - Cross-channel: Slack plus Feishu/Lark, and eventually other enterprise IM or

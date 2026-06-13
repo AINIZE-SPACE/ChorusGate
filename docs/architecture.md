@@ -1,4 +1,4 @@
-# slack4ccmcp — 架构总览
+# ChorusGate — 架构总览
 
 > 维护入口。读完这篇，再去看具体 feature 文档。
 
@@ -6,8 +6,9 @@
 
 ## 一句话定位
 
-把 Claude Code (`claude -p`) 接入 Slack：Slack 里的消息 → gateway 转给 claude -p → 回复发回 Slack。  
-同时提供一个 MCP server，让 Claude Code 终端也能主动读写 Slack。
+ChorusGate 是 local-first collaboration-channel gateway：channel runtime（当前 Slack，规划飞书/Lark）负责收发协作消息，gateway 负责路由、会话、命令和控制面，agent runtime（当前 Claude Code，规划 Codex 和更多 runtime）负责执行 turn 并返回结果。
+
+同时提供 MCP server，让 agent runtime 能主动读写 channel 上下文；在 gateway 模式下，MCP server 应以 sender-only 方式运行，避免重复接收同一个 Socket Mode 事件流。
 
 ---
 
@@ -146,7 +147,7 @@ spawned `claude -p` 得到一个只含 Slack Web API 工具的 MCP config（`MCP
 
 ### 6. CC Pocket 参考：Gateway 是 Slack 版本地 Bridge
 
-[CC Pocket](./reference/ccpocket.md) 的 Bridge Server 和本项目 gateway 属于同一类本地控制面：用户界面在外部，agent CLI 和代码仍运行在用户自己的机器上。区别是 CC Pocket 自建 WebSocket + App，slack4ccmcp 复用 Slack Socket Mode + Slack UI。
+[CC Pocket](./reference/ccpocket.md) 的 Bridge Server 和 ChorusGate gateway 属于同一类本地控制面：用户界面在外部，agent CLI 和代码仍运行在用户自己的机器上。区别是 CC Pocket 自建 WebSocket + App，ChorusGate 复用 Slack Socket Mode + Slack UI，并把飞书/Lark 等协作 channel 纳入同一 adapter 边界。
 
 **深度分析揭示的关键参考**（详见 [参考文档](./reference/ccpocket.md) 第二章逐文件分析）：
 

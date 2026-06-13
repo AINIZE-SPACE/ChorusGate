@@ -4,9 +4,9 @@
 
 ## 目标
 
-让 slack4ccmcp 可以像正式的系统服务一样运行：开机自动启动、崩溃自动重启、一条命令完成安装或卸载。同时提供 `install` 脚本自动检测并安装 Claude Code CLI 依赖。
+让 ChorusGate 可以像正式的系统服务一样运行：开机自动启动、崩溃自动重启、一条命令完成安装或卸载。同时提供 `install` 脚本自动检测并安装 agent runtime 依赖。
 
-参考 CC Pocket Bridge：它把本地 Bridge Server 注册为后台服务，让手机/桌面 UI 随时可连接。slack4ccmcp 不需要自建 App/Bridge 连接，但 gateway 同样应该成为可靠的本地常驻服务。
+参考 CC Pocket Bridge：它把本地 Bridge Server 注册为后台服务，让手机/桌面 UI 随时可连接。ChorusGate 不需要自建 App/Bridge 连接，但 gateway 同样应该成为可靠的本地常驻服务。
 
 ---
 
@@ -56,20 +56,20 @@ npm run service:uninstall  # 注销服务
 用 `schtasks` 命令注册开机登录触发的任务：
 
 ```bat
-schtasks /create /tn "slack4ccmcp-gateway" /tr "node <BIN_FILE> run" /sc ONLOGON /ru SYSTEM /f
+schtasks /create /tn "chorusgate-gateway" /tr "node <BIN_FILE> run" /sc ONLOGON /ru SYSTEM /f
 ```
 
 优先选 Task Scheduler 而不是 NSSM：
 - 零外部依赖（schtasks 是 Windows 内置）
 - NSSM 需要额外下载，用户环境不一定有
 
-卸载：`schtasks /delete /tn "slack4ccmcp-gateway" /f`
+卸载：`schtasks /delete /tn "chorusgate-gateway" /f`
 
 日志仍写 `.gateway/gateway.log`，任务触发后的 stdout/stderr 走原有管道。
 
 ### 2.2 macOS — launchd plist
 
-写入 `~/Library/LaunchAgents/com.slack4ccmcp.gateway.plist`：
+写入 `~/Library/LaunchAgents/com.chorusgate.gateway.plist`：
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -77,7 +77,7 @@ schtasks /create /tn "slack4ccmcp-gateway" /tr "node <BIN_FILE> run" /sc ONLOGON
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.slack4ccmcp.gateway</string>
+  <string>com.chorusgate.gateway</string>
   <key>ProgramArguments</key>
   <array>
     <string>/usr/local/bin/node</string>
@@ -96,17 +96,17 @@ schtasks /create /tn "slack4ccmcp-gateway" /tr "node <BIN_FILE> run" /sc ONLOGON
 </plist>
 ```
 
-加载：`launchctl load ~/Library/LaunchAgents/com.slack4ccmcp.gateway.plist`
+加载：`launchctl load ~/Library/LaunchAgents/com.chorusgate.gateway.plist`
 
 卸载：`launchctl unload ...` + 删除 plist 文件
 
 ### 2.3 Linux — systemd user unit
 
-写入 `~/.config/systemd/user/slack4ccmcp-gateway.service`：
+写入 `~/.config/systemd/user/chorusgate-gateway.service`：
 
 ```ini
 [Unit]
-Description=slack4ccmcp Slack Gateway
+Description=ChorusGate Gateway
 After=network.target
 
 [Service]
@@ -119,9 +119,9 @@ StandardError=append:.gateway/gateway.log
 WantedBy=default.target
 ```
 
-启用：`systemctl --user enable --now slack4ccmcp-gateway`
+启用：`systemctl --user enable --now chorusgate-gateway`
 
-卸载：`systemctl --user disable --now slack4ccmcp-gateway` + 删除 unit 文件
+卸载：`systemctl --user disable --now chorusgate-gateway` + 删除 unit 文件
 
 ---
 
@@ -161,7 +161,7 @@ WantedBy=default.target
 
 ## 6. CC Pocket 参考差异
 
-| 能力 | CC Pocket Bridge | slack4ccmcp 取舍 |
+| 能力 | CC Pocket Bridge | ChorusGate 取舍 |
 |------|------------------|------------------|
 | 配对 | QR code / mDNS / Tailscale URL | Slack App 安装 + token 配置，不新增 QR 配对 |
 | 常驻 | `bridge setup` 注册系统服务 | `slack-gateway service-install` 注册系统服务 |

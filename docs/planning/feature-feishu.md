@@ -4,7 +4,7 @@
 
 ## 背景
 
-飞书是国内最主流的即时通讯工具之一。将 Claude gateway 接入飞书，和 Slack 并列支持，让 slack4ccmcp 变成通用的 IM → Claude Code 桥接器。
+飞书是国内主流的即时通讯工具之一。ChorusGate 的目标是把 Slack 与飞书/Lark 放在同一层 channel adapter 下，让同一个 local-first gateway 可以服务 Claude Code、Codex 和更多 agent runtime。
 
 ---
 
