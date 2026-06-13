@@ -72,6 +72,13 @@ Why:
   local, always-on bot that can react to channel mentions or DMs through this
   gateway instead of creating cloud tasks only through the official Slack app.
 
+Current repo state:
+
+- Codex is already partially supported at the provider layer.
+- That is not the same as a fully independent Codex app profile.
+- App-level support still needs separate manifest, command prefix, Socket Mode
+  lifecycle, and profile wiring before we can treat it as first-class.
+
 Entry condition:
 
 - A stable local CLI or API execution path is available for unattended turns.

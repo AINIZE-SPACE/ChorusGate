@@ -1,16 +1,14 @@
-# Slack Scope → Claude Session Map
+# Slack Scope → Session Map
 
-每个 Slack scope（channel 或 thread）绑定一个持久 Claude session UUID。
-gateway 用 `claude -p --resume <uuid>` 续接，使同一 scope 跨消息保留上下文。
-本文件只存路由 meta —— 真正的对话/记忆在 Claude agent 自己的 session
-存储和它的 memory md 里，不在这里。由 gateway 自动维护；可由 git 追踪。
+每个 Slack scope（channel 或 thread）绑定一个持久 Agent session UUID。
+gateway 用 `claude -p --resume <uuid>` 或 `codex exec resume <tid>` 续接。
+本文件只存路由 meta —— 真正的对话/记忆在 Agent 自己的 session 存储里。
+由 gateway 自动维护；可由 git 追踪。
 
-| Scope Key | Session UUID | Started | Last Used |
-|------------|--------------|---------|-----------|
-| D0B8LES3QUX:1781234600.274279 | 1b85b152-efff-4087-8cfe-d26991b76f25 | yes | 2026-06-12T06:21:08.974Z |
-| D0B8LES3QUX:1781227070.272199 | 9df78166-6b98-4500-82ab-9d516e66dec0 | yes | 2026-06-12T01:24:07.997Z |
-| D0B8LES3QUX:1781193423.349839 | ef824ba0-9529-494d-a131-29c7da042908 | yes | 2026-06-11T16:22:53.922Z |
-| channel:C0B8V9LV8CT | b7cc0d21-eac7-4e8b-ab37-30ced533b6af | yes | 2026-06-11T16:00:32.385Z |
-| D0B8LES3QUX:1781183480.341509 | 04346333-5d8b-4e74-ae3b-46be5567fdc4 | yes | 2026-06-11T15:57:52.793Z |
-| D0B8LES3QUX:1781179146.830009 | db0dfc41-3fa9-4e86-a2e1-49e2a5c09423 | yes | 2026-06-11T13:11:31.157Z |
-| D0B8LES3QUX:1781159772.119749 | 52737e75-dce0-46e1-89e2-5c5fe668ab4b | yes | 2026-06-11T12:03:26.124Z |
+| Profile | Provider | Scope Key | Session UUID | Project Dir | Started | Last Used |
+|---------|----------|-----------|-------------|-------------|---------|-----------|
+| default | claude | default:claude:channel:C0BAB3Y7LLC:E:\my_project\ainize\ChorusGate_dev | bbecca3f-ef78-4843-89be-5caab52bfc2e | E:\my_project\ainize\ChorusGate_dev | yes | 2026-06-13T15:43:28.984Z |
+| default | claude | default:claude:thread:D0B8LES3QUX:1781344650.541849:E:\my_project\ainize\ChorusGate_dev | 157e59ec-86ac-4ba3-948f-206c5bb76b85 | E:\my_project\ainize\ChorusGate_dev | yes | 2026-06-13T12:33:50.562Z |
+| default | claude | default:claude:thread:D0B8LES3QUX:1781344748.183159:E:\my_project\ainize\ChorusGate_dev | 016453ca-53a1-45e1-81c0-f1d0a97cccd8 | E:\my_project\ainize\ChorusGate_dev | yes | 2026-06-13T10:46:52.063Z |
+| default | claude | default:claude:thread:D0B8LES3QUX:1781266621.800139:E:\my_project\ainize\ChorusGate_dev | cf1e4343-9bbc-42d5-a911-c901e74e617e | E:\my_project\ainize\ChorusGate_dev | yes | 2026-06-13T09:57:35.449Z |
+| default | claude | default:claude:channel:C0BAB3Y7LLC | 567432f0-b7c8-4598-a1b8-0a36a9147167 |  | yes | 2026-06-13T05:30:58.871Z |

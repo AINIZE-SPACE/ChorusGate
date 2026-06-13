@@ -1,14 +1,22 @@
-# slack4ccmcp
+# ChorusGate
 
 [中文文档](./README_CN.md)
 
-A self-hosted gateway that connects Claude Code (`claude -p`) to Slack. @mention the bot in a channel or send it a DM — it automatically routes to Claude and posts the reply back. Also ships an MCP server so Claude Code in your terminal can actively read and write Slack.
+ChorusGate is a local-first gateway that brings coding agents into collaboration
+channels. It started as a Claude Code + Slack bridge and is evolving into a
+shared channel gateway for Slack, Feishu/Lark, Claude Code, Codex, and other
+agent runtimes.
+
+@mention the bot in a channel or send it a DM; ChorusGate routes the message to
+the configured agent runtime and posts the reply back. It also ships MCP tooling
+so agent runtimes can actively read and write channel context when needed.
 
 **Highlights:**
 
-- **No public URL**: Uses Slack Socket Mode (outbound WebSocket), no ngrok or public IP required
-- **Persistent context**: Each channel/DM binds to a long-lived Claude session — conversation continues across messages
-- **Self-hosted**: Your tokens never leave your machine
+- **Local-first**: Run the gateway on your own machine or private server; tokens stay with you
+- **Channel-oriented**: Slack works today; Feishu/Lark support is planned
+- **Agent-oriented**: Claude Code works today; Codex and other runtimes are in scope
+- **Persistent context**: Each channel/DM can bind to a long-lived agent session
 
 ---
 
@@ -24,7 +32,7 @@ A self-hosted gateway that connects Claude Code (`claude -p`) to Slack. @mention
 
 1. Go to <https://api.slack.com/apps> → **Create New App** → **From a manifest**
 2. Select your workspace
-3. Paste the contents of [`manifest.json`](./manifest.json) from this repo
+3. Paste the contents of [`manifest.json`](./manifest.json) for a Claude Code style app, or [`manifest.cx.json`](./manifest.cx.json) for a Codex style app. These are just starter manifests for different slash-command prefixes.
 4. Click **Create** → **Install to Workspace** → **Allow**
 
 ### 2. Collect Tokens
@@ -57,7 +65,7 @@ npm install
 npm link
 ```
 
-> :warning: **Don't skip `npm link`.** `npm install` alone won't register the `slack-gateway` and `slack-socket-mcp` commands on your PATH. If you get `command not found` later, re-run `npm link`.
+> :warning: **Don't skip `npm link`.** `npm install` alone won't register the `chorusgate` and `chorusgate-mcp` commands on your PATH. If you get `command not found` later, re-run `npm link`.
 
 ### 5. Verify Claude CLI
 
@@ -74,24 +82,24 @@ If it prints "pong", you're good. The gateway spawns `claude -p` and inherits th
 **Foreground** (good for first run / debugging):
 
 ```bash
-npm run gateway        # or: slack-gateway run
+npm run gateway        # or: chorusgate run
 ```
 
 **Background daemon** (recommended for ongoing use):
 
 ```bash
-slack-gateway start    # start in the background
-slack-gateway status   # check status (pid, uptime, active sessions)
-slack-gateway stop     # stop
-slack-gateway restart  # restart
-slack-gateway list     # list channel→session mappings
+chorusgate start    # start in the background
+chorusgate status   # check status (pid, uptime, active sessions)
+chorusgate stop     # stop
+chorusgate restart  # restart
+chorusgate list     # list channel→session mappings
 ```
 
 `npm run start|stop|restart|status|list` are aliases. Logs go to `.gateway/gateway.log`.
 
 ### 7. Use It in Slack
 
-Invite the bot to a channel (`/invite @ClaudeCodeApp`), then @mention it or send it a DM. Replies are automatic.
+Invite the bot to a channel (`/invite @ChorusGate`), then @mention it or send it a DM. Replies are automatic.
 
 ---
 
@@ -100,11 +108,11 @@ Invite the bot to a channel (`/invite @ClaudeCodeApp`), then @mention it or send
 | Mode | Entry point | When to use |
 |------|-------------|-------------|
 | **Auto-reply gateway** | `src/gateway.ts` | Fully automatic replies, runs as a daemon |
-| **MCP server** | `src/index.ts` | Claude Code terminal calls Slack tools on demand |
+| **MCP server** | `src/index.ts` | Agent runtimes call channel tools on demand |
 
 > **Only one Socket Mode connection at a time.** Slack load-balances each event to exactly one open connection per app — two connections means events get split and lost.
 >
-> To run the gateway for receiving AND keep Claude Code able to proactively send messages, add `"MCP_SENDER_ONLY": "1"` to the MCP server config. It skips Socket Mode and uses Web API only.
+> ChorusGate MCP is now Web API only. The gateway owns Socket Mode; agent runtimes can reuse the same `.claude/mcp.json` for channel reads and writes.
 
 ---
 
@@ -112,34 +120,20 @@ Invite the bot to a channel (`/invite @ClaudeCodeApp`), then @mention it or send
 
 Create `.claude/mcp.json` in your project root (reuses the `.claude` system — no need for a separate root `mcp.json`). You can start from `.claude/mcp.json.example`:
 
-**Standalone (no gateway)**:
-
 ```json
 {
   "mcpServers": {
-    "slack-socket": {
-      "command": "slack-socket-mcp",
+    "chorusgate": {
+      "command": "chorusgate-mcp",
       "args": []
     }
   }
 }
 ```
 
-**Alongside gateway** (must add `MCP_SENDER_ONLY=1`):
+The same config works both standalone and alongside the gateway because `chorusgate-mcp` no longer opens Socket Mode.
 
-```json
-{
-  "mcpServers": {
-    "slack-socket": {
-      "command": "slack-socket-mcp",
-      "args": [],
-      "env": { "MCP_SENDER_ONLY": "1" }
-    }
-  }
-}
-```
-
-Available MCP tools: `slack_check_events` / `slack_reply` / `slack_send_message` / `slack_add_reaction` / `slack_channel_history` / `slack_thread_replies` / `slack_list_channels` / `slack_get_user_info`
+Available MCP tools: `slack_reply` / `slack_send_message` / `slack_add_reaction` / `slack_channel_history` / `slack_thread_replies` / `slack_list_channels` / `slack_get_user_info`
 
 ---
 
@@ -149,13 +143,19 @@ Control sessions directly from Slack:
 
 | Command | Description |
 |---------|-------------|
-| `/cc_sessions` | List all known sessions |
+| `/cc_sessions` | List all known sessions for this app profile |
 | `/cc_resume N` or `/cc_resume <uuid>` | Switch the current channel to a specific session |
-| `/cc_new` | Reset the current session (next message starts fresh) |
+| `/cc_new` | Reset the current session binding for this channel or DM |
 | `/cc_current` | Show the currently bound session |
 | `/cchelp` | Show help |
 
 > To use slash commands in DMs: Slack App settings → **App Home** → enable "Allow users to send Slash commands and messages from the messages tab".
+>
+> The `cc_` prefix is only a Slack command namespace. Internally the gateway
+> should reason in terms of app profiles and providers, not hard-code `cc` or
+> `cx` semantics. If you run multiple Claude Code style assistants for one human
+> owner, each one should use its own Slack app/profile and may use a different
+> prefix through `GATEWAY_COMMAND_PREFIX`.
 
 ---
 
@@ -172,19 +172,18 @@ Control sessions directly from Slack:
 | `GATEWAY_REPLY_TIMEOUT_MS_LONG` | `360000` | Per-reply timeout for resume turns (ms) |
 | `GATEWAY_SESSION_SCOPE` | `channel` | `channel` (shared per channel) or `thread` (isolated per thread) |
 | `GATEWAY_SESSION_IDLE_MS` | `86400000` | Idle time before a session mapping is evicted (ms) |
+| `GATEWAY_COMMAND_PREFIX` | `cc` | Slash-command prefix for this app profile. This is a Slack-facing namespace only. |
 | `GATEWAY_PROGRESS` | `1` | Set to `0` to disable live progress messages |
 | `GATEWAY_CLAUDE_CWD` | project root | Working directory for spawned claude processes |
 | `CLAUDE_BIN` | `claude` | Path to the Claude CLI binary |
 | `CLAUDE_PERMISSION_MODE` | `bypassPermissions` | Permission mode for headless claude |
-| `MCP_SENDER_ONLY` | — | Set to `1` to use Web API tools only, no Socket Mode connection |
-
 ---
 
 ## Troubleshooting
 
 **Bot randomly misses messages**
 
-Only one Socket Mode connection per app is allowed. Multiple connections split events. Make sure only the gateway opens a Socket Mode connection; add `MCP_SENDER_ONLY=1` to the MCP server config.
+Only one Socket Mode connection per app is allowed. Multiple connections split events. Make sure only the gateway opens a Socket Mode connection; `chorusgate-mcp` no longer opens one.
 
 **Slash commands don't work in DMs**
 
@@ -198,9 +197,9 @@ Slack App settings → **App Home** → check "Allow users to send Slash command
 
 Long resume turns use `GATEWAY_REPLY_TIMEOUT_MS_LONG` (default 360s). If you see timeouts on long tasks, increase it. If the placeholder message is stuck on a tool label, restart the gateway — the latest code fixes drain-queue ordering.
 
-**`slack-gateway: command not found`**
+**`chorusgate: command not found`**
 
-`npm install` doesn't register global commands — run `npm link` to wire `slack-gateway` and `slack-socket-mcp` onto your PATH.
+`npm install` doesn't register global commands — run `npm link` to wire `chorusgate` and `chorusgate-mcp` onto your PATH.
 
 More in [`docs/gotchas.md`](./docs/gotchas.md).
 

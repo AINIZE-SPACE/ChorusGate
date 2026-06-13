@@ -1,6 +1,6 @@
 # Feature: Session 管理（原生 Slash Commands）
 
-> 对应文件：`src/session-commands.ts`、`src/session-store.ts`、`manifest.json`
+> 对应文件：`src/session-commands.ts`、`src/session-store.ts`、`manifest.json`（CC）/`manifest.cx.json`（CX）
 
 ---
 
@@ -135,4 +135,4 @@ slash command 走 `onSlash()` → 也进入 per-key 串行队列（`channelKey` 
 | `src/socket-manager.ts` | SlashCommand interface, slash_commands 事件监听 |
 | `src/gateway.ts` | onSlash(), scopeKey(), onSlash 传给 startSocketMode |
 | `memory/sessions.md` | 运行时路由表（git 追踪）|
-| `manifest.json` | slash_commands 注册（5 条，含 /cchelp）|
+| `manifest.json` / `manifest.cx.json` | slash_commands 注册（分别对应 CC / CX）|

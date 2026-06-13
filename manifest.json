@@ -1,12 +1,12 @@
 {
   "display_information": {
-    "name": "ClaudeCodeApp",
-    "description": "小克",
+    "name": "ChorusGate CC",
+    "description": "Agent channel gateway",
     "background_color": "#004492"
   },
   "features": {
     "bot_user": {
-      "display_name": "ClaudeCodeApp",
+      "display_name": "ChorusGate CC",
       "always_online": true
     },
     "app_home": {
@@ -18,32 +18,32 @@
       {
         "command": "/cc_sessions",
         "url": "https://claudecode.local/slack/commands",
-        "description": "列出本频道的 Claude Code 会话",
+        "description": "列出本频道的 agent 会话",
         "should_escape": false
       },
       {
         "command": "/cc_resume",
         "url": "https://claudecode.local/slack/commands",
-        "description": "把本频道切换到某个会话",
+        "description": "把本频道切换到某个 agent 会话",
         "usage_hint": "[N | session-uuid]",
         "should_escape": false
       },
       {
         "command": "/cc_new",
         "url": "https://claudecode.local/slack/commands",
-        "description": "重置本频道会话（下条消息开新对话）",
+        "description": "重置本频道 agent 会话（下条消息开新对话）",
         "should_escape": false
       },
       {
         "command": "/cc_current",
         "url": "https://claudecode.local/slack/commands",
-        "description": "显示本频道当前绑定的会话",
+        "description": "显示本频道当前绑定的 agent 会话",
         "should_escape": false
       },
       {
         "command": "/cchelp",
         "url": "https://claudecode.local/slack/commands",
-        "description": "ClaudeCode 命令帮助",
+        "description": "ChorusGate 命令帮助",
         "should_escape": false
       }
     ]

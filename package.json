@@ -1,28 +1,28 @@
 {
-  "name": "slack-socket-mcp",
+  "name": "chorusgate",
   "version": "1.0.0",
-  "description": "Slack Socket Mode MCP Server — real-time Slack event bridge for Claude Code",
+  "description": "ChorusGate - local-first collaboration-channel gateway for coding agents",
   "type": "module",
   "main": "src/index.ts",
   "bin": {
-    "slack-socket-mcp": "./bin/slack-socket-mcp.mjs",
-    "slack-gateway": "./bin/slack-gateway.mjs"
+    "chorusgate-mcp": "./bin/chorusgate-mcp.mjs",
+    "chorusgate": "./bin/chorusgate.mjs"
   },
   "scripts": {
-    "start": "node bin/slack-gateway.mjs start",
-    "stop": "node bin/slack-gateway.mjs stop",
-    "restart": "node bin/slack-gateway.mjs restart",
-    "status": "node bin/slack-gateway.mjs status",
-    "list": "node bin/slack-gateway.mjs list",
+    "start": "node bin/chorusgate.mjs start",
+    "stop": "node bin/chorusgate.mjs stop",
+    "restart": "node bin/chorusgate.mjs restart",
+    "status": "node bin/chorusgate.mjs status",
+    "list": "node bin/chorusgate.mjs list",
     "gateway": "tsx src/gateway.ts",
     "mcp": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "test": "node --import tsx --test tests/**/*.test.ts"
+    "test": "node --import tsx --test tests/*.test.ts"
   },
-  "keywords": ["slack", "socket-mode", "mcp", "claude-code"],
+  "keywords": ["agent", "gateway", "slack", "feishu", "lark", "codex", "claude-code", "mcp"],
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.0",

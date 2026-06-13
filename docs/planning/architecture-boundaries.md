@@ -70,6 +70,10 @@ Responsibilities:
 - Track in-flight work and expose cancellation/status.
 - Render runtime progress into channel-appropriate updates.
 - Load config profiles and decide enabled channels and runtimes.
+- Broker runtime control requests such as approval, denial, cancellation, and
+  user answers through channel-native interactions.
+- Allocate isolated work areas when a runtime/session needs a separate git
+  worktree.
 
 Non-responsibilities:
 
@@ -130,6 +134,21 @@ interface AgentRuntime {
 }
 ```
 
+## Control Plane Pattern From CC Pocket
+
+CC Pocket's Bridge Server is a useful reference model for this boundary:
+
+- UI/control plane is outside the coding runtime.
+- The bridge/gateway runs on the machine that owns the repo and agent CLIs.
+- Runtime progress, questions, approvals, and final output are streamed back to
+  the UI instead of being reduced to one final text blob.
+- Long-running or parallel sessions can be isolated with git worktrees.
+
+For ChorusGate, Slack currently replaces CC Pocket's custom app and WebSocket transport; Feishu/Lark should enter through the same channel boundary.
+That means we should not add a separate bridge protocol for v3, but we should
+borrow the control-plane responsibilities: approval actions, offline recovery,
+session isolation, and service lifecycle.
+
 ## Shared Domain Vocabulary
 
 - Channel: a work platform such as Slack or Feishu/Lark.
@@ -138,6 +157,10 @@ interface AgentRuntime {
 - Runtime: an executable agent backend.
 - Turn: one user-triggered unit of agent work.
 - Trace: a gateway-owned record of event routing, runtime events, and delivery.
+- Control action: a user decision sent back into a runtime, such as approve,
+  deny, cancel, answer, or continue.
+- Work area: the filesystem location used by one runtime session; it may be a
+  project directory or an isolated git worktree.
 
 ## Implementation Order
 
@@ -147,6 +170,8 @@ interface AgentRuntime {
 4. Move command routing and session routing into gateway-owned modules.
 5. Add Feishu/Lark as a second channel provider.
 6. Add OpenClaw/Codex/OpenCode/custom runtimes behind the runtime boundary.
+7. Add runtime control actions and worktree allocation for sessions that need
+   approvals or file isolation.
 
 ## Tracking
 
@@ -155,3 +180,6 @@ interface AgentRuntime {
 - Feishu/Lark channel: #7
 - Runtime adapters: #8
 - Durable events and retry: #1
+- Session host / control actions: #2
+- Slack approval/control loop: #32
+- Session worktree isolation: #33

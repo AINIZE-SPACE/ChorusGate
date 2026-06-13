@@ -2,8 +2,10 @@ node_modules/
 dist/
 .env
 *.log
-config/sender-mcp.generated.json
+config/*.generated.json
+config/*.generated.toml
 .gateway/
+tmp/
 
 # NOTE: memory/ is intentionally NOT ignored — memory/sessions.md (the
 # channel/thread → session routing map) is git-tracked for versioning.

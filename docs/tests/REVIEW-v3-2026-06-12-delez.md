@@ -1,7 +1,12 @@
-# Code Review Report - slack4ccmcp (dev branch)
+> 最新版本化副本: [docs/REVIEW-v3-2026-06-12-delez.md](./docs/REVIEW-v3-2026-06-12-delez.md)
+> 命名规范: `REVIEW-{version}-{YYYY-MM-DD}-{reviewer}.md`
+> 多人 review 时各自建文件，互不覆盖。
+
+# Code Review Report - chorusgate (dev branch)
 
 **Date:** 2026-06-12  
 **Branch:** `dev`  
+**Reviewer:** delez  
 **Review Scope:** Full codebase plus code-review GitHub issues  
 **Status:** All review findings addressed
 
