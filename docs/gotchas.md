@@ -36,6 +36,15 @@
 **原因**：`assistant_thread_started`、`message_changed` 等系统事件也走 `message` 事件路径，text 为空或只有 subtype，`shouldReply` 没有过滤。  
 **修复**：`shouldReply` 加两道检查：① `event.subtype` 存在就跳过；② `cleanText(text)` 为空就跳过。
 
+### 7. Slack 消息身份错误 — 显示管理员用户名而非 Bot
+**现象**：ChorusGate/Claude 在 Slack 发消息时，消息显示为 Slack 管理员用户名 + "APP" 标注，而不是 Bot 自己的名称（如"小克"）。  
+**原因**：`slack@claude-plugins-official` 官方插件通过 OAuth 连接 `mcp.slack.com`，OAuth 授权拿到的是 _user token_（xoxp-…），`chat.postMessage` 以该用户身份发消息。Bot token（xoxb-…）才会以 Bot 自身身份发消息。  
+**修复**：弃用 Slack 官方插件，改用 ChorusGate 自己的 MCP server（`chorusgate-mcp`），后者使用 `SLACK_BOT_TOKEN`（xoxb-…）发消息。步骤：
+  - `npm link`（使 `chorusgate-mcp` 全局可执行）
+  - `~/.claude/settings.json` 中禁用 `slack@claude-plugins-official` 插件
+  - 重启 Claude Code 会话使 MCP 配置生效
+**教训**：Slack 官方 MCP 插件的 OAuth 流程默认拿 user token，不适合需要 Bot 身份的工具场景。自己的 MCP server 用 bot token 才能保证消息身份正确。
+
 ---
 
 ## Windows + spawn 问题

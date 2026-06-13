@@ -1,3 +1,8 @@
+---
+name: sprint-handoff
+description: Sprint 开发完成交接 — commit → 通知测试 → 更新 Issue → 记录 memory，四步缺一不可
+---
+
 # 技能: Sprint 开发完成交接
 
 > 代码写完不是终点——提交、通知、更新需求状态、记录 memory 四步缺一不可。
@@ -51,9 +56,8 @@ Issues: #N, #N
 
 ## 通知目标
 
-| 项目 | 频道 | 评审人 |
-|------|------|--------|
-| ChorusGate | #所有-ainize (C0AHL7U33EE) | 小马 U0AHDRREVPD |
+> 频道和评审人信息**从 memory 读取**（`[[project-team-channels]]`），
+> 不在此处硬编码。通知前先查 memory 获取最新的频道 ID 和团队成员 ID。
 
 ## Quality Bar
 

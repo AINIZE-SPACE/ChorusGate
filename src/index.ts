@@ -29,6 +29,7 @@ import { channelHistoryTool } from "./tools/channel-history.js";
 import { threadRepliesTool } from "./tools/thread-replies.js";
 import { listChannelsTool } from "./tools/list-channels.js";
 import { getUserInfoTool } from "./tools/get-user.js";
+import { getSkillListTool } from "./tools/get-skill-list.js";
 import { serializeToolError } from "./tool-errors.js";
 
 // ============================================================
@@ -44,6 +45,7 @@ const tools = [
   threadRepliesTool,
   listChannelsTool,
   getUserInfoTool,
+  getSkillListTool,
 ];
 
 const toolMap = new Map(tools.map((t) => [t.name, t]));
