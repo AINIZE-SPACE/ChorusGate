@@ -41,13 +41,28 @@ const projectRoot = resolve(__dirname, "..", "..");
 
 const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
 
-// ---- MCP config (same as claude.ts) ------------------------------------------
+// ---- MCP config (per-profile, STORY-7) ----------------------------------------
 
-let _senderMcpConfig: string | null = null;
-function getSenderMCPConfig(): string {
-  if (_senderMcpConfig !== null) return _senderMcpConfig;
+/** Cache of generated MCP config paths keyed by a token hash prefix. */
+const _mcpConfigCache = new Map<string, string>();
+
+/**
+ * Generate (or reuse) a sender-only MCP config file for a specific profile.
+ *
+ * Each profile gets its own config so the spawned agent process receives
+ * the correct Slack tokens — the CC profile's claude gets CC tokens,
+ * the Codex profile's codex gets Codex tokens.
+ *
+ * @returns Absolute path to the generated JSON config file.
+ */
+function getSenderMCPConfig(botToken: string, appToken: string): string {
+  // Key by first 8 chars of the bot token (stable per profile).
+  const cacheKey = botToken.slice(0, 8);
+  const cached = _mcpConfigCache.get(cacheKey);
+  if (cached) return cached;
+
   const senderMcpConfig = resolve(
-    projectRoot, "config", "sender-mcp.generated.json",
+    projectRoot, "config", `sender-mcp-${cacheKey}.generated.json`,
   );
   const senderBin = resolve(projectRoot, "bin", "chorusgate-mcp.mjs");
   try {
@@ -60,8 +75,8 @@ function getSenderMCPConfig(): string {
             args: [senderBin],
             env: {
               MCP_SENDER_ONLY: "1",
-              SLACK_BOT_TOKEN: process.env.SLACK_BOT_TOKEN || "",
-              SLACK_APP_TOKEN: process.env.SLACK_APP_TOKEN || "",
+              SLACK_BOT_TOKEN: botToken,
+              SLACK_APP_TOKEN: appToken,
             },
           },
         },
@@ -73,7 +88,7 @@ function getSenderMCPConfig(): string {
       (err as Error).message,
     );
   }
-  _senderMcpConfig = senderMcpConfig;
+  _mcpConfigCache.set(cacheKey, senderMcpConfig);
   return senderMcpConfig;
 }
 
@@ -196,6 +211,8 @@ export const claudeStreamProvider: AgentProvider = {
     // createSession is ALWAYS for new sessions (routed by generateReply).
     // Even if opts.sessionId is truthy (from sessionStore), use --session-id.
     const sessionId = opts.sessionId || crypto.randomUUID();
+    const botToken = opts.botToken || process.env.SLACK_BOT_TOKEN || "";
+    const appToken = opts.appToken || process.env.SLACK_APP_TOKEN || "";
     const args = [
       "-p",
       "--input-format", "stream-json",
@@ -204,7 +221,7 @@ export const claudeStreamProvider: AgentProvider = {
       "--replay-user-messages",
       "--permission-mode", process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
       "--strict-mcp-config",
-      "--mcp-config", getSenderMCPConfig(),
+      "--mcp-config", getSenderMCPConfig(botToken, appToken),
       "--session-id", sessionId,
     ];
 
@@ -239,6 +256,8 @@ export const claudeStreamProvider: AgentProvider = {
     sessionId: string,
     opts: ResumeSessionOptions,
   ): Promise<SessionOutput> {
+    const botToken = opts.botToken || process.env.SLACK_BOT_TOKEN || "";
+    const appToken = opts.appToken || process.env.SLACK_APP_TOKEN || "";
     const args = [
       "-p",
       "--input-format", "stream-json",
@@ -247,7 +266,7 @@ export const claudeStreamProvider: AgentProvider = {
       "--replay-user-messages",
       "--permission-mode", process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
       "--strict-mcp-config",
-      "--mcp-config", getSenderMCPConfig(),
+      "--mcp-config", getSenderMCPConfig(botToken, appToken),
       "--resume", sessionId,
     ];
 
@@ -326,6 +345,8 @@ export function createStreamSession(
   // 区分新 session (--session-id) vs 续接已有 session (--resume)
   const isResume = !!opts.sessionId;
   const sessionId = opts.sessionId || crypto.randomUUID();
+  const botToken = opts.botToken || process.env.SLACK_BOT_TOKEN || "";
+  const appToken = opts.appToken || process.env.SLACK_APP_TOKEN || "";
   const args = [
     "-p",
     "--input-format", "stream-json",
@@ -334,7 +355,7 @@ export function createStreamSession(
     "--replay-user-messages",
     "--permission-mode", process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
     "--strict-mcp-config",
-    "--mcp-config", getSenderMCPConfig(),
+    "--mcp-config", getSenderMCPConfig(botToken, appToken),
     isResume ? "--resume" : "--session-id", sessionId,
   ];
 

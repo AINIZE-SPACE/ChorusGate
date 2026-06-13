@@ -21,13 +21,18 @@ import type {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..", "..");
 
-// ---- MCP config (lazy, per-provider) -----------------------------------------
+// ---- MCP config (per-profile, STORY-7) ----------------------------------------
 
-function ensureSenderMCPConfig(): string {
+const _mcpConfigCache = new Map<string, string>();
+
+function getSenderMCPConfig(botToken: string, appToken: string): string {
+  const cacheKey = botToken.slice(0, 8);
+  const cached = _mcpConfigCache.get(cacheKey);
+  if (cached) return cached;
+
   const senderMcpConfig = resolve(
-    projectRoot,
-    "config",
-    "sender-mcp.generated.json",
+    projectRoot, "config",
+    `sender-mcp-${cacheKey}.generated.json`,
   );
   const senderBin = resolve(projectRoot, "bin", "chorusgate-mcp.mjs");
   try {
@@ -41,8 +46,8 @@ function ensureSenderMCPConfig(): string {
               args: [senderBin],
               env: {
                 MCP_SENDER_ONLY: "1",
-                SLACK_BOT_TOKEN: process.env.SLACK_BOT_TOKEN || "",
-                SLACK_APP_TOKEN: process.env.SLACK_APP_TOKEN || "",
+                SLACK_BOT_TOKEN: botToken,
+                SLACK_APP_TOKEN: appToken,
               },
             },
           },
@@ -57,13 +62,8 @@ function ensureSenderMCPConfig(): string {
       (err as Error).message,
     );
   }
+  _mcpConfigCache.set(cacheKey, senderMcpConfig);
   return senderMcpConfig;
-}
-
-let _senderMcpConfig: string | null = null;
-function getSenderMCPConfig(): string {
-  if (_senderMcpConfig === null) _senderMcpConfig = ensureSenderMCPConfig();
-  return _senderMcpConfig;
 }
 
 // ---- Provider 实现 -----------------------------------------------------------
@@ -173,6 +173,8 @@ export const claudeProvider: AgentProvider = {
   ): Promise<SessionOutput> {
     const sessionId = opts.sessionId || crypto.randomUUID();
 
+    const botToken = opts.botToken || process.env.SLACK_BOT_TOKEN || "";
+    const appToken = opts.appToken || process.env.SLACK_APP_TOKEN || "";
     const args = [
       "-p",
       "--output-format",
@@ -182,7 +184,7 @@ export const claudeProvider: AgentProvider = {
       process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
       "--strict-mcp-config",
       "--mcp-config",
-      getSenderMCPConfig(),
+      getSenderMCPConfig(botToken, appToken),
       "--session-id",
       sessionId,
     ];
@@ -205,6 +207,8 @@ export const claudeProvider: AgentProvider = {
     sessionId: string,
     opts: ResumeSessionOptions,
   ): Promise<SessionOutput> {
+    const botToken = opts.botToken || process.env.SLACK_BOT_TOKEN || "";
+    const appToken = opts.appToken || process.env.SLACK_APP_TOKEN || "";
     const args = [
       "-p",
       "--output-format",
@@ -214,7 +218,7 @@ export const claudeProvider: AgentProvider = {
       process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
       "--strict-mcp-config",
       "--mcp-config",
-      getSenderMCPConfig(),
+      getSenderMCPConfig(botToken, appToken),
       "--resume",
       sessionId,
     ];

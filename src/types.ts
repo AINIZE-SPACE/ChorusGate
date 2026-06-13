@@ -48,6 +48,8 @@ export interface StoredEvent {
   handled: boolean;
   /** When we received this event (epoch ms) */
   received_at: number;
+  /** Which profile (Slack app) this event came from.  Set by SocketManager. */
+  profileId?: string;
   /** Raw Slack event payload for debugging */
   raw?: unknown;
 }
