@@ -56,7 +56,6 @@
         "channels:join",
         "channels:read",
         "chat:write",
-        "chat:write.customize",
         "commands",
         "files:read",
         "groups:history",
@@ -67,8 +66,7 @@
         "mpim:history",
         "reactions:read",
         "reactions:write",
-        "users:read",
-        "users:read.email"
+        "users:read"
       ]
     }
   },
