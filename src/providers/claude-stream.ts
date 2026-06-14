@@ -61,6 +61,7 @@ function spawnStream(
   cwd: string,
   parser: ClaudeStreamParser,
   env?: Record<string, string | undefined>,
+  onSpawn?: (child: ChildProcess) => void,
 ): StreamSpawnResult {
   const win = process.platform === "win32";
   const cmd = win
@@ -77,6 +78,8 @@ function spawnStream(
   };
   if (env) opts.env = env;
   const child = spawn(cmd, spawnArgs, opts);
+
+  try { onSpawn?.(child); } catch { /* best effort */ }
 
   const result: StreamSpawnResult = {
     child,
@@ -184,7 +187,7 @@ export const claudeStreamProvider: AgentProvider = {
     parser.onProgress = opts.onProgress;
     parser.onSessionId = opts.onSessionId;
 
-    const sr = spawnStream(args, opts.cwd, parser, env);
+    const sr = spawnStream(args, opts.cwd, parser, env, opts.onSpawn);
 
     // Send user prompt on stdin (keep pipe open for future approve/deny)
     const userMsg = JSON.stringify({
@@ -225,7 +228,7 @@ export const claudeStreamProvider: AgentProvider = {
     const parser = new ClaudeStreamParser();
     parser.onProgress = opts.onProgress;
 
-    const sr = spawnStream(args, opts.cwd, parser, env);
+    const sr = spawnStream(args, opts.cwd, parser, env, opts.onSpawn);
 
     const userMsg = JSON.stringify({
       type: "user",

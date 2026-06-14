@@ -10,7 +10,7 @@
 // 跟踪: [#22](https://github.com/AINIZE-SPACE/chorusgate/issues/22)
 // ============================================================
 
-import { spawn, type SpawnOptions } from "node:child_process";
+import { spawn, type SpawnOptions, type ChildProcess } from "node:child_process";
 import { ClaudeEventParser } from "./claude-parser.js";
 import type {
   AgentProvider,
@@ -40,6 +40,7 @@ function spawnClaude(
   timeoutMs: number,
   parser: ClaudeEventParser,
   env?: Record<string, string | undefined>,
+  onSpawn?: (child: ChildProcess) => void,
 ): Promise<SessionOutput> {
   return new Promise<SessionOutput>((resolve) => {
     const win = process.platform === "win32";
@@ -49,15 +50,18 @@ function spawnClaude(
           .join(" ")}`
       : bin;
     const spawnArgs = win ? [] : args;
-    const opts: SpawnOptions = {
+    const spawnOpts: SpawnOptions = {
       cwd,
       stdio: ["pipe", "pipe", "pipe"],
       shell: win,
       windowsHide: true,
     };
-    if (env) opts.env = env;
+    if (env) spawnOpts.env = env;
 
-    const child = spawn(cmd, spawnArgs, opts);
+    const child = spawn(cmd, spawnArgs, spawnOpts);
+
+    // Expose child process for interrupt
+    try { onSpawn?.(child); } catch { /* best effort */ }
 
     child.stdin!.write(prompt);
     child.stdin!.end();
@@ -155,7 +159,7 @@ export const claudeProvider: AgentProvider = {
     parser.onSessionId = opts.onSessionId;
 
     const env = buildSpawnEnv(opts);
-    return spawnClaude(CLAUDE_BIN, args, prompt, opts.cwd, opts.timeoutMs, parser, env).then(
+    return spawnClaude(CLAUDE_BIN, args, prompt, opts.cwd, opts.timeoutMs, parser, env, opts.onSpawn).then(
       (r) => ({ ...r, sessionId: r.sessionId || sessionId }),
     );
   },
@@ -178,7 +182,7 @@ export const claudeProvider: AgentProvider = {
     parser.onProgress = opts.onProgress;
 
     const env = buildSpawnEnv(opts);
-    return spawnClaude(CLAUDE_BIN, args, prompt, opts.cwd, opts.timeoutMs, parser, env).then(
+    return spawnClaude(CLAUDE_BIN, args, prompt, opts.cwd, opts.timeoutMs, parser, env, opts.onSpawn).then(
       (r) => ({ ...r, sessionId }),
     );
   },

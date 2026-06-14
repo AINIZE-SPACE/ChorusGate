@@ -11,7 +11,7 @@ description: Sprint 开发完成交接 — commit → 通知测试 → 更新 Is
 ## Trigger
 
 - 一个或多个 Story/Task 开发完成，所有测试通过
-- 用户说 "通知测试"、"提交代码"、"交接"、"小马测试"
+- 用户说 "通知测试"、"提交代码"、"交接"
 
 ## 四步工作流
 
@@ -32,6 +32,9 @@ Refs: #issue1, #issue2"
 ### 2. 通知评审/测试
 
 **必须发到项目共享频道**（非 DM），让下游同事都能看到。
+
+**:warning: `<@USER_ID>` 格式才会触发 Slack 通知。** `@name` 只是文本，bot 发出去不会 notify。
+具体 ID 从 memory `[[project-team-channels]]` 查。
 
 通知模板:
 

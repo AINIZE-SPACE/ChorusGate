@@ -34,6 +34,7 @@ import {
   buildApprovalBlocks,
 } from "./permission-tracker.js";
 import { PlanTracker } from "./plan-tracker.js";
+import { interruptManager } from "./interrupt.js";
 import { detectCommand, handleCommand } from "./session-commands.js";
 import { type SessionIdentity, formatIdentityKey } from "./session-store.js";
 import {
@@ -425,6 +426,21 @@ async function processEvent(
   replyThreadTs: string,
   profileId: string,
 ): Promise<void> {
+  // ---- busy interrupt check ----
+  // If this session already has a running claude -p, interrupt it.
+  if (interruptManager.isRunning(tKey)) {
+    const proceed = await interruptManager.interrupt(tKey, event.channel, replyThreadTs);
+    if (!proceed) {
+      // Queue mode: message will be picked up after current task finishes.
+      // For now, just drop — the user's next message will trigger a new turn.
+      eventStore.markHandled(event.id);
+      inFlight.delete(event.ts || event.id);
+      releaseSlot();
+      return;
+    }
+    // Interrupt mode: process killed, proceed with new message
+  }
+
   const web = getWebClient();
   let heartbeatTimer: NodeJS.Timeout | undefined;
   let progressDone = false;
@@ -522,6 +538,9 @@ async function processEvent(
       profileId,
       botToken: profile?.botToken,
       appToken: profile?.appToken,
+      onSpawn: (child: import("node:child_process").ChildProcess) => {
+        interruptManager.register(tKey, child);
+      },
       onProgress: (label: string) => {
         lastLabel = label;
         lastToolAt = Date.now();
@@ -679,6 +698,7 @@ async function processEvent(
   } finally {
     progressDone = true;
     if (heartbeatTimer) clearInterval(heartbeatTimer);
+    interruptManager.unregister(tKey);
     eventStore.markHandled(event.id);
     inFlight.delete(event.ts || event.id);
     releaseSlot();

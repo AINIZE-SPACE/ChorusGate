@@ -49,6 +49,7 @@ export async function generateReply(
         botToken: opts.botToken,
         appToken: opts.appToken,
         onProgress: opts.onProgress,
+        onSpawn: opts.onSpawn,
       });
       return { ok: r.ok, text: r.text, error: r.error };
     }
@@ -62,6 +63,7 @@ export async function generateReply(
       botToken: opts.botToken,
       appToken: opts.appToken,
       onProgress: opts.onProgress,
+      onSpawn: opts.onSpawn,
     });
     return { ok: r.ok, text: r.text, error: r.error };
   } catch (err) {
@@ -112,6 +114,7 @@ export async function generateReplyStream(
       botToken: opts.botToken,
       appToken: opts.appToken,
       onProgress: opts.onProgress,
+      onSpawn: opts.onSpawn,
       onPlanUpdate: opts.onPlanUpdate,
       // P1-4 fix: 构造时绑定，消除 spawn 后绑定竞态
       onPermissionRequest: opts.onPermission

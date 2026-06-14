@@ -23,6 +23,8 @@ export interface CreateSessionOptions {
   onProgress?: (label: string) => void;
   /** session ID 确定后回调（CC: spawn 前已知；Codex: spawn 后从 JSONL 回填） */
   onSessionId?: (sessionId: string) => void;
+  /** spawn 后回调 — 暴露 ChildProcess 给 gateway 用于 interrupt */
+  onSpawn?: (child: import("node:child_process").ChildProcess) => void;
 }
 
 export interface ResumeSessionOptions extends CreateSessionOptions {
@@ -128,6 +130,8 @@ export interface ReplyEngineOptions {
   botToken?: string;
   appToken?: string;
   onProgress?: (label: string) => void;
+  /** spawn 后回调 — 暴露 ChildProcess 给 gateway 用于 interrupt */
+  onSpawn?: (child: import("node:child_process").ChildProcess) => void;
 }
 
 /** Legacy reply result */
