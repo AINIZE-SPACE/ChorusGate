@@ -66,3 +66,30 @@
 - **2026-06-14 12:50 (xiaoma)**: Filed #54, #55, #56, #57, #58. Wrote REVIEW-GatewayInterrupt-2026-06-14-xiaoma.md + this ISSUES doc.
 - **2026-06-14 12:55 (xiaoma)**: Applied mkdir fix (P0-2) + 6 interrupt tests + 1 queue mode SKIPped test. Local `npm test`: 86 pass / 0 fail / 1 skipped. `npm run typecheck` clean. Pushing commits to `v3/story-8-claude-stream-json`.
 - (next: 小克 addresses #54 in `src/gateway.ts:436`, then flips `tests/interrupt-queue.test.ts` from `test.skip` to `test` and sets `FIX_QUEUE_MODE_BUG=1` in CI.)
+
+## Update 3 — 2026-06-14 21:08 re-review at HEAD d1fd098
+
+**HEAD re-verified:** `d1fd098` (post 2 new dev pushes: `2b50780` #36 permission auth, `d1fd098` #58 parser race doc)
+
+**Verdict:** CHANGES_REQUESTED — only blocker is merge conflict, no new code defects.
+
+**Per-issue verification (3-prong):**
+- Code presence: all 5 prior findings (P0 #54 #55 #56, P1 #57 #58) confirmed at d1fd098
+- Test report freshness: REPORT stale (94/94 vs current 106/106) — flagged, not blocking
+- Local test run: `npm test` 106/106 PASS, `npm run typecheck` exit 0, 2.1s
+
+**New findings:**
+- P0 (state, not code): `mergeable: "CONFLICTING"`, branch behind dev by 1 commit (`86be75b M2 PR #39` filed 2026-06-13). Dev action: `git fetch && git rebase origin/dev`, force-with-lease push, then ping xiaoma for final re-review.
+- P3 (informational): PR body says "Closes #32" but `closingIssuesReferences: []` — #32 was already closed before this PR. Auto-link silently dropped. No fix needed; cosmetic only.
+
+**All 5 prior findings status at d1fd098:**
+
+| # | Severity | Title | GH issue | Status at d1fd098 |
+| --- | --- | --- | --- | --- |
+| 1 | P0 | Queue mode silently drops user message (data loss) | #54 | Resolved — `55f7b3d` `await child exit`; test pass |
+| 2 | P0 | Test count claim 77/77 is factually wrong | #55 | Resolved — `e9f1503` mkdir added; current 106/106 verified |
+| 3 | P0 | `src/interrupt.ts` has zero test coverage | #56 | Resolved — `e9f1503` 6 interrupt tests; all pass |
+| 4 | P1 | SIGKILL escalation timer untracked + `clear()` never called | #57 | Resolved — `e9f1503` timer lifecycle fix |
+| 5 | P1 | Old parser can race with new spawn (stale UI, phantom exit) | #58 | Resolved (as documented self-correction) — `d1fd098` doc + `80b0d9a` 10K-trial stress test, 0 false negatives |
+
+**Next step:** 小克 rebase, force-with-lease push, ping xiaoma. xiaoma final re-review = APPROVE (no expected new findings).
