@@ -3,9 +3,7 @@
 //
 // 从 reply-engine.ts 原有逻辑迁移，实现 AgentProvider 接口。
 //
-// MCP: `claude -p` 继承父进程环境，直接加载 `.claude/mcp.json`。
-// gateway 进程持有 Socket Mode 连接；spawn 的 claude 只通过
-// MCP_SENDER_ONLY=1 使用 Web API 工具。不再生成临时 config 文件。
+// MCP: `claude -p` 继承父进程环境，直接加载项目 `.mcp.json`。
 //
 // 跟踪: [#22](https://github.com/AINIZE-SPACE/chorusgate/issues/22)
 // ============================================================
