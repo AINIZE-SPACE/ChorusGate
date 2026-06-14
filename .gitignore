@@ -6,6 +6,6 @@ config/*.generated.json
 config/*.generated.toml
 .gateway/
 tmp/
-
+memory/sessions.md
 # NOTE: memory/ is intentionally NOT ignored — memory/sessions.md (the
 # channel/thread → session routing map) is git-tracked for versioning.

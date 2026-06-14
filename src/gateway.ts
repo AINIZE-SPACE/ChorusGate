@@ -531,17 +531,29 @@ async function processEvent(
       ? await generateReplyStream(prompt, {
           ...replyOpts,
           onPermission: async (req) => {
-            // Post Slack interactive message with Approve/Deny buttons
+            // Check auto-approval cache first (session/always scope).
+            const autoKey = `${event.channel}:${replyThreadTs}`;
+            const autoScope = permissionTracker.checkAutoApproval(
+              autoKey, req.toolName,
+            );
+            if (autoScope) {
+              console.error(
+                `[gateway] permission ${req.requestId} (${req.toolName}): ` +
+                  `auto-approved (${autoScope})`,
+              );
+              return true;
+            }
+
+            // Post Slack interactive message with 4 approval buttons
             if (placeholderTs) {
-              // Update the placeholder to show the permission request
               await stopProgress();
             }
             const blocks = buildApprovalBlocks(
               req.toolName,
               req.toolInput,
               req.requestId,
-              event.user,             // P0-3: requesterUserId for auth
-              REPLY_TIMEOUT_MS_LONG,  // P1-2: dynamic timeout text
+              event.user,
+              REPLY_TIMEOUT_MS_LONG,
             );
             try {
               await web.chat.postMessage({
@@ -558,21 +570,21 @@ async function processEvent(
             }
 
             // Wait for user response (auto-denies after timeout)
-            const granted = await permissionTracker.waitForApproval(
+            const scope = await permissionTracker.waitForApproval(
               req.requestId,
               {
                 toolName: req.toolName,
                 toolInput: req.toolInput,
                 channel: event.channel,
                 threadTs: replyThreadTs,
-                requesterUserId: event.user,  // P0-3: store for auth check
+                requesterUserId: event.user,
               },
             );
             console.error(
               `[gateway] permission ${req.requestId} (${req.toolName}): ` +
-                `${granted ? "approved" : "denied"}`,
+                `${scope}`,
             );
-            return granted;
+            return scope !== "deny";
           },
         })
       : await generateReply(prompt, replyOpts);
@@ -701,7 +713,6 @@ async function main(): Promise<void> {
   socketManager.setSlashCallback(onSlash);
   if (INTERACTIVE_PERMISSIONS) {
     socketManager.setBlockActionCallback(async (action) => {
-      // P0-3: 校验按钮点击者是否为审批发起者
       const result = permissionTracker.handleAction(action.actionValue);
       if (!result.handled) return;
 
@@ -713,10 +724,15 @@ async function main(): Promise<void> {
         return;
       }
 
-      // P0-2: 替换审批按钮为"Approved/Denied by @user"，防止幽灵按钮
-      const statusText = result.granted
-        ? `✅ *Approved* by <@${action.userId}>`
-        : `❌ *Denied* by <@${action.userId}>`;
+      // Build status text reflecting the chosen scope
+      const scopeLabel: Record<string, string> = {
+        once: `✅ Approved once by <@${action.userId}>`,
+        session: `📋 Approved for session by <@${action.userId}>`,
+        always: `🔒 Always approved by <@${action.userId}>`,
+        deny: `❌ Denied by <@${action.userId}>`,
+      };
+      const statusText = scopeLabel[result.scope ?? "deny"] ??
+        `✅ Approved by <@${action.userId}>`;
       try {
         const webClient = getWebClient();
         await webClient.chat.update({

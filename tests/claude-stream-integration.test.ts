@@ -186,13 +186,14 @@ test("PermissionTracker: full approve cycle via handleAction with userId", async
 
   assert.equal(tracker.pendingCount, 1);
 
-  const result = tracker.handleAction("approve:req_int_001:U_USER1");
+  const result = tracker.handleAction("allow_once:req_int_001:U_USER1");
   assert.equal(result.handled, true);
+  assert.equal(result.scope, "once");
   assert.equal(result.granted, true);
   assert.equal(result.requesterUserId, "U_USER1");
 
-  const granted = await promise;
-  assert.equal(granted, true);
+  const scope = await promise;
+  assert.equal(scope, "once");
   assert.equal(tracker.pendingCount, 0);
 });
 
