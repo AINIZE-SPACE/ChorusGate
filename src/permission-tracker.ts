@@ -133,7 +133,13 @@ export class PermissionTracker {
     return null;
   }
 
-  /** Register a pending approval request. Returns Promise resolving to the scope. */
+  /**
+   * Register a pending approval request. Returns Promise resolving to the scope.
+   *
+   * Dedup (P2-6): if a request for the same tool+session is already pending,
+   * the new request is rejected immediately. Prevents permission prompt spam
+   * when Claude rapidly retries a blocked tool.
+   */
   waitForApproval(
     requestId: string,
     details: {
@@ -146,10 +152,23 @@ export class PermissionTracker {
       sessionIdentity?: string;
     },
   ): Promise<ApprovalScope> {
-    this.reject(requestId, "deny");
-
     const effectiveIdentity = details.sessionIdentity ??
       `${details.channel}:${details.threadTs}`;
+
+    // P2-6 dedup: check for duplicate pending request for same tool+session
+    const dupKey = `${effectiveIdentity}:${details.toolName}`;
+    for (const [, p] of this.pending) {
+      if (`${p.sessionIdentity}:${p.toolName}` === dupKey) {
+        console.error(
+          `[permission-tracker] duplicate request ${requestId} ` +
+          `(same tool+session as ${p.requestId}), skipping`,
+        );
+        return Promise.resolve("deny");
+      }
+    }
+
+    // Clean up any previous request with the same requestId (shouldn't happen)
+    this.reject(requestId, "deny");
 
     return new Promise<ApprovalScope>((resolve) => {
       const timer = setTimeout(() => {
