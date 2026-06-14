@@ -1,70 +1,93 @@
 ---
 name: sprint-handoff
-description: Sprint 开发完成交接 — commit → 通知测试 → 更新 Issue → 记录 memory，四步缺一不可
+description: Sprint 开发完成交接 — Issue 驱动 → commit → 频道通知 → 评审 → 测试 → done
 ---
 
 # 技能: Sprint 开发完成交接
 
-> 代码写完不是终点——提交、通知、更新需求状态、记录 memory 四步缺一不可。
-> 参考: `E:\my_project\ainize\summit-saw\domains\dev\notification-templates.md`
+> 代码写完不是终点。Issue 驱动，状态流转，频道通知，四步缺一不可。
+> 具体 ID 值从 memory `[[project-team-channels]]` 读取。
 
-## Trigger
-
-- 一个或多个 Story/Task 开发完成，所有测试通过
-- 用户说 "通知测试"、"提交代码"、"交接"
-
-## 四步工作流
-
-### 1. 提交代码
-
-```bash
-git add -A
-git commit -m "feat(scope): 描述
-
-详细变更列表
-Refs: #issue1, #issue2"
-```
-
-- Commit 格式: Conventional Commits (`feat:`, `fix:`, `refactor:`)
-- Commit body 列出主要变更文件和要点
-- 尾部引用相关 GitHub Issues
-
-### 2. 通知评审/测试
-
-**必须发到项目共享频道**（非 DM），让下游同事都能看到。
-
-**:warning: `<@USER_ID>` 格式才会触发 Slack 通知。** `@name` 只是文本，bot 发出去不会 notify。
-具体 ID 从 memory `[[project-team-channels]]` 查。
-
-通知模板:
+## 统一流程
 
 ```
-*{项目} {版本/Epic} — {完成的 Story 列表}*
-<@REVIEWER_ID> 请测试验证。
-
-*已完成 Stories*
-• *STORY-N* — 标题 (要点)
-...
-
-*测试状态*
-• N/N 测试通过 | TypeScript 零错误
-• 分支: `{branch-name}`
-
-*测试要点*
-1. ...
-2. ...
-
-Issues: #N, #N
+Issue (epic/feature/story/task/bug)
+  │  backlog / open
+  │  gh issue create / view {N}
+  ▼
+研究规划 (Spike → SPEC → 评审)
+  │  状态: in_progress
+  │  gh issue comment {N} --body "开始开发"
+  ▼
+开发 (分支 → 代码 → 测试)
+  │  状态: in_progress
+  │  npm test && npx tsc --noEmit
+  │  git commit -m "type: desc — #{N}" && git push
+  ▼
+Issue 更新
+  │  状态: in_progress → in_review
+  │  gh issue comment {N} --body "Status: in_review..."
+  ▼
+Slack 频道通知
+  │  <@{TESTER}> <@{REVIEWER}> in {CHANNEL_NAME}
+  │  附: Story、测试状态、分支、Issue #
+  ▼
+{REVIEWER} 评审 + {TESTER} 测试
+  │  修复 → 重新通知
+  ▼
+Merge → 状态: in_review → done/closed
+  │  gh issue close {N}
+  ▼
+下游 memory 记录 ([[notification-templates]] 模板 5)
 ```
 
-## 通知目标
+## Issue 类型与状态流转
 
-> 频道和评审人信息**从 memory 读取**（`[[project-team-channels]]`），
-> 不在此处硬编码。通知前先查 memory 获取最新的频道 ID 和团队成员 ID。
+| 类型 | 粒度 | 生命周期 |
+|------|------|---------|
+| epic | 大（多 sprint） | backlog → in_progress → done |
+| feature | 中（系统级） | proposed → approved → in_progress → in_review → done |
+| story | 中（≤ 3 天） | backlog → in_progress → in_review → done |
+| task | 小（≤ 1 天） | todo → in_progress → done |
+| bug | 不定 | open → in_progress → fixed → verified → closed |
+
+## 通知模板
+
+```
+<@{TESTER}> <@{REVIEWER}> {PROJECT} — {TYPE} #{N}: {标题} 开发完成，请验收。
+
+*变更*
+• {要点1}
+• {要点2}
+
+*测试*
+• {N}/{N} 测试通过 | typecheck 零错误
+*分支*: {branch} (已 push)
+
+Refs: #{N}
+```
+
+## 变量参考
+
+所有变量值从 memory `[[project-team-channels]]` 读取：
+
+| 变量 | 说明 |
+|------|------|
+| `{CHANNEL_NAME}` | 开发频道名 |
+| `{CHANNEL_ID}` | 开发频道 ID |
+| `{TESTER}` | 测试负责人 Slack ID |
+| `{REVIEWER}` | 评审负责人 Slack ID |
+
+## Slack 通知规范
+
+- `<@USER_ID>` 格式，放消息首行
+- `chat.postMessage`: `link_names: true, unfurl_links: false, unfurl_media: false`
+- mention 在顶层 `text`，不在 blocks
 
 ## Quality Bar
 
-- [ ] 代码已 commit 到当前分支
-- [ ] Slack 通知已发送
-- [ ] GitHub Issues 状态已更新 (in_review)
-- [ ] 关键决策已记录到 project memory
+- [ ] Issue 存在且状态正确
+- [ ] `git push` 到远程
+- [ ] Slack 频道通知（非 DM），mention 置首行
+- [ ] GitHub Issue comment 更新状态
+- [ ] 关键决策记录到 project memory
