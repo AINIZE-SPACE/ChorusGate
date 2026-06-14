@@ -11,6 +11,7 @@
 
 import type { ReplyEngineOptions, ReplyResult } from "./providers/types.js";
 import type { PermissionRequest } from "./providers/claude-stream-parser.js";
+import type { PlanUpdate } from "./providers/claude-parser.js";
 
 // Re-export for backward compat
 export type { ReplyEngineOptions, ReplyResult };
@@ -88,6 +89,8 @@ export async function generateReplyStream(
   opts: ReplyEngineOptions & {
     /** 审批回调: 收到 permission_request 时调用，返回 approve(true)/deny(false) */
     onPermission?: (req: PermissionRequest) => Promise<boolean>;
+    /** 任务计划回调: Claude 更新 todo list 时调用 */
+    onPlanUpdate?: (plan: PlanUpdate) => void;
   } = {}
 ): Promise<ReplyResult> {
   const { createStreamSession } = await import(
@@ -109,6 +112,7 @@ export async function generateReplyStream(
       botToken: opts.botToken,
       appToken: opts.appToken,
       onProgress: opts.onProgress,
+      onPlanUpdate: opts.onPlanUpdate,
       // P1-4 fix: 构造时绑定，消除 spawn 后绑定竞态
       onPermissionRequest: opts.onPermission
         ? async (req) => {

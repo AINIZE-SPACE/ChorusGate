@@ -33,6 +33,7 @@ import {
   PermissionTracker,
   buildApprovalBlocks,
 } from "./permission-tracker.js";
+import { PlanTracker } from "./plan-tracker.js";
 import { detectCommand, handleCommand } from "./session-commands.js";
 import { type SessionIdentity, formatIdentityKey } from "./session-store.js";
 import {
@@ -298,6 +299,8 @@ const threadChains = new Map<string, Promise<void>>();
 
 // M2: Permission tracker for interactive approve/deny via Slack buttons
 const permissionTracker = new PermissionTracker();
+// Plan tracker: parse Claude todo tool output → Slack plan status message
+const planTracker = new PlanTracker();
 
 /** Handle a native Slack slash command for session control. */
 function onSlash(slashCmd: SlashCommand): void {
@@ -585,6 +588,36 @@ async function processEvent(
                 `${scope}`,
             );
             return scope !== "deny";
+          },
+          onPlanUpdate: async (plan) => {
+            const planKey = `${event.channel}:${replyThreadTs}`;
+            const update = planTracker.updatePlan(planKey, plan.entries);
+            if (!update || !update.changed) return;
+
+            const existingTs = planTracker.getPlanMessageTs(planKey);
+            try {
+              if (existingTs) {
+                await web.chat.update({
+                  channel: event.channel,
+                  ts: existingTs,
+                  text: update.text,
+                });
+              } else {
+                const msg = await web.chat.postMessage({
+                  channel: event.channel,
+                  thread_ts: replyThreadTs,
+                  text: update.text,
+                });
+                if (msg.ts) {
+                  planTracker.setPlanMessageTs(planKey, msg.ts as string);
+                }
+              }
+            } catch (err) {
+              console.error(
+                "[gateway] failed to update plan message:",
+                (err as Error).message,
+              );
+            }
           },
         })
       : await generateReply(prompt, replyOpts);

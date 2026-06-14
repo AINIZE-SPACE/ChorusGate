@@ -292,6 +292,8 @@ export function createStreamSession(
   opts: CreateSessionOptions & {
     /** 审批回调 (构造时绑定以避免竞态) */
     onPermissionRequest?: (req: import("./claude-stream-parser.js").PermissionRequest) => void;
+    /** 任务计划回调 (构造时绑定) */
+    onPlanUpdate?: (plan: import("./claude-parser.js").PlanUpdate) => void;
   },
 ): ClaudeStreamSession {
   // 区分新 session (--session-id) vs 续接已有 session (--resume)
@@ -311,9 +313,12 @@ export function createStreamSession(
   const parser = new ClaudeStreamParser();
   parser.onProgress = opts.onProgress;
   parser.onSessionId = opts.onSessionId;
-  // P1-4 fix: 在 spawn 前绑定审批回调，消除竞态
+  // P1-4 fix: 在 spawn 前绑定回调，消除竞态
   if (opts.onPermissionRequest) {
     parser.onPermissionRequest = opts.onPermissionRequest;
+  }
+  if (opts.onPlanUpdate) {
+    parser.onPlanUpdate = opts.onPlanUpdate;
   }
 
   const sr = spawnStream(args, opts.cwd, parser, env);
