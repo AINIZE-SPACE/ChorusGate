@@ -3,7 +3,11 @@
     "chorusgate": {
       "type": "stdio",
       "command": "chorusgate-mcp",
-      "args": []
+      "args": [],
+      "env": {
+        "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}",
+        "SLACK_APP_TOKEN": "${SLACK_APP_TOKEN}"
+      }
     },
     "trello": {
       "type": "stdio",

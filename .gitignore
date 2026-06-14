@@ -7,5 +7,6 @@ config/*.generated.toml
 .gateway/
 tmp/
 memory/sessions.md
+.claude/settings.local.json
 # NOTE: memory/ is intentionally NOT ignored — memory/sessions.md (the
 # channel/thread → session routing map) is git-tracked for versioning.
