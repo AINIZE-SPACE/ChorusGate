@@ -140,6 +140,7 @@ export class InterruptManager {
         channel,
         ...(threadTs ? { thread_ts: threadTs } : {}),
         text,
+        link_names: true,
       });
     } catch (err) {
       console.error(

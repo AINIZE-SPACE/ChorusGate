@@ -496,6 +496,7 @@ async function processEvent(
           channel: event.channel,
           thread_ts: replyThreadTs,
           text: HEARTBEAT_PHRASES[0],
+          link_names: true,
         });
         placeholderTs = ph.ts as string | undefined;
       } catch {
@@ -584,6 +585,7 @@ async function processEvent(
                 thread_ts: replyThreadTs,
                 blocks,
                 text: `Claude 请求执行 \`${req.toolName}\` — 需要你的批准`,
+                link_names: true,
               });
             } catch (err) {
               console.error(
@@ -628,6 +630,7 @@ async function processEvent(
                   channel: event.channel,
                   thread_ts: replyThreadTs,
                   text: update.text,
+                  link_names: true,
                 });
                 if (msg.ts) {
                   planTracker.setPlanMessageTs(planKey, msg.ts as string);
@@ -666,6 +669,7 @@ async function processEvent(
         channel: event.channel,
         thread_ts: replyThreadTs,
         text,
+        link_names: true,
       });
     }
 
@@ -692,6 +696,7 @@ async function processEvent(
           channel: event.channel,
           thread_ts: replyThreadTs,
           text: errText,
+          link_names: true,
         });
       }
     } catch {
