@@ -4,14 +4,21 @@
 // 从 reply-engine.ts 原有逻辑迁移，实现 AgentProvider 接口。
 //
 // MCP: `claude -p` 继承父进程环境，直接加载 `.claude/mcp.json`。
-// ChorusGate MCP 只提供 Web API 工具，不再承担 Socket Mode 收事件。
-// 因此 gateway 和 spawned claude 可以共享同一份 MCP 配置。
+// gateway 进程持有 Socket Mode 连接；spawn 的 claude 只通过
+// MCP_SENDER_ONLY=1 使用 Web API 工具。不再生成临时 config 文件。
 //
 // 跟踪: [#22](https://github.com/AINIZE-SPACE/chorusgate/issues/22)
 // ============================================================
 
-import { spawn, type SpawnOptions, type ChildProcess } from "node:child_process";
 import { ClaudeEventParser } from "./claude-parser.js";
+import {
+  buildSpawnCommand,
+  buildSpawnOptions,
+  buildSpawnEnv,
+  createLineBuffer,
+  flushBuffer,
+  spawnAndWait,
+} from "./_spawn-helpers.js";
 import type {
   AgentProvider,
   CreateSessionOptions,
@@ -23,114 +30,45 @@ const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
 
 // ---- spawn helper ------------------------------------------------------------
 
-/** Build spawn env, injecting per-profile tokens when provided (STORY-7). */
-function buildSpawnEnv(opts: CreateSessionOptions): Record<string, string | undefined> {
-  const env: Record<string, string | undefined> = { ...process.env };
-  // Per-profile: override tokens so spawned claude picks up the right Slack app.
-  if (opts.botToken) env.SLACK_BOT_TOKEN = opts.botToken;
-  if (opts.appToken) env.SLACK_APP_TOKEN = opts.appToken;
-  return env;
-}
-
 function spawnClaude(
-  bin: string,
   args: string[],
   prompt: string,
-  cwd: string,
-  timeoutMs: number,
+  opts: CreateSessionOptions,
   parser: ClaudeEventParser,
-  env?: Record<string, string | undefined>,
-  onSpawn?: (child: ChildProcess) => void,
 ): Promise<SessionOutput> {
   return new Promise<SessionOutput>((resolve) => {
-    const win = process.platform === "win32";
-    const cmd = win
-      ? `"${bin}" ${args
-          .map((a) => (a.includes(" ") ? `"${a}"` : a))
-          .join(" ")}`
-      : bin;
-    const spawnArgs = win ? [] : args;
-    const spawnOpts: SpawnOptions = {
-      cwd,
-      stdio: ["pipe", "pipe", "pipe"],
-      shell: win,
-      windowsHide: true,
-    };
-    if (env) spawnOpts.env = env;
+    const { cmd, spawnArgs } = buildSpawnCommand(CLAUDE_BIN, args);
+    const env = buildSpawnEnv(opts);
+    const spawnOpts = buildSpawnOptions(opts.cwd, env);
 
-    const child = spawn(cmd, spawnArgs, spawnOpts);
+    const feedLine = createLineBuffer((line) => parser.feed(line));
 
-    // Expose child process for interrupt
-    try { onSpawn?.(child); } catch { /* best effort */ }
+    const sr = spawnAndWait(
+      cmd, spawnArgs, spawnOpts, opts.timeoutMs,
+      (ok, code) => {
+        flushBuffer(feedLine);
+        const text = parser.getResultText();
+        if (ok && text) {
+          resolve({ ok: true, text, sessionId: "" });
+        } else if (ok && !text) {
+          resolve({ ok: false, text: "", sessionId: "",
+            error: "claude -p exited 0 but produced no output" });
+        } else {
+          resolve({ ok: false, text, sessionId: "",
+            error: `claude -p exited ${code}: ${sr.stderr.slice(0, 500)}` });
+        }
+      },
+      opts.onSpawn,
+    );
 
-    child.stdin!.write(prompt);
-    child.stdin!.end();
+    // stdout: use line buffer directly
+    sr.child.stdout?.on("data", (chunk) => feedLine(chunk));
+    // stderr tracking
+    sr.child.stderr?.on("data", (chunk) => { sr.stderr += chunk.toString(); });
 
-    let stdoutBuf = "";
-    let stderr = "";
-    let settled = false;
-
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      child.kill("SIGKILL");
-      resolve({
-        ok: false,
-        text: "",
-        sessionId: "",
-        error: `claude -p timed out after ${timeoutMs}ms`,
-      });
-    }, timeoutMs);
-
-    child.stdout!.on("data", (chunk) => {
-      stdoutBuf += chunk.toString();
-      const lines = stdoutBuf.split("\n");
-      stdoutBuf = lines.pop() ?? "";
-      for (const line of lines) parser.feed(line);
-    });
-
-    child.stderr!.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-
-    child.on("error", (err) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve({
-        ok: false,
-        text: "",
-        sessionId: "",
-        error: `failed to spawn ${CLAUDE_BIN}: ${err.message}`,
-      });
-    });
-
-    child.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-
-      if (stdoutBuf) parser.feed(stdoutBuf);
-
-      const text = parser.getResultText();
-      if (code === 0 && text) {
-        resolve({ ok: true, text, sessionId: "" });
-      } else if (code === 0 && !text) {
-        resolve({
-          ok: false,
-          text: "",
-          sessionId: "",
-          error: "claude -p exited 0 but produced no output",
-        });
-      } else {
-        resolve({
-          ok: false,
-          text,
-          sessionId: "",
-          error: `claude -p exited ${code}: ${stderr.trim().slice(0, 500)}`,
-        });
-      }
-    });
+    // Write prompt via stdin, then close
+    sr.child.stdin!.write(prompt);
+    sr.child.stdin!.end();
   });
 }
 
@@ -158,8 +96,7 @@ export const claudeProvider: AgentProvider = {
     parser.onProgress = opts.onProgress;
     parser.onSessionId = opts.onSessionId;
 
-    const env = buildSpawnEnv(opts);
-    return spawnClaude(CLAUDE_BIN, args, prompt, opts.cwd, opts.timeoutMs, parser, env, opts.onSpawn).then(
+    return spawnClaude(args, prompt, opts, parser).then(
       (r) => ({ ...r, sessionId: r.sessionId || sessionId }),
     );
   },
@@ -181,8 +118,7 @@ export const claudeProvider: AgentProvider = {
     const parser = new ClaudeEventParser();
     parser.onProgress = opts.onProgress;
 
-    const env = buildSpawnEnv(opts);
-    return spawnClaude(CLAUDE_BIN, args, prompt, opts.cwd, opts.timeoutMs, parser, env, opts.onSpawn).then(
+    return spawnClaude(args, prompt, opts, parser).then(
       (r) => ({ ...r, sessionId }),
     );
   },

@@ -27,8 +27,13 @@
 // 跟踪: [#34](https://github.com/AINIZE-SPACE/chorusgate/issues/34)
 // ============================================================
 
-import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { ClaudeStreamParser } from "./claude-stream-parser.js";
+import {
+  buildSpawnCommand,
+  buildSpawnOptions,
+  buildSpawnEnv,
+} from "./_spawn-helpers.js";
 import type {
   AgentProvider,
   CreateSessionOptions,
@@ -38,19 +43,11 @@ import type {
 
 const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
 
-// ---- env helper (per-profile token injection, STORY-7) -----------------------
-
-function buildSpawnEnv(opts: CreateSessionOptions): Record<string, string | undefined> {
-  const env: Record<string, string | undefined> = { ...process.env };
-  if (opts.botToken) env.SLACK_BOT_TOKEN = opts.botToken;
-  if (opts.appToken) env.SLACK_APP_TOKEN = opts.appToken;
-  return env;
-}
-
 // ---- spawn helper ------------------------------------------------------------
 
 interface StreamSpawnResult {
   child: ChildProcess;
+  parser: ClaudeStreamParser;
   stdoutBuf: string;
   stderr: string;
   settled: boolean;
@@ -63,26 +60,15 @@ function spawnStream(
   env?: Record<string, string | undefined>,
   onSpawn?: (child: ChildProcess) => void,
 ): StreamSpawnResult {
-  const win = process.platform === "win32";
-  const cmd = win
-    ? `"${CLAUDE_BIN}" ${args
-        .map((a) => (a.includes(" ") ? `"${a}"` : a))
-        .join(" ")}`
-    : CLAUDE_BIN;
-  const spawnArgs = win ? [] : args;
-  const opts: SpawnOptions = {
-    cwd,
-    stdio: ["pipe", "pipe", "pipe"],
-    shell: win,
-    windowsHide: true,
-  };
-  if (env) opts.env = env;
-  const child = spawn(cmd, spawnArgs, opts);
+  const { cmd, spawnArgs } = buildSpawnCommand(CLAUDE_BIN, args);
+  const spawnOpts = buildSpawnOptions(cwd, env);
+  const child = spawn(cmd, spawnArgs, spawnOpts);
 
   try { onSpawn?.(child); } catch { /* best effort */ }
 
   const result: StreamSpawnResult = {
     child,
+    parser,
     stdoutBuf: "",
     stderr: "",
     settled: false,
@@ -108,10 +94,7 @@ function streamToResult(
   timeoutMs: number,
 ): Promise<SessionOutput> {
   return new Promise((resolve) => {
-    const { child, parser } = spawnResult as StreamSpawnResult & {
-      parser: ClaudeStreamParser;
-    };
-    // parser is captured via closure below
+    const { child, parser } = spawnResult;
 
     const timer = setTimeout(() => {
       if (spawnResult.settled) return;
@@ -198,10 +181,7 @@ export const claudeStreamProvider: AgentProvider = {
     // NOTE: stdin NOT closed — open for approve/deny responses
 
     // Wait for result
-    const result = await streamToResult(
-      { ...sr, parser } as StreamSpawnResult & { parser: ClaudeStreamParser },
-      opts.timeoutMs,
-    );
+    const result = await streamToResult(sr, opts.timeoutMs);
 
     // Close stdin now that we have the result
     if (!sr.settled) sr.child.stdin?.end();
@@ -236,10 +216,7 @@ export const claudeStreamProvider: AgentProvider = {
     }) + "\n";
     sr.child.stdin?.write(userMsg);
 
-    const result = await streamToResult(
-      { ...sr, parser } as StreamSpawnResult & { parser: ClaudeStreamParser },
-      opts.timeoutMs,
-    );
+    const result = await streamToResult(sr, opts.timeoutMs);
 
     if (!sr.settled) sr.child.stdin?.end();
 
