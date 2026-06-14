@@ -33,6 +33,7 @@ function spawnClaude(
   prompt: string,
   opts: CreateSessionOptions,
   parser: ClaudeEventParser,
+  env?: Record<string, string | undefined>,
 ): Promise<SessionOutput> {
   return new Promise<SessionOutput>((resolve) => {
     const { cmd, spawnArgs } = buildSpawnCommand(CLAUDE_BIN, args);
