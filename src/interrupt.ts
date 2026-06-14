@@ -93,13 +93,29 @@ export class InterruptManager {
     // Interrupt mode: kill current process
     await this.sendBusyAck(channel, threadTs, "interrupt");
 
+    // Track the SIGKILL escalation timer for cleanup
+    const killTimer = setTimeout(() => {
+      try {
+        // Re-check that the same child is still registered (P1 fix #57)
+        const current = this.running.get(key);
+        if (current === child) {
+          child.kill("SIGKILL");
+          this.running.delete(key);
+        }
+      } catch { /* ignore */ }
+    }, 2000);
+    killTimer.unref();
+
     try {
       child.kill("SIGTERM");
-      // Give it 2s to gracefully exit, then force
-      setTimeout(() => {
-        try { child.kill("SIGKILL"); } catch { /* ignore */ }
-      }, 2000).unref();
+      // P1 fix #57: if child exits cleanly before SIGKILL, clear the timer
+      const onExit = () => {
+        clearTimeout(killTimer);
+        child.removeListener("exit", onExit);
+      };
+      child.on("exit", onExit);
     } catch (err) {
+      clearTimeout(killTimer);
       console.error(
         `[interrupt] failed to kill process for ${key}:`,
         (err as Error).message,

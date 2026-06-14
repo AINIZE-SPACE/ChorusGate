@@ -81,7 +81,7 @@ Refs: #{N}
 ## Slack 通知规范
 
 - `<@USER_ID>` 格式，放消息首行
-- `chat.postMessage`: `link_names: true, unfurl_links: false, unfurl_media: false`
+- `chat.postMessage`: `link_names: true`
 - mention 在顶层 `text`，不在 blocks
 
 ## Quality Bar
