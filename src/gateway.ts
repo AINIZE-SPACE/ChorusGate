@@ -768,16 +768,22 @@ async function main(): Promise<void> {
   socketManager.setSlashCallback(onSlash);
   if (INTERACTIVE_PERMISSIONS) {
     socketManager.setBlockActionCallback(async (action) => {
-      const result = permissionTracker.handleAction(action.actionValue);
-      if (!result.handled) return;
+      // #36 P0 fix: extract requesterUserId BEFORE resolution.
+      // action_value format: "scope:requestId:requesterUserId"
+      const lastColon = action.actionValue.lastIndexOf(":");
+      const expectedUserId = lastColon > 0
+        ? action.actionValue.slice(lastColon + 1) : null;
 
-      if (action.userId !== result.requesterUserId) {
+      if (expectedUserId && action.userId !== expectedUserId) {
         console.error(
           `[gateway] permission block_action from non-requester: ` +
-          `${action.userId} (expected ${result.requesterUserId}), ignoring`,
+          `${action.userId} (expected ${expectedUserId}), ignoring`,
         );
         return;
       }
+
+      const result = permissionTracker.handleAction(action.actionValue);
+      if (!result.handled) return;
 
       // Build status text reflecting the chosen scope
       const scopeLabel: Record<string, string> = {
