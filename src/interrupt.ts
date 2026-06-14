@@ -21,6 +21,17 @@ const BUSY_MODE =
     | "interrupt"
     | "queue";
 
+/** Test seam: override the web-client getter (used by tests/interrupt.test.ts). */
+let webClientOverride: (() => ReturnType<typeof getWebClient>) | null = null;
+export function _setWebClientForTests(
+  getter: (() => ReturnType<typeof getWebClient>) | null,
+): void {
+  webClientOverride = getter;
+}
+function getWeb(): ReturnType<typeof getWebClient> {
+  return webClientOverride ? webClientOverride() : getWebClient();
+}
+
 const BUSY_ACK_COOLDOWN_MS = 30_000; // 30s debounce
 
 // ---- InterruptManager --------------------------------------------------------
@@ -124,7 +135,7 @@ export class InterruptManager {
         : "⚡ 正在中断当前任务，马上回复你的新消息…";
 
     try {
-      const web = getWebClient();
+      const web = getWeb();
       await web.chat.postMessage({
         channel,
         ...(threadTs ? { thread_ts: threadTs } : {}),
