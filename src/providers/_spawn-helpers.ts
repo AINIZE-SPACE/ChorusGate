@@ -16,9 +16,16 @@ export function buildSpawnCommand(
   const win = process.platform === "win32";
   if (!win) return { cmd: bin, spawnArgs: args };
 
-  const cmd = `"${bin}" ${args
-    .map((a) => (a.includes(" ") ? `"${a}"` : a))
-    .join(" ")}`;
+  // P3-4: escape backslashes inside double-quoted args to prevent
+  // cmd.exe from interpreting them as escape sequences.
+  const escapeArg = (a: string): string => {
+    if (a.includes(" ")) {
+      return `"${a.replace(/\\/g, "\\\\")}"`;
+    }
+    return a.replace(/\\/g, "\\\\");
+  };
+
+  const cmd = `"${bin}" ${args.map(escapeArg).join(" ")}`;
   return { cmd, spawnArgs: [] };
 }
 
