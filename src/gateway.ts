@@ -275,6 +275,8 @@ const inFlight = new Set<string>();
 let running = 0;
 const waiters: Array<() => void> = [];
 
+// ---- concurrency ------------------------------------------------------------
+
 function acquireSlot(): Promise<void> {
   if (running < MAX_CONCURRENT) {
     running += 1;
@@ -427,18 +429,11 @@ async function processEvent(
   profileId: string,
 ): Promise<void> {
   // ---- busy interrupt check ----
-  // If this session already has a running claude -p, interrupt it.
+  // If this session already has a running claude -p, interrupt or queue.
+  // interrupt() kills the current process (interrupt mode) or awaits its
+  // exit (queue mode), then returns true so we proceed with the new message.
   if (interruptManager.isRunning(tKey)) {
-    const proceed = await interruptManager.interrupt(tKey, event.channel, replyThreadTs);
-    if (!proceed) {
-      // Queue mode: message will be picked up after current task finishes.
-      // For now, just drop — the user's next message will trigger a new turn.
-      eventStore.markHandled(event.id);
-      inFlight.delete(event.ts || event.id);
-      releaseSlot();
-      return;
-    }
-    // Interrupt mode: process killed, proceed with new message
+    await interruptManager.interrupt(tKey, event.channel, replyThreadTs);
   }
 
   const web = getWebClient();

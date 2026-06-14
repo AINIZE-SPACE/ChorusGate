@@ -52,18 +52,9 @@ async function setupSlackMock() {
   return () => interrupt._setWebClientForTests(null);
 }
 
-// TODO(#54): enable after fix lands.
-// Today: queue mode returns `false` from interrupt() and the gateway
-// drops the message (src/gateway.ts:436-441). The fix should make
-// interrupt() await the child exit and return `true`, so the gateway
-// proceeds to process the new message normally.
-//
-// Currently this test is gated on the FIX_QUEUE_MODE_BUG env var so
-// the test suite stays green. Set FIX_QUEUE_MODE_BUG=1 after #54 is
-// fixed to re-enable verification.
-const QUEUE_MODE_BUG_FIXED = process.env.FIX_QUEUE_MODE_BUG === "1";
-const queueModeTest = QUEUE_MODE_BUG_FIXED ? test : test.skip.bind(test);
-queueModeTest("InterruptManager queue mode: sends queue ack, awaits child exit, returns true", async () => {
+// #54: queue mode now awaits child exit before returning true.
+// The gateway proceeds normally after the current task finishes.
+test("InterruptManager queue mode: sends queue ack, awaits child exit, returns true", async () => {
   await setupSlackMock();
   const { InterruptManager } = await import("../src/interrupt.js");
   const mgr = new InterruptManager();

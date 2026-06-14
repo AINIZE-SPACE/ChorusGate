@@ -71,9 +71,23 @@ export class InterruptManager {
     if (!child) return true; // no running process — proceed
 
     if (BUSY_MODE === "queue") {
-      // Queue mode: let current task finish, message will be processed after
+      // Queue mode: send ack, then wait for the current task to finish.
+      // When the child exits, return true so the gateway proceeds normally.
       await this.sendBusyAck(channel, threadTs, "queue");
-      return false; // don't process now — it'll be queued
+
+      // Wait for child to exit (the current task finishing)
+      await new Promise<void>((resolve) => {
+        const onExit = () => {
+          child.removeListener("exit", onExit);
+          child.removeListener("close", onExit);
+          resolve();
+        };
+        child.on("exit", onExit);
+        child.on("close", onExit);
+      });
+
+      this.running.delete(key);
+      return true;
     }
 
     // Interrupt mode: kill current process
