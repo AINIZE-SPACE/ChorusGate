@@ -11,7 +11,7 @@
 // ============================================================
 
 import { spawn } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CodexEventParser } from "./codex-parser.js";
@@ -156,6 +156,7 @@ export const codexProvider: AgentProvider = {
     ].join("\n");
 
     try {
+      mkdirSync(dirname(configPath), { recursive: true });
       writeFileSync(configPath, toml);
     } catch (err) {
       console.error(
