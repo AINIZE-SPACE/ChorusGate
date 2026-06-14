@@ -172,11 +172,7 @@ test("IT-03: cross-session — interrupt on A does not touch B", async () => {
 
 // ---- IT-05: queue mode — child already exited ------------------------------
 
-const QUEUE_MODE_BUG_FIXED = process.env.FIX_QUEUE_MODE_BUG === "1";
-
-const queueTest = QUEUE_MODE_BUG_FIXED ? test : test.skip.bind(test);
-
-queueTest("IT-05: queue mode — child already exited, interrupt returns true immediately", async () => {
+test("IT-05: queue mode — child already exited, interrupt returns true immediately", async () => {
   process.env.GATEWAY_BUSY_MODE = "queue";
   await setupSlackMock();
   const mgr = await newMgr();
@@ -246,9 +242,7 @@ test("IT-07: child.kill() throws, interrupt() still returns true", async () => {
 
 // ---- IT-08: regression — queue mode must NOT return false (data loss) ------
 
-const regressionTest = QUEUE_MODE_BUG_FIXED ? test : test.skip.bind(test);
-
-regressionTest("IT-08: queue mode returns true after child exit (regression for #54)", async () => {
+test("IT-08: queue mode returns true after child exit (regression for #54)", async () => {
   process.env.GATEWAY_BUSY_MODE = "queue";
   await setupSlackMock();
   const mgr = await newMgr();
