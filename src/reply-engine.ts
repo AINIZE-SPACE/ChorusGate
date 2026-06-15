@@ -65,11 +65,28 @@ export async function generateReply(
         onSpawn: opts.onSpawn,
       });
       if (r.ok) return { ok: true, text: r.text };
-      // Resume failed — fall back to new session
+      // Resume failed — auto fallback to new session.
+      // Mark the response so the user knows this is a fresh start.
       console.error(
-        `[reply-engine] resume failed (${r.error}), falling back to new session`,
+        `[reply-engine] resume failed (${r.error}), auto-creating new session`,
       );
-      // Fall through to createSession
+      const fr = await provider.createSession(prompt, {
+        cwd,
+        timeoutMs,
+        mcpConfigPath: "",
+        permissionMode,
+        botToken: opts.botToken,
+        appToken: opts.appToken,
+        onProgress: opts.onProgress,
+        onSpawn: opts.onSpawn,
+      });
+      if (fr.ok) {
+        return {
+          ok: true,
+          text: `🆕 新会话（之前的会话已过期，已自动创建新会话）\n\n${fr.text}`,
+        };
+      }
+      return { ok: false, text: "", error: fr.error };
     }
 
     const r = await provider.createSession(prompt, {
