@@ -161,6 +161,20 @@ memory/
 
 无论哪种 scope，同一个 scope key 上的 turn 都会串行执行，避免两个并发 `--resume <same-session>` 污染状态。
 
+### Provider Session 对比
+
+| | Claude Code | Codex |
+|------|------------|-------|
+| Session 映射 | `sessionStore` (providerId="claude") | `sessionStore` (providerId="codex") |
+| 创建 | `claude -p --session-id <uuid>` | `codex exec <prompt> --json` → 解析 `thread_id` |
+| 续接 | `claude -p --resume <uuid>` | `codex exec resume <tid> <prompt> --json` |
+| Session 存储 | `~/.claude/projects/<hash>/` | `~/.codex/sessions/` |
+| 路由 meta | `memory/sessions.md` | `memory/sessions.md` (同表，不同 providerId) |
+| 输出格式 | stream-json | JSONL |
+| 配置文件 | `.claude/mcp.json` | `.codex/config.toml` |
+| 人设文件 | `CLAUDE.md` | `AGENTS.md` |
+| Provider 选择 | `reply-engine.ts` switch on `opts.providerId` | 同 |
+
 ---
 
 ## 设计取舍
