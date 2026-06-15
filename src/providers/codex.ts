@@ -25,13 +25,17 @@ import type {
 
 const CODEX_BIN = process.env.CODEX_BIN || "codex";
 
-/** Shared flags for headless, non-interactive Codex execution. */
+/**
+ * Shared flags for headless, non-interactive Codex execution.
+ *
+ * VERIFIED against codex 0.139.0 via scripts/verify-codex-cli.mjs.
+ * --search and --no-alt-screen are GLOBAL flags, NOT supported by `codex exec`.
+ * Add new flags ONLY after testing with: node scripts/verify-codex-cli.mjs
+ */
 const HEADLESS_FLAGS = [
   "--json",
   "--skip-git-repo-check",
   "--dangerously-bypass-approvals-and-sandbox",
-  "--search",           // enable web_search tool (no per-call approval)
-  "--no-alt-screen",    // inline mode for headless
 ];
 
 /** Max iterations to prevent infinite loops (configurable via env). */
