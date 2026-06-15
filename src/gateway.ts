@@ -169,10 +169,18 @@ function sessionIdentity(
   );
 }
 
+/** Bot user IDs — skip messages from these to prevent self-reply loops. */
+const BOT_USER_IDS = new Set([
+  "U0B8VHLHJAX",  // 小克 (CC)
+  "U0BAGFVD8VB",  // 小扣 (CX)
+]);
+
 /** Decide whether a stored event warrants an auto-reply. */
 function shouldReply(event: StoredEvent): boolean {
   // Skip system events: edits, deletions, assistant_thread_started, etc.
   if (event.subtype) return false;
+  // Skip bot messages to prevent self-reply loops
+  if (BOT_USER_IDS.has(event.user)) return false;
   // Skip empty messages (no text, or whitespace/mention-only after cleaning)
   if (!cleanText(event.text || "")) return false;
 
