@@ -169,13 +169,7 @@ function sessionIdentity(
   );
 }
 
-/** Bot DM channels — skip events in these to prevent self-reply loops. */
-const BOT_DM_CHANNELS = new Set([
-  "D0B8LES3QUX",   // 小克 (CC)
-  "D0BAMNPPLRX",   // 小扣 (CX)
-]);
-
-/** Bot user IDs — skip messages from these. */
+/** Bot user IDs — skip messages from these (self-reply loop prevention). */
 const BOT_USER_IDS = new Set([
   "U0B8VHLHJAX",  // 小克 (CC)
   "U0BAGFVD8VB",  // 小扣 (CX)
@@ -185,9 +179,9 @@ const BOT_USER_IDS = new Set([
 function shouldReply(event: StoredEvent): boolean {
   // Skip system events: edits, deletions, assistant_thread_started, etc.
   if (event.subtype) return false;
-  // Skip bot messages (by user ID or bot's own DM channel) to prevent self-reply loops
-  if (BOT_USER_IDS.has(event.user)) return false;
-  if (BOT_DM_CHANNELS.has(event.channel)) return false;
+  // Skip bot-authored messages to prevent self-reply loops.
+  // Progress/thinking messages have empty user field; bot replies have bot user ID.
+  if (!event.user || BOT_USER_IDS.has(event.user)) return false;
   // Skip empty messages (no text, or whitespace/mention-only after cleaning)
   if (!cleanText(event.text || "")) return false;
 
