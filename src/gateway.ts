@@ -177,26 +177,37 @@ const BOT_USER_IDS = new Set([
 
 /** Decide whether a stored event warrants an auto-reply. */
 function shouldReply(event: StoredEvent): boolean {
+  const reason = (r: string): false => {
+    console.error(`[gateway] shouldReply SKIP: ${r} (type=${event.type} subtype=${event.subtype || "-"} user="${event.user}" channel=${event.channel} text=${(event.text||"").slice(0,80)})`);
+    return false;
+  };
+
   // Skip system events: edits, deletions, assistant_thread_started, etc.
-  if (event.subtype) return false;
+  if (event.subtype) return reason(`subtype=${event.subtype}`);
   // Skip bot-authored messages to prevent self-reply loops.
-  // Progress/thinking messages have empty user field; bot replies have bot user ID.
-  if (!event.user || BOT_USER_IDS.has(event.user)) return false;
-  // Skip empty messages (no text, or whitespace/mention-only after cleaning)
-  if (!cleanText(event.text || "")) return false;
+  if (!event.user) return reason("empty user (bot progress)");
+  if (BOT_USER_IDS.has(event.user)) return reason(`bot user ${event.user}`);
+  // Skip empty messages
+  if (!cleanText(event.text || "")) return reason("empty text after clean");
 
   // Always reply to explicit @mentions (any channel)
-  if (event.type === "app_mention") return true;
+  if (event.type === "app_mention") {
+    console.error(`[gateway] shouldReply ALLOW: app_mention from ${event.user}`);
+    return true;
+  }
 
   // Reply to direct messages (DMs). channel_type lives on the raw payload.
   if (event.type === "message") {
     const channelType = (event.raw as Record<string, unknown> | undefined)
       ?.channel_type as string | undefined;
-    if (channelType === "im") return true;
+    if (channelType === "im") {
+      console.error(`[gateway] shouldReply ALLOW: DM from ${event.user} ch=${event.channel}`);
+      return true;
+    }
+    return reason(`channel_type=${channelType} (not im, not app_mention)`);
   }
 
-  // Ignore plain channel chatter (not addressed to the bot) and reactions.
-  return false;
+  return reason(`type=${event.type} (not message/app_mention)`);
 }
 
 // ============================================================
