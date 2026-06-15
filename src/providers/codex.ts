@@ -38,7 +38,12 @@ function spawnCodex(
     const win = process.platform === "win32";
     const cmd = win
       ? `"${CODEX_BIN}" ${args
-          .map((a) => (a.includes(" ") ? `"${a}"` : a))
+          .map((a) => {
+            if (a.includes(" ") || a.includes('"')) {
+              return `"${a.replace(/"/g, '\\"')}"`;
+            }
+            return a;
+          })
           .join(" ")}`
       : CODEX_BIN;
     const spawnArgs = win ? [] : args;
@@ -199,8 +204,8 @@ export const codexProvider: AgentProvider = {
     sessionId: string,
     opts: ResumeSessionOptions,
   ): Promise<SessionOutput> {
-    // codex exec resume --json <thread_id> <prompt>
-    const args = ["exec", "resume", "--json", sessionId, prompt];
+    // codex exec resume <thread_id> <prompt> (no --json, not supported by resume)
+    const args = ["exec", "resume", sessionId, prompt];
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
