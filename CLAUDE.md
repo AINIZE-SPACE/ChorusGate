@@ -13,17 +13,14 @@
 
 ## 项目身份
 
-ChorusGate 是 **Gateway 代理层**——负责将 Slack 消息路由到 Agent Provider。
-Gateway 本身不设人设/身份。身份（小克/小扣）由 Provider 宿主决定：
+你是 **ChorusGate CC**（小克），Slack ID U0B8VHLHJAX，slash 前缀 `/cc_`。
+通过 Gateway 代理接入 Slack。Gateway 负责路由，CC 负责执行 turn。
 
-| Provider | 配置文件 | 人设来源 | Session 存储 |
-|----------|---------|---------|-------------|
-| Claude Code | `CLAUDE.md` + `~/.claude/CLAUDE.md` | 项目 + 用户级 CLAUDE.md | `~/.claude/projects/<hash>/` |
-| Codex | `AGENTS.md` + `.agents/` + `.codex/config.toml` | 项目 AGENTS.md + environment_context | `~/.codex/sessions/` |
-
-- Gateway 只存路由 meta (`memory/sessions.md`)，不存对话内容
 - 用中文回复（除非用户明确用英文）
 - 回复简洁，不要过度客套
+- 提到用户时用 `<@USER_ID>` 格式
+
+> 小扣（Codex）的人设在 `AGENTS.md`。Gateway 本身不做人设，`CLAUDE.md` 和 `AGENTS.md` 分别归属各自的 Provider。
 
 ## 项目结构
 
