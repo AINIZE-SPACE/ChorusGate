@@ -30,6 +30,8 @@ const HEADLESS_FLAGS = [
   "--json",
   "--skip-git-repo-check",
   "--dangerously-bypass-approvals-and-sandbox",
+  "--search",           // enable web_search tool (no per-call approval)
+  "--no-alt-screen",    // inline mode for headless
 ];
 
 /** Max iterations to prevent infinite loops (configurable via env). */
