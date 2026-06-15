@@ -1,0 +1,9 @@
+[mcp_servers.chorusgate]
+command = "chorusgate-mcp"
+env_vars = [
+    "SLACK_BOT_TOKEN",
+    "SLACK_APP_TOKEN",
+]
+
+[mcp_servers.chorusgate.env]
+MCP_SENDER_ONLY = "1"
