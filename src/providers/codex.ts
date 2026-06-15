@@ -174,7 +174,7 @@ export const codexProvider: AgentProvider = {
   ): Promise<SessionOutput> {
     // Codex: session ID 后解析（从 JSONL thread.started.thread_id）
     let resolvedSessionId = "";
-    const args = ["exec", prompt, "--json"];
+    const args = ["exec", "--json", prompt];
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
@@ -199,8 +199,8 @@ export const codexProvider: AgentProvider = {
     sessionId: string,
     opts: ResumeSessionOptions,
   ): Promise<SessionOutput> {
-    // codex exec resume <thread_id> <prompt> --json
-    const args = ["exec", "resume", sessionId, prompt, "--json"];
+    // codex exec resume --json <thread_id> <prompt>
+    const args = ["exec", "resume", "--json", sessionId, prompt];
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
