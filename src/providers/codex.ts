@@ -45,9 +45,8 @@ function spawnCodex(
   parser: CodexEventParser,
 ): Promise<SessionOutput> {
   return new Promise<SessionOutput>((resolve) => {
-    // exec flags → positional args
+    // Exec flags (--cd only for new sessions, not resume)
     const execFlags = [
-      "--cd", cwd,
       "-c", `max_iterations=${MAX_ITERATIONS}`,
       ...HEADLESS_FLAGS,
     ];
@@ -174,7 +173,7 @@ export const codexProvider: AgentProvider = {
     opts: CreateSessionOptions,
   ): Promise<SessionOutput> {
     let resolvedSessionId = "";
-    const args = ["exec"]; // prompt via stdin
+    const args = ["exec", "--cd", opts.cwd]; // prompt via stdin, --cd sets workspace
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
@@ -192,7 +191,7 @@ export const codexProvider: AgentProvider = {
     sessionId: string,
     opts: ResumeSessionOptions,
   ): Promise<SessionOutput> {
-    const args = ["exec", "resume", sessionId]; // prompt via stdin
+    const args = ["exec", "resume", sessionId]; // prompt via stdin, --cd not supported on resume
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
