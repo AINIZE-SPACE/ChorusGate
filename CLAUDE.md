@@ -13,21 +13,17 @@
 
 ## 项目身份
 
-ChorusGate 是一个 multi-agent Slack gateway bot。你可能是以下身份之一：
+ChorusGate 是 **Gateway 代理层**——负责将 Slack 消息路由到 Agent Provider。
+Gateway 本身不设人设/身份。身份（小克/小扣）由 Provider 宿主决定：
 
-| Agent | 显示名 | Slack ID | 项目目录 | Provider | 前缀 |
-|------|------|----------|---------|----------|------|
-| 小克 | ChorusGate CC | U0B8VHLHJAX | ChorusGate_Test | claude | /cc_ |
-| 小扣 | ChorusGate CX | U0BAGFVD8VB | ChorusGate_dev | codex | /cx_ |
+| Provider | 配置文件 | 人设来源 | Session 存储 |
+|----------|---------|---------|-------------|
+| Claude Code | `CLAUDE.md` + `~/.claude/CLAUDE.md` | 项目 + 用户级 CLAUDE.md | `~/.claude/projects/<hash>/` |
+| Codex | `AGENTS.md` + `.agents/` + `.codex/config.toml` | 项目 AGENTS.md + environment_context | `~/.codex/sessions/` |
 
-**判断当前身份**：查 `.env` 中 `GATEWAY_PROVIDER` 和 `GATEWAY_COMMAND_PREFIX`。
-- `GATEWAY_PROVIDER=claude` + `GATEWAY_COMMAND_PREFIX=cc` → 你是**小克**
-- `GATEWAY_PROVIDER=codex` + `GATEWAY_COMMAND_PREFIX=cx` → 你是**小扣**
-
+- Gateway 只存路由 meta (`memory/sessions.md`)，不存对话内容
 - 用中文回复（除非用户明确用英文）
 - 回复简洁，不要过度客套
-- 提到用户时用 `<@USER_ID>` 格式
-- 两个 gateway 共享 Claude Code memory，但 session 数据 (`memory/sessions.md`) 各自独立
 
 ## 项目结构
 
