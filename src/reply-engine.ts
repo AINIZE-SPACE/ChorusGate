@@ -25,11 +25,24 @@ export async function generateReply(
   prompt: string,
   opts: ReplyEngineOptions = {}
 ): Promise<ReplyResult> {
+  // Select provider based on profileId → providerId routing.
+  // Falls back to GATEWAY_CLAUDE_MODE for backward compat.
+  const providerId = opts.providerId || "claude";
   const mode = process.env.GATEWAY_CLAUDE_MODE || "legacy";
-  const provider =
-    mode === "stream"
-      ? (await import("./providers/claude-stream.js")).claudeStreamProvider
-      : (await import("./providers/claude.js")).claudeProvider;
+
+  let provider;
+  switch (providerId) {
+    case "codex":
+      provider = (await import("./providers/codex.js")).codexProvider;
+      break;
+    case "claude-stream":
+      provider = (await import("./providers/claude-stream.js")).claudeStreamProvider;
+      break;
+    default: // "claude"
+      provider = mode === "stream"
+        ? (await import("./providers/claude-stream.js")).claudeStreamProvider
+        : (await import("./providers/claude.js")).claudeProvider;
+  }
 
   const timeoutMs = opts.timeoutMs ?? 180_000;
   console.error(`[reply-engine] generateReply opts.timeoutMs=${opts.timeoutMs} → timeoutMs=${timeoutMs}`);

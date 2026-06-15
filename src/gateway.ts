@@ -532,6 +532,7 @@ async function processEvent(
       sessionId: session.sessionId,
       resume,
       profileId,
+      providerId: profileProvider(profileId),
       botToken: profile?.botToken,
       appToken: profile?.appToken,
       onSpawn: (child: import("node:child_process").ChildProcess) => {
