@@ -32,9 +32,6 @@ const HEADLESS_FLAGS = [
   "--dangerously-bypass-approvals-and-sandbox",
 ];
 
-/** Global flags placed before the subcommand. */
-const GLOBAL_FLAGS = ["--ephemeral"];
-
 /** Max iterations to prevent infinite loops (configurable via env). */
 const MAX_ITERATIONS = process.env.CODEX_MAX_ITERATIONS || "10";
 
@@ -48,13 +45,13 @@ function spawnCodex(
   parser: CodexEventParser,
 ): Promise<SessionOutput> {
   return new Promise<SessionOutput>((resolve) => {
-    // Global flags → exec flags → positional args
+    // exec flags → positional args
     const execFlags = [
       "--cd", cwd,
       "-c", `max_iterations=${MAX_ITERATIONS}`,
       ...HEADLESS_FLAGS,
     ];
-    const allArgs = [...GLOBAL_FLAGS, ...positionalArgs, ...execFlags];
+    const allArgs = [...positionalArgs, ...execFlags];
 
     const win = process.platform === "win32";
     const cmd = win
