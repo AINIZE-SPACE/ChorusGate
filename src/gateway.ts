@@ -177,37 +177,26 @@ const BOT_USER_IDS = new Set([
 
 /** Decide whether a stored event warrants an auto-reply. */
 function shouldReply(event: StoredEvent): boolean {
-  const reason = (r: string): false => {
-    console.error(`[gateway] shouldReply SKIP: ${r} (type=${event.type} subtype=${event.subtype || "-"} user="${event.user}" channel=${event.channel} text=${(event.text||"").slice(0,80)})`);
-    return false;
-  };
-
-  // Skip system events: edits, deletions, assistant_thread_started, etc.
-  if (event.subtype) return reason(`subtype=${event.subtype}`);
+  // Skip system events: edits, deletions, message_changed, etc.
+  if (event.subtype) return false;
   // Skip bot-authored messages to prevent self-reply loops.
-  if (!event.user) return reason("empty user (bot progress)");
-  if (BOT_USER_IDS.has(event.user)) return reason(`bot user ${event.user}`);
+  // Bot progress messages have empty user; bot replies have bot user ID.
+  if (!event.user || BOT_USER_IDS.has(event.user)) return false;
   // Skip empty messages
-  if (!cleanText(event.text || "")) return reason("empty text after clean");
+  if (!cleanText(event.text || "")) return false;
 
   // Always reply to explicit @mentions (any channel)
-  if (event.type === "app_mention") {
-    console.error(`[gateway] shouldReply ALLOW: app_mention from ${event.user}`);
-    return true;
-  }
+  if (event.type === "app_mention") return true;
 
-  // Reply to direct messages (DMs). channel_type lives on the raw payload.
+  // Reply to direct messages (DMs).
   if (event.type === "message") {
     const channelType = (event.raw as Record<string, unknown> | undefined)
       ?.channel_type as string | undefined;
-    if (channelType === "im") {
-      console.error(`[gateway] shouldReply ALLOW: DM from ${event.user} ch=${event.channel}`);
-      return true;
-    }
-    return reason(`channel_type=${channelType} (not im, not app_mention)`);
+    if (channelType === "im") return true;
   }
 
-  return reason(`type=${event.type} (not message/app_mention)`);
+  // Ignore plain channel chatter and reactions.
+  return false;
 }
 
 // ============================================================
