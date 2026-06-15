@@ -64,7 +64,7 @@ export async function generateReply(
         onProgress: opts.onProgress,
         onSpawn: opts.onSpawn,
       });
-      if (r.ok) return { ok: true, text: r.text };
+      if (r.ok) return { ok: true, text: r.text, sessionId: r.sessionId };
       // Resume failed — auto fallback to new session.
       // Mark the response so the user knows this is a fresh start.
       console.error(
@@ -100,7 +100,7 @@ export async function generateReply(
       onProgress: opts.onProgress,
       onSpawn: opts.onSpawn,
     });
-    return { ok: r.ok, text: r.text, error: r.error };
+    return { ok: r.ok, text: r.text, error: r.error, sessionId: r.sessionId };
   } catch (err) {
     return {
       ok: false,

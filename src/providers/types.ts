@@ -141,4 +141,6 @@ export interface ReplyResult {
   ok: boolean;
   text: string;
   error?: string;
+  /** Provider-assigned session ID (CC: pre-generated UUID, Codex: thread_id from JSONL) */
+  sessionId?: string;
 }

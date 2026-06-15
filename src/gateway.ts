@@ -654,6 +654,10 @@ async function processEvent(
     await stopProgress();
 
     if (result.ok) {
+      // Provider-assigned sessionId (Codex thread_id) replaces pre-generated UUID
+      if (result.sessionId && result.sessionId !== session.sessionId) {
+        sessionStore.setSession(id, result.sessionId);
+      }
       sessionStore.markStarted(id);
     } else if (!resume) {
       sessionStore.reset(id);
