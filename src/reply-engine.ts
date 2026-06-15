@@ -64,7 +64,12 @@ export async function generateReply(
         onProgress: opts.onProgress,
         onSpawn: opts.onSpawn,
       });
-      return { ok: r.ok, text: r.text, error: r.error };
+      if (r.ok) return { ok: true, text: r.text };
+      // Resume failed — fall back to new session
+      console.error(
+        `[reply-engine] resume failed (${r.error}), falling back to new session`,
+      );
+      // Fall through to createSession
     }
 
     const r = await provider.createSession(prompt, {
