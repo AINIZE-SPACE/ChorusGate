@@ -304,6 +304,12 @@ export function createStreamSession(
   if (opts.onPlanUpdate) {
     parser.onPlanUpdate = opts.onPlanUpdate;
   }
+  // result 事件到达 → 关闭 stdin 让 Claude 退出（否则永远等待 stdin）
+  parser.onResult = () => {
+    if (!sr.settled) {
+      try { sr.child.stdin?.end(); } catch { /* ignore */ }
+    }
+  };
 
   const sr = spawnStream(args, opts.cwd, parser, env);
 

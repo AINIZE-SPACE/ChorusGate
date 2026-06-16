@@ -31,27 +31,16 @@ const CODEX_BIN = process.env.CODEX_BIN || "codex";
  * VERIFIED against codex 0.139.0 via scripts/verify-codex-cli.mjs.
  * Add new flags ONLY after testing with: node scripts/verify-codex-cli.mjs
  *
- * Approval mode:
- * - GATEWAY_INTERACTIVE_PERMISSIONS=1 → --ask-for-approval=on-request
- *   (Codex manages its own approval; gateway approval infrastructure is
- *    separate from Codex — see #84 for unified design)
- * - default → --dangerously-bypass-approvals-and-sandbox (headless)
+ * Approval: always use bypass for headless pipe mode.
+ * --ask-for-approval=on-request requires interactive terminal.
+ * Gateway INTERACTIVE_PERMISSIONS is for Claude stream-json only — Codex
+ * doesn't support stdin/stdout interactive approval (see #84 for v4 plan).
  */
-function getApprovalFlag(): string {
-  const interactive =
-    process.env.GATEWAY_INTERACTIVE_PERMISSIONS === "1" &&
-    process.env.CLAUDE_PERMISSION_MODE !== "bypassPermissions";
-  return interactive
-    ? "--ask-for-approval=on-request"
-    : "--dangerously-bypass-approvals-and-sandbox";
-}
-
-/** Build headless flags with correct approval mode. */
 function buildHeadlessFlags(): string[] {
   return [
     "--json",
     "--skip-git-repo-check",
-    getApprovalFlag(),
+    "--dangerously-bypass-approvals-and-sandbox",
   ];
 }
 

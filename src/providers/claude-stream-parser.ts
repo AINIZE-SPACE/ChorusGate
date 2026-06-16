@@ -34,6 +34,8 @@ export interface StreamInit {
 export class ClaudeStreamParser extends ClaudeEventParser {
   /** 审批请求回调 */
   onPermissionRequest?: (req: PermissionRequest) => void;
+  /** result 事件回调 — gateway 用此关闭 stdin 让 Claude 退出 */
+  onResult?: () => void;
   /** session 初始化回调 */
   onInit?: (init: StreamInit) => void;
   /** API 重试回调（可选，用于监控） */
@@ -77,6 +79,10 @@ export class ClaudeStreamParser extends ClaudeEventParser {
     } else {
       // 委托给父类处理 assistant / result
       super.feed(line);
+      // result 事件到达 → 通知 caller 关闭 stdin
+      if (evt.type === "result") {
+        this.onResult?.();
+      }
     }
   }
 
