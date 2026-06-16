@@ -22,14 +22,23 @@
     "lint": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts"
   },
-  "keywords": ["agent", "gateway", "slack", "feishu", "lark", "codex", "claude-code", "mcp"],
+  "keywords": [
+    "agent",
+    "gateway",
+    "slack",
+    "feishu",
+    "lark",
+    "codex",
+    "claude-code",
+    "mcp"
+  ],
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.0",
     "@slack/socket-mode": "^2.0.3",
     "@slack/web-api": "^7.12.0",
     "dotenv": "^16.5.0",
-    "tsx": "^4.20.5"
+    "tsx": "^4.22.4"
   },
   "devDependencies": {
     "typescript": "^5.9.0"

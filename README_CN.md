@@ -163,9 +163,53 @@ chorusgate list     # 列出 channel→session 映射
 | `GATEWAY_SESSION_SCOPE` | `channel` | `channel`（频道共享）或 `thread`（每条线程独立）|
 | `GATEWAY_SESSION_IDLE_MS` | `86400000` | session 映射 idle 多久后清理（ms）|
 | `GATEWAY_PROGRESS` | `1` | 设为 `0` 关闭进度提示消息 |
-| `GATEWAY_CLAUDE_CWD` | 项目根 | spawned claude 的工作目录 |
+| `GATEWAY_CLAUDE_CWD` | 项目根 | spawned runtime 的工作目录 |
+| `GATEWAY_CLAUDE_MODE` | `legacy` | Claude 模式: `legacy` (单向) 或 `stream` (双向 stream-json) |
+| `GATEWAY_BUSY_MODE` | `interrupt` | 用户连续发消息时的处理: `interrupt` (打断) 或 `queue` (排队) |
+| `GATEWAY_INTERACTIVE_PERMISSIONS` | — | 设为 `1` 开启审批按钮 (需 `CLAUDE_PERMISSION_MODE` ≠ `bypassPermissions`) |
 | `CLAUDE_BIN` | `claude` | claude CLI 路径 |
+| `CODEX_BIN` | `codex` | codex CLI 路径 |
 | `CLAUDE_PERMISSION_MODE` | `bypassPermissions` | headless 模式权限策略 |
+| `GATEWAY_PROFILES` | — | 多 Slack App 列表: `cc,codex`（不设则为单 `default` profile） |
+| `GATEWAY_PROVIDER_<ID>` | `claude` | 指定 profile 的 agent runtime |
+| `GATEWAY_CWD_<ID>` | — | 指定 profile 的工作目录 |
+| `GATEWAY_COMMAND_PREFIX_<ID>` | — | 指定 profile 的 slash 命令前缀 |
+| `SLACK_BOT_TOKEN_<ID>` | — | 指定 profile 的 Bot Token |
+| `SLACK_APP_TOKEN_<ID>` | — | 指定 profile 的 App Token |
+
+---
+
+## 多 Gateway 实例并行
+
+可以在不同目录启动多个 Gateway 实例（例如 CC 网关 + Codex 网关）。
+
+**关键要求**：
+1. 每个实例独立 Slack App（独立 token）
+2. 每个 Gateway 的 `.gateway/` 在各自项目目录下，互不干扰
+3. `memory/sessions.md` 按目录独立
+4. Codex 工作目录由 `GATEWAY_CWD_CODEX` 或 `GATEWAY_CLAUDE_CWD` 决定
+
+**Codex 多 profile 示例** `.env`：
+```env
+# Codex profile 的独立 env
+GATEWAY_PROVIDER=codex
+GATEWAY_COMMAND_PREFIX=cx
+CODEX_BIN=codex
+SLACK_BOT_TOKEN=xoxb-codex-...
+SLACK_APP_TOKEN=xapp-codex-...
+```
+
+## Gateway 与 Provider 身份分离
+
+Gateway 是代理层，不设人设。身份（小克/小扣）由 Provider 决定：
+
+| Provider | 人设文件 | Session 存储 |
+|----------|---------|-------------|
+| Claude Code | `CLAUDE.md` + `~/.claude/CLAUDE.md` | `~/.claude/projects/<hash>/` |
+| Codex | `AGENTS.md` + `.agents/` + `.codex/config.toml` | `~/.codex/sessions/` |
+
+Gateway 只存路由 meta (`memory/sessions.md`)，不存对话内容。
+
 ---
 
 ## 常见问题

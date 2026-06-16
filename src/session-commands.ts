@@ -130,6 +130,7 @@ export async function handleCommand(
       channel: ctx.channel,
       ...(ctx.threadTs ? { thread_ts: ctx.threadTs } : {}),
       text,
+      link_names: true,
     });
 
   const scopeKey = formatIdentityKey(id);

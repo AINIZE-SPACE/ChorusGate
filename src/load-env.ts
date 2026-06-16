@@ -18,12 +18,15 @@ import { homedir } from "node:os";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const projectRoot = resolve(__dirname, "..");
+// NOTE: __dirname is compile-time and points to the installed package
+// location (e.g. AppData/Roaming/npm/node_modules/chorusgate/src). For a CLI
+// invoked from a project directory, project root MUST be runtime cwd so that
+// PROJECT_ENV_PATH resolves to the correct project, not the npm install dir.
+const projectRoot = process.cwd();
 
 /** Path to the global .env under the user's home .gateway directory. */
 export const GLOBAL_ENV_PATH = resolve(homedir(), ".gateway", ".env");
-/** Path to the project-installed .env (always found at package root). */
+/** Path to the project-installed .env (resolved relative to cwd). */
 export const PROJECT_ENV_PATH = resolve(projectRoot, ".env");
 /** Path to the local .env in the current working directory's .gateway/ folder.
  *  Using .gateway/.env instead of ./.env avoids conflicts with other apps

@@ -41,6 +41,7 @@ export const sendMessageTool = {
       channel: input.channel,
       text: input.text,
       thread_ts: input.thread_ts,
+      link_names: true,
     });
 
     if (!result.ok) {

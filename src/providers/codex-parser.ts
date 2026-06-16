@@ -12,15 +12,31 @@
 //   {"type":"turn.completed","usage":{...}}
 //
 // 跟踪: [#23](https://github.com/AINIZE-SPACE/chorusgate/issues/23)
+//       [#86](https://github.com/AINIZE-SPACE/chorusgate/issues/86) — StreamUpdate
 // ============================================================
 
 import type { EventParser } from "./types.js";
 import { toolLabel } from "./types.js";
 
+/** Codex usage metrics from turn.completed. */
+export interface CodexMetrics {
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+  reasoningOutputTokens: number;
+}
+
+/** Real-time text fragment callback for gateway streaming (#86). */
+export type CodexTextCallback = (text: string) => void;
+
 export class CodexEventParser implements EventParser {
   private resultText = "";
   onProgress?: (label: string) => void;
   onSessionId?: (sessionId: string) => void;
+  /** Real-time text push on each agent_message (#86). */
+  onText?: CodexTextCallback;
+  /** Metrics callback on turn.completed (#86). */
+  onMetrics?: (metrics: CodexMetrics) => void;
 
   feed(line: string): void {
     const t = line.trim();
@@ -37,8 +53,6 @@ export class CodexEventParser implements EventParser {
 
     switch (type) {
       case "thread.started": {
-        // M0 实测: thread_id 是 UUID 格式的顶层字段
-        // 兼容旧版/其他版本的 evt.thread?.id
         const tid =
           (evt.thread_id as string) ||
           ((evt.thread as Record<string, unknown> | undefined)
@@ -55,12 +69,12 @@ export class CodexEventParser implements EventParser {
         const item = evt.item as Record<string, unknown> | undefined;
         if (!item) break;
 
-        // M0 实测: agent 消息在 item.type === "agent_message" 的 item.text
         if (item.type === "agent_message" && typeof item.text === "string") {
-          this.resultText += item.text as string;
+          const text = item.text as string;
+          this.resultText += text;
+          this.onText?.(text); // #86: push to gateway for real-time Slack update
         }
 
-        // 工具调用: item.type === "tool_use"
         if (
           (item.type as string) === "tool_use" &&
           typeof item.name === "string"
@@ -68,7 +82,6 @@ export class CodexEventParser implements EventParser {
           this.onProgress?.(toolLabel(item.name as string));
         }
 
-        // 兼容嵌套 content（旧版或 tool-call 展开）
         const content = item.content as unknown[] | undefined;
         if (content) {
           for (const block of content) {
@@ -84,9 +97,18 @@ export class CodexEventParser implements EventParser {
         break;
       }
 
-      case "turn.completed":
-        // M0 实测: turn.completed 表示本轮结束，无 done 事件
+      case "turn.completed": {
+        const usage = evt.usage as Record<string, unknown> | undefined;
+        if (usage) {
+          this.onMetrics?.({
+            inputTokens: (usage.input_tokens as number) || 0,
+            outputTokens: (usage.output_tokens as number) || 0,
+            cachedInputTokens: (usage.cached_input_tokens as number) || 0,
+            reasoningOutputTokens: (usage.reasoning_output_tokens as number) || 0,
+          });
+        }
         break;
+      }
     }
   }
 
