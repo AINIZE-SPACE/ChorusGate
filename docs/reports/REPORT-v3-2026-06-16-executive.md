@@ -165,7 +165,7 @@ flowchart TD
 | 层级 | 内容 | 位置 |
 |------|------|------|
 | **Project-local** | ChorusGate 专用实现规范 | `ChorusGate_Test/.agents/skills/` 与 `.claude/skills/` |
-| **Domain** | 跨项目多 agent 网关通用模式 | `summit-saw/domains/dev/agent-gateway-retrospective.md` |
+| **Domain** | 跨项目多 agent 网关通用模式 | `docs/reports/agent-gateway-retrospective.md` |
 
 ### 8.1 项目本地技能（4 个）
 
@@ -180,7 +180,7 @@ flowchart TD
 
 | 通用模式 | 位置 |
 |---------|------|
-| 多 agent 网关 Provider 抽象 | `summit-saw/domains/dev/agent-gateway-retrospective.md` |
+| 多 agent 网关 Provider 抽象 | `docs/reports/agent-gateway-retrospective.md` |
 | 统一流式事件 `StreamUpdate` | 同上 |
 | 审批身份绑定 / 防重入 / scope 缓存 | 同上 |
 | ESM env 早绑通用规范 | 关联 `test-spawn-fake-binary.md` |
