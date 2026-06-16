@@ -1,5 +1,5 @@
 <!-- STORY-8 M3: Claude stream-json 增量内容块 / Extended Thinking / Hook 事件 设计方案 -->
-<!-- 原名: v3-story-8-claude-stream-json-m3.md, 2026-06-16 从中迁移 -->
+<!-- 从 v3-story-8-claude-stream-json-m3.md 迁移至 v4, 2026-06-16 -->
 # STORY-8 M3：Claude stream-json 增量内容块与可观测性增强
 
 > 状态：🟡 设计稿 (M3) | 依赖 M2 已实现 | Epic: [v3 EPIC](./v3-epic.md) | P1
