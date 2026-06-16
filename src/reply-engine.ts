@@ -147,6 +147,9 @@ export async function generateReplyStream(
     onPlanUpdate?: (plan: PlanUpdate) => void;
     /** M3 流式增量回调 (#85) */
     onTextDelta?: (text: string) => void;
+    onBlockStart?: (blockType: string) => void;
+    onBlockStop?: (blockType: string) => void;
+    onMetrics?: (m: { costUsd?: number; inputTokens?: number; outputTokens?: number }) => void;
   } = {}
 ): Promise<ReplyResult> {
   const { createStreamSession } = await import(
@@ -172,7 +175,9 @@ export async function generateReplyStream(
       onSpawn: opts.onSpawn,
       onPlanUpdate: opts.onPlanUpdate,
       onTextDelta: opts.onTextDelta,
-      // P1-4 fix: 构造时绑定，消除 spawn 后绑定竞态
+      onBlockStart: opts.onBlockStart,
+      onBlockStop: opts.onBlockStop,
+      onMetrics: opts.onMetrics,
       onPermissionRequest: opts.onPermission
         ? async (req) => {
             try {

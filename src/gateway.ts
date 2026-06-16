@@ -593,10 +593,25 @@ async function processEvent(
             return scope !== "deny";
           },
           onTextDelta: (text: string) => {
-            // M3: 逐 token 更新 Slack 占位消息 (#85)
             if (placeholderTs) {
-              updatePlaceholder(`💬 ${text.slice(-500)}`, true);
+              updatePlaceholder(`💬 ${text.slice(-500)}`);
             }
+          },
+          onBlockStart: (blockType: string) => {
+            if (placeholderTs) {
+              const label = blockType === "thinking" ? "🧠 思考中…" : "💬 回复中…";
+              updatePlaceholder(label, true);
+            }
+          },
+          onBlockStop: (_blockType: string) => {
+            // block end — next text_delta or tool_use will update the placeholder
+          },
+          onMetrics: (m: { costUsd?: number; inputTokens?: number; outputTokens?: number }) => {
+            console.error(
+              `[gateway] stream metrics: ` +
+              `tokens(in=${m.inputTokens},out=${m.outputTokens}) ` +
+              `cost=${m.costUsd}`,
+            );
           },
           onPlanUpdate: async (plan) => {
             const planKey = `${event.channel}:${replyThreadTs}`;

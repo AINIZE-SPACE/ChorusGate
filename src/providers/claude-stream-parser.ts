@@ -50,16 +50,23 @@ export class ClaudeStreamParser extends ClaudeEventParser {
   onTextDelta?: (text: string) => void;
   /** Extended Thinking 增量 */
   onThinkingDelta?: (thinking: string) => void;
+  /** content block 开始 */
+  onBlockStart?: (blockType: string) => void;
+  /** content block 结束 */
+  onBlockStop?: (blockType: string) => void;
+  /** 工具调用开始 */
+  onToolCall?: (name: string) => void;
+  /** result 指标 */
+  onMetrics?: (m: { costUsd?: number; inputTokens?: number; outputTokens?: number }) => void;
 
   private _init: StreamInit | null = null;
   private _permissionRequests: PermissionRequest[] = [];
-  /** 累积的增量文本（不写入父类 assistantText，避免与完整 assistant 重复） */
   private _streamText = "";
+  private _currentBlockType = "";
 
   get init(): StreamInit | null { return this._init; }
   get permissionRequests(): readonly PermissionRequest[] { return this._permissionRequests; }
   get sessionId(): string { return this._init?.sessionId || ""; }
-  /** 流式累积文本（用于中途展示） */
   get streamText(): string { return this._streamText; }
 
   feed(line: string): void {
@@ -71,7 +78,19 @@ export class ClaudeStreamParser extends ClaudeEventParser {
 
     const type = evt.type as string | undefined;
 
-    // M3: content_block_delta events (#85)
+    // M3: content_block events (#85)
+    if (type === "content_block_start") {
+      const cb = evt.content_block as Record<string, unknown> | undefined;
+      const bt = (cb?.type as string) || "";
+      this._currentBlockType = bt;
+      this.onBlockStart?.(bt);
+      return;
+    }
+    if (type === "content_block_stop") {
+      this.onBlockStop?.(this._currentBlockType);
+      this._currentBlockType = "";
+      return;
+    }
     if (type === "content_block_delta") {
       this._handleDelta(evt);
       return;
@@ -83,7 +102,18 @@ export class ClaudeStreamParser extends ClaudeEventParser {
       this._handleUser(evt);
     } else {
       super.feed(line);
-      if (evt.type === "result") this.onResult?.();
+      if (evt.type === "result") {
+        // M3: extract metrics from result
+        const u = evt.usage as Record<string, unknown> | undefined;
+        if (u || typeof evt.total_cost_usd === "number") {
+          this.onMetrics?.({
+            costUsd: (evt.total_cost_usd as number) || undefined,
+            inputTokens: (u?.input_tokens as number) || undefined,
+            outputTokens: (u?.output_tokens as number) || undefined,
+          });
+        }
+        this.onResult?.();
+      }
     }
   }
 
@@ -100,7 +130,6 @@ export class ClaudeStreamParser extends ClaudeEventParser {
     } else if (deltaType === "thinking_delta" && typeof delta.thinking === "string") {
       this.onThinkingDelta?.(delta.thinking);
     }
-    // input_json_delta: 工具参数片段，暂不推送（内容敏感）
   }
 
   private _handleSystem(evt: Record<string, unknown>): void {

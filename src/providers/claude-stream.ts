@@ -277,6 +277,9 @@ export function createStreamSession(
     /** M3 流式增量回调 (#85) */
     onTextDelta?: (text: string) => void;
     onThinkingDelta?: (thinking: string) => void;
+    onBlockStart?: (blockType: string) => void;
+    onBlockStop?: (blockType: string) => void;
+    onMetrics?: (m: { costUsd?: number; inputTokens?: number; outputTokens?: number }) => void;
     /** 续接已有 session (true) vs 新 session (false) */
     resume?: boolean;
   },
@@ -301,6 +304,9 @@ export function createStreamSession(
   // M3: 流式增量回调 (#85)
   if (opts.onTextDelta) parser.onTextDelta = opts.onTextDelta;
   if (opts.onThinkingDelta) parser.onThinkingDelta = opts.onThinkingDelta;
+  if (opts.onBlockStart) parser.onBlockStart = opts.onBlockStart;
+  if (opts.onBlockStop) parser.onBlockStop = opts.onBlockStop;
+  if (opts.onMetrics) parser.onMetrics = opts.onMetrics;
   // result → close stdin
   parser.onResult = () => {
     if (!sr.settled) {
