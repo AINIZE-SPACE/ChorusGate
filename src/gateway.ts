@@ -118,16 +118,6 @@ function profileProvider(profileId: string): string {
   return profileMap.get(profileId)?.providerId || "claude";
 }
 
-// Rotating heartbeat phrases shown while the agent works with no tool activity.
-const HEARTBEAT_PHRASES = [
-  "🤔 正在思考…",
-  "🔍 分析中…",
-  "🧩 整理中…",
-  "📊 汇总结果中…",
-  "✅ 审核结果中…",
-];
-const TOOL_LABEL_STICKY_MS = 6000;
-
 // ============================================================
 // Reply decision
 // ============================================================
@@ -446,7 +436,6 @@ async function processEvent(
   }
 
   const web = getWebClient();
-  let heartbeatTimer: NodeJS.Timeout | undefined;
   let progressDone = false;
   let progressChain = Promise.resolve();
   let placeholderTs: string | undefined;
@@ -466,10 +455,6 @@ async function processEvent(
 
   /** Stop heartbeat + wait for the progress update queue to drain. */
   const stopProgress = async (): Promise<void> => {
-    if (heartbeatTimer) {
-      clearInterval(heartbeatTimer);
-      heartbeatTimer = undefined;
-    }
     progressDone = true;
     await progressChain;
   };
@@ -492,14 +477,13 @@ async function processEvent(
     let lastUpdate = 0;
     let lastLabel = "";
     let lastToolAt = 0;
-    let hbIndex = 0;
 
     if (PROGRESS_ENABLED) {
       try {
         const ph = await web.chat.postMessage({
           channel: event.channel,
           thread_ts: replyThreadTs,
-          text: HEARTBEAT_PHRASES[0],
+          text: "⏳ 处理中…",
           link_names: true,
         });
         placeholderTs = ph.ts as string | undefined;
@@ -522,20 +506,8 @@ async function processEvent(
         .catch(() => {});
     };
 
-    // Heartbeat: show elapsed time so user knows it's still working.
-    if (placeholderTs) {
-      const startTime = Date.now();
-      heartbeatTimer = setInterval(() => {
-        const recentlyUsedTool = Date.now() - lastToolAt < TOOL_LABEL_STICKY_MS;
-        if (recentlyUsedTool && lastLabel) {
-          updatePlaceholder(lastLabel);
-        } else {
-          const elapsed = Math.floor((Date.now() - startTime) / 1000);
-          updatePlaceholder(`⏳ 处理中… (${elapsed}s)`);
-        }
-      }, 6000);
-      heartbeatTimer.unref?.();
-    }
+    // No heartbeat — Claude stream emits tool_use events for real progress.
+    // Placeholder is updated via onProgress callback only.
 
     const profile = profileMap.get(profileId);
     const replyOpts = {
@@ -716,7 +688,6 @@ async function processEvent(
     }
   } finally {
     progressDone = true;
-    if (heartbeatTimer) clearInterval(heartbeatTimer);
     interruptManager.unregister(tKey);
     eventStore.markHandled(event.id);
     inFlight.delete(event.ts || event.id);
