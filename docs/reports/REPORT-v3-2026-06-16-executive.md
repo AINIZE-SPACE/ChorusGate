@@ -225,7 +225,77 @@ flowchart TD
 
 ---
 
-## 十、结论与建议
+## 十、OPC 组织管理经验：碳硅基协作新模式
+
+> 本项目不仅是“做一个 Slack Gateway”，更是在**边开发边使用**的过程中，验证了一种“碳基指挥 + 硅基执行”的 OPC（Organic-Program Collaboration）组织形态。
+
+### 10.1 组织成员与分工
+
+ChorusGate v3 迭代由一个碳基核心 + 三个硅基数字员工组成，所有协同通过 Slack 频道 `<#C0BAB3Y7LLC>` 完成：
+
+| 类型 | 角色 | Slack ID | 主要职责 |
+|------|------|----------|---------|
+| 碳基 | **Zederer（老乐）** | `<@U0AHDRREVPD>` | Master / 指挥家：需求输入、关键决策、跨 agent 协调 |
+| 碳基 | **delez** | — | 项目作者 / 产品 Owner：架构方向、业务目标、最终验收 |
+| 硅基 | **小克 / Claude Code** | `<@U0B8VHLHJAX>` | 开发 BOT：Provider 抽象、Claude stream-json、多 Slack App、多项目隔离 |
+| 硅基 | **小马 / Hermes** | `<@U0B91BVKTL2>` | 测试 BOT：ST 计划、Bug Reopen、评审、技能沉淀 |
+| 硅基 | **小查 / 小扣 / Codex** | `<@U0B92RM5AGH>` / `<@U0BAGFVD8VB>` | 管理整合 BOT：主持收尾、报告整合、技能分层、domain 抽取、推送通知 |
+
+### 10.2 通过 Slack 频道跑完全流程（需求 → 设计 → 开发 → 测试 → 集成）
+
+```mermaid
+flowchart LR
+    subgraph 碳基 Carbon
+        Z["Zederer / 老乐<br>需求 & 决策"]
+        D["delez<br>产品 & 架构"]
+    end
+    S["<#C0BAB3Y7LLC><br>Slack 协作频道"]
+    subgraph 硅基 Silicon
+        K["小克 / Claude Code<br>开发"]
+        M["小马 / Hermes<br>测试"]
+        C["小查 / 小扣 / Codex<br>管理整合"]
+    end
+    Z -->|Epic/需求/决策| S
+    D -->|设计/验收| S
+    S -->|任务/评审/通知| K
+    S -->|ST 计划/Bug reopen| M
+    S -->|报告/技能/推送| C
+    K -->|代码 / PR| Repo[(GitHub Repo)]
+    M -->|测试报告 / Review| Repo
+    C -->|文档 / Commit| Repo
+```
+
+### 10.3 全流程数量统计
+
+| 阶段 | 代表产出 | 数量 |
+|------|---------|------|
+| **需求** | GitHub Issues / Epic / Story | 60+ issues，v3 epic 1，story 9 |
+| **设计** | `docs/planning` 设计文档 | 22 份 |
+| **开发** | commits / 新增文件 / 修改文件 | 23 commits，20+ 新文件，30+ 修改 |
+| **测试** | ST 用例 / 单元测试 / 评审报告 | 20 ST 用例，100+ 单元测试，35+ 评审/测试报告 |
+| **集成** | issue 闭环 / typecheck | 52 issues 关闭，TypeScript 零错误 |
+
+> 所有阶段的中间产物（issue 讨论、review 结论、测试报告、技能沉淀）最终都回流到 Slack 频道与 GitHub Repo，形成可追溯的协作链路。
+
+### 10.4 边开发边使用：自己 gateway 自己用
+
+v3 中实现的 **4-Button Approval**、**任务进度推送**、**mention 通知**、**Interrupt 中断** 等功能，在开发完成后立即被团队用于同一频道的协作：
+
+- 硅基同事的审批请求通过 Slack Block Kit 按钮回到频道；
+- Claude 的 Task Plan 实时推送到频道，所有人可见执行进度；
+- 集成测试失败时，Hermes 在频道中 reopen bug 并 @ 相关 agent；
+- Codex 通过 Gateway 本身向频道发送 v3 收尾通知（本应由本消息触发，受工具 transport 影响未发出）。
+
+### 10.5 项目目标与远景
+
+**项目目标**：把 ChorusGate 从“单 Claude Code Slack bot”升级为“多 AI agent + 多 Slack App + 多项目”的通用协作网关，让任意 AI agent runtime 都能被接入同一 Slack 工作平面。
+
+**远景（Vision）**：
+
+> 未来的软件组织是“碳基指挥 + 硅基执行”的 OPC 形态：人类负责目标、决策与验收，AI agent 负责需求理解、设计、开发、测试与集成反馈；所有交互都发生在可审计、可回放、可自动化的协作频道中。ChorusGate 就是这个组织的“通信操作系统”——让 agent 像人类同事一样被 @、被审批、被中断、被复盘。
+
+---
+## 十一、结论与建议
 
 1. **v3 目标已达成**：多 agent、多 Slack App、多项目三大能力已落地，安全红线已加固。
 2. **技术债务可控**：剩余 3 项 P0（env var、MCP_SENDER_ONLY、find-up）建议在 v4 启动第一周集中清零，避免带病进入 Lark/OpenClaw 扩展。
@@ -249,3 +319,4 @@ flowchart TD
 
 *生成日期：2026-06-16*  
 *管理整合：Codex*
+
