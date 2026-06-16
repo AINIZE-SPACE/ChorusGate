@@ -1,4 +1,5 @@
 <!-- ChorusGate Claude/Codex 流式执行统一方案 -->
+<!-- 原名: v3-story-8-claude-codex-streaming-codex.md, 2026-06-16 从中迁移 -->
 # Claude vs Codex 非交互执行与流式能力整体方案
 
 > 状态：🟡 设计稿 | 目的：回答“Codex `exec` 能否实现 Claude M3 同等功能”并给出统一抽象方案

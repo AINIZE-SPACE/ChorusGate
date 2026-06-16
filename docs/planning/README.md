@@ -8,9 +8,9 @@
 
 | 文档 | 内容 | 优先级 |
 |------|------|--------|
-| [v4-unified-approval.md](./v4-unified-approval.md) | CC + Codex 统一审批方案 | P1 |
-| [v3-story-8-claude-codex-streaming-codex.md](./v3-story-8-claude-codex-streaming-codex.md) | 统一 Claude/Codex StreamUpdate 接口 | P1 |
-| [v3-story-8-claude-stream-json-m3.md](./v3-story-8-claude-stream-json-m3.md) | :zap: M3 增量流式 (部分完成, #85) | P1 |
+| [v3-story-8-stream-incremental.md](./v3-story-8-stream-incremental.md) | :zap: M3 增量流式 (部分完成, #85) | P1 |
+| [v3-story-8-unified-streaming.md](./v3-story-8-unified-streaming.md) | 统一 Claude/Codex StreamUpdate 接口 | P1 |
+| [v3-story-8-unified-approval.md](./v3-story-8-unified-approval.md) | CC + Codex 统一审批方案 | P1 |
 
 ### 通用规划
 
