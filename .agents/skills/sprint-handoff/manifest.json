@@ -1,0 +1,20 @@
+﻿{
+    "description":  "Sprint 开发完成交接 — Issue 驱动 → commit → 频道通知 → 评审 → 测试 → done",
+    "baseSkill":  "summit-saw/domains/dev/sprint-handoff.md",
+    "installTargets":  [
+                           "project"
+                       ],
+    "status":  "active",
+    "name":  "sprint-handoff",
+    "evidence":  [
+                     "v3 closeout: issue-driven commit + channel notification + review + test workflow",
+                     "Avoided DM-only notifications by requiring channel post with link_names"
+                 ],
+    "audience":  [
+                     "project"
+                 ],
+    "scope":  "project-incubating",
+    "owners":  [
+                   "ChorusGate team"
+               ]
+}
