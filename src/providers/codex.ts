@@ -49,6 +49,7 @@ function spawnCodex(
   cwd: string,
   timeoutMs: number,
   parser: CodexEventParser,
+  onSpawn?: (child: import("node:child_process").ChildProcess) => void,
 ): Promise<SessionOutput> {
   return new Promise<SessionOutput>((resolve) => {
     // Exec flags (--cd only for new sessions, not resume)
@@ -69,6 +70,10 @@ function spawnCodex(
       stdio: ["pipe", "pipe", "pipe"],
       shell: win,
       windowsHide: true,
+    });
+
+    child.on("spawn", () => {
+      onSpawn?.(child);
     });
 
     // Prompt via stdin (avoids shell quoting issues with CJK/quotes)
@@ -188,7 +193,14 @@ export const codexProvider: AgentProvider = {
       opts.onSessionId?.(tid);
     };
 
-    const result = await spawnCodex(args, prompt, opts.cwd, opts.timeoutMs, parser);
+    const result = await spawnCodex(
+      args,
+      prompt,
+      opts.cwd,
+      opts.timeoutMs,
+      parser,
+      opts.onSpawn,
+    );
     return { ...result, sessionId: resolvedSessionId };
   },
 
@@ -202,7 +214,14 @@ export const codexProvider: AgentProvider = {
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
 
-    return spawnCodex(args, prompt, opts.cwd, opts.timeoutMs, parser).then((r) => ({
+    return spawnCodex(
+      args,
+      prompt,
+      opts.cwd,
+      opts.timeoutMs,
+      parser,
+      opts.onSpawn,
+    ).then((r) => ({
       ...r,
       sessionId,
     }));
