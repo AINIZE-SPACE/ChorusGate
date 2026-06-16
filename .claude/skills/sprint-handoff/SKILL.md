@@ -110,3 +110,17 @@ Refs: #{N}
 - [ ] `git push` 到远程
 - [ ] Slack 频道通知（`@{TESTER}` `@{REVIEWER}`，mention 置首行）
 - [ ] GitHub Issue 已关闭
+
+## Sprint 3 实战教训
+
+**:warning: 测试 fixture 必须和真实输出格式一致**
+`stream_event` 拆包的 bug 经历了 4 次 round-trip 才修好，因为 fixture 没 mock 真实格式。
+→ 新功能必须先抓真实 CLI 输出写 fixture，再写 parser。
+
+**:warning: 代码写完 ≠ 终点，必须走完整流程**
+#88-#91 全是修完才补 issue。正确流程：先提单 → 修 → 自测 → 通知 → 关。
+→ 每修一个 bug 发一条 Slack 通知。
+
+**:warning: 一条日志抵十次猜测**
+`super.feed(rawLine)` vs `super.feed(JSON.stringify(evt))` ——没日志根本看不出差了一行代码。
+→ 新功能加关键路径日志，修 bug 靠日志不靠猜。
