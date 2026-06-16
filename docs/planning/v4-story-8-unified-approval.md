@@ -1,6 +1,7 @@
+<!-- 从 v4-unified-approval.md 迁移至 v4-story-8, 2026-06-16 -->
 # Unified Approval — CC Stream + Codex
 
-> 状态: 设计完成，Codex 部分待 v4 实现 | Issue: #84
+> 状态: 设计完成，Codex 部分待实现 | Issue: #84
 
 ## 统一基础设施（已完成）
 
