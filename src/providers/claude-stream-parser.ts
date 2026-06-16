@@ -77,6 +77,10 @@ export class ClaudeStreamParser extends ClaudeEventParser {
     try { evt = JSON.parse(t); } catch { return; }
 
     const type = evt.type as string | undefined;
+    const subtype = (evt as Record<string, unknown>).subtype as string | undefined;
+    // Diagnostic: log every event type so we can see what Claude emits
+    const preview = t.length > 120 ? t.slice(0, 120) + "…" : t;
+    console.error(`[stream-parser] EVENT: ${type}${subtype ? "/" + subtype : ""} | ${preview}`);
 
     // M3: content_block events (#85)
     if (type === "content_block_start") {
