@@ -1,0 +1,20 @@
+﻿{
+    "description":  "ChorusGate multi-agent stream adapter design.",
+    "baseSkill":  "summit-saw/domains/dev/agent-gateway-retrospective.md",
+    "installTargets":  [
+                           "project"
+                       ],
+    "status":  "active",
+    "name":  "chorusgate-stream-adapter",
+    "evidence":  [
+                     "Issue #34 / #86: Claude stream-json vs Codex JSONL event granularity mismatch",
+                     "STORY-8 implementation: unified StreamUpdate interface"
+                 ],
+    "audience":  [
+                     "project"
+                 ],
+    "scope":  "project-incubating",
+    "owners":  [
+                   "ChorusGate team"
+               ]
+}
