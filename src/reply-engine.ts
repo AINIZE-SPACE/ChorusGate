@@ -163,6 +163,7 @@ export async function generateReplyStream(
       // 同 generateReply：env 在调用点读，避开模块顶层冻结。
       permissionMode: process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
       sessionId: opts.sessionId,
+      resume: opts.resume,
       botToken: opts.botToken,
       appToken: opts.appToken,
       onProgress: opts.onProgress,

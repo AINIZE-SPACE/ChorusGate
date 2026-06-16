@@ -276,11 +276,13 @@ export function createStreamSession(
     onPermissionRequest?: (req: import("./claude-stream-parser.js").PermissionRequest) => void;
     /** 任务计划回调 (构造时绑定) */
     onPlanUpdate?: (plan: import("./claude-parser.js").PlanUpdate) => void;
+    /** 续接已有 session (true) vs 新 session (false) */
+    resume?: boolean;
   },
 ): ClaudeStreamSession {
-  // 区分新 session (--session-id) vs 续接已有 session (--resume)
-  const isResume = !!opts.sessionId;
+  // 使用 resume 标志而非 !!opts.sessionId，因为新 session 也有预生成的 UUID
   const sessionId = opts.sessionId || crypto.randomUUID();
+  const isResume = !!opts.resume;
   const env = buildSpawnEnv(opts);
   const args = [
     "-p",
