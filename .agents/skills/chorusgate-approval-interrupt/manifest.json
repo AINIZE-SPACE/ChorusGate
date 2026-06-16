@@ -1,0 +1,21 @@
+﻿{
+    "description":  "ChorusGate 4-Button Approval and Interrupt Manager patterns.",
+    "baseSkill":  "summit-saw/domains/dev/agent-gateway-retrospective.md",
+    "installTargets":  [
+                           "project"
+                       ],
+    "status":  "active",
+    "name":  "chorusgate-approval-interrupt",
+    "evidence":  [
+                     "Issue #32 / #36: identity-bound approval and anti-reentry",
+                     "Issue #57: untracked SIGKILL timer cleanup",
+                     "Issue #84: future Codex bidirectional approval research"
+                 ],
+    "audience":  [
+                     "project"
+                 ],
+    "scope":  "project-incubating",
+    "owners":  [
+                   "ChorusGate team"
+               ]
+}

@@ -1,0 +1,21 @@
+﻿{
+    "description":  "ChorusGate environment variable safety rules for TypeScript/ESM code.",
+    "baseSkill":  "summit-saw/domains/dev/test-spawn-fake-binary.md",
+    "installTargets":  [
+                           "project"
+                       ],
+    "status":  "active",
+    "name":  "chorusgate-env-vars",
+    "evidence":  [
+                     "Issue #36 / #41 / P2-1: top-level const env binding caused auth and config bugs",
+                     "Commit 1d7f1c1: inline-read CLAUDE_PERMISSION_MODE pattern",
+                     "Commit a4f05c1: partial fix lesson (dual source REPLY_TIMEOUT_MS)"
+                 ],
+    "audience":  [
+                     "project"
+                 ],
+    "scope":  "project-incubating",
+    "owners":  [
+                   "ChorusGate team"
+               ]
+}
