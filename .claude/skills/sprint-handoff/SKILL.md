@@ -89,13 +89,17 @@ Refs: #{N}
 **任何 bug 修复或新功能必须走完整流程，不得跳过：**
 
 1. **提单**: `gh issue create` → 记录现象、根因、修复方案
-2. **修复**: 代码 + `npm test && npx tsc --noEmit` + `git push`
-3. **CC 影响审查**: 检查 Claude Code 路径是否受影响（`grep` 改动涉及的函数/类型）
-4. **通知**: `slack_send_message` → `{CHANNEL_ID}` → `@{TESTER}` `@{REVIEWER}`
-5. **Issue 关闭**: `gh issue close {N}`
+2. **修复**: 代码 + `npx tsc --noEmit`
+3. **自测**: `npm test` + 涉及 CLI 的跑 `node scripts/verify-codex-cli.mjs`
+4. **CC 影响审查**: 检查 Claude Code 路径是否受影响
+5. **提交**: `git add -A && git commit && git push`
+6. **通知**: `slack_send_message` → `{CHANNEL_ID}` → `@{TESTER}` `@{REVIEWER}`
+7. **Issue 关闭**: `gh issue close {N}`
 
-**:warning: CLI flag 硬规则**: 任何新 CLI flag 必须先加入 `scripts/verify-codex-cli.mjs` 实测通过再提交。
-**文档有 ≠ 实际版本支持**。`codex --help` 列的是全局 flag，`codex exec --help` 列的是子命令 flag，两者必须分别实测。
+**:zap: 自测硬规则（Sprint 3 血泪教训）**:
+- **改完代码必须先 `npm test` 再提交**——代码写完不是终点
+- **CLI flag 必须先 `node scripts/verify-codex-cli.mjs` 实测**——文档有≠版本支持
+- **禁止猜参数**——每个 flag 都要对着 `codex exec --help` / `claude -p --help` 确认
 
 ## Quality Bar
 
