@@ -368,9 +368,12 @@ function onEvent(event: StoredEvent, profileId: string): void {
   }
   inFlight.add(dedupKey);
 
-  const replyThreadTs = event.thread_ts || event.ts;
   const channelType = (event.raw as Record<string, unknown> | undefined)
     ?.channel_type as string | undefined;
+  // DM: reply directly, not in thread. Channel: reply in thread.
+  const replyThreadTs = channelType === "im"
+    ? undefined
+    : (event.thread_ts || event.ts);
 
   const providerId = profileProvider(profileId);
   const id = sessionIdentity(
@@ -424,7 +427,7 @@ async function processEvent(
   event: StoredEvent,
   id: SessionIdentity,
   tKey: string,
-  replyThreadTs: string,
+  replyThreadTs: string | undefined,
   profileId: string,
 ): Promise<void> {
   // ---- busy interrupt check ----

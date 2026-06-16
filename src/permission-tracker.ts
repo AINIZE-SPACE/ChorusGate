@@ -63,7 +63,7 @@ interface PendingPermission {
   toolName: string;
   toolInput: Record<string, unknown>;
   channel: string;
-  threadTs: string;
+  threadTs?: string;
   requesterUserId: string;
   /** Session identity — scopes auto-approval to the right profile+provider. */
   sessionIdentity: string;
@@ -146,7 +146,7 @@ export class PermissionTracker {
       toolName: string;
       toolInput: Record<string, unknown>;
       channel: string;
-      threadTs: string;
+      threadTs?: string;
       requesterUserId: string;
       /** Session identity key (profileId:providerId:channel:threadTs). */
       sessionIdentity?: string;
