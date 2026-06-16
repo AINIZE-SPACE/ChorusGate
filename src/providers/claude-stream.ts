@@ -181,6 +181,7 @@ export const claudeStreamProvider: AgentProvider = {
     parser.onProgress = opts.onProgress;
     parser.onSessionId = opts.onSessionId;
     const sr = spawnStream(args, opts.cwd, parser, env, opts.onSpawn);
+    parser.onResult = () => { if (!sr.settled) sr.child.stdin?.end(); };
 
     // Send user prompt on stdin (keep pipe open for future approve/deny)
     const userMsg = JSON.stringify({
@@ -209,6 +210,7 @@ export const claudeStreamProvider: AgentProvider = {
     const parser = new ClaudeStreamParser();
     parser.onProgress = opts.onProgress;
     const sr = spawnStream(args, opts.cwd, parser, env, opts.onSpawn);
+    parser.onResult = () => { if (!sr.settled) sr.child.stdin?.end(); };
 
     const userMsg = JSON.stringify({
       type: "user",
