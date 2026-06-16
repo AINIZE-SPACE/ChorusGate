@@ -663,11 +663,18 @@ async function processEvent(
       ? result.text
       : `:warning: 抱歉，我暂时无法生成回复（${result.error}）。`;
 
+    // If Claude already sent a response via Slack tools, the stream
+    // result may be short/empty. Use the streamed text as fallback.
+    const displayText = (text && text.trim().length > 10) ? text
+      : planTracker.getPlanMessageTs(`${event.channel}:${replyThreadTs}`)
+        ? "👆 以上为任务进度，最终回复见上方的消息。"
+        : (text || "✅ 完成");
+
     if (placeholderTs) {
       await web.chat.update({
         channel: event.channel,
         ts: placeholderTs,
-        text,
+        text: displayText,
       });
     } else {
       await web.chat.postMessage({
