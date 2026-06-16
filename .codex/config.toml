@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 [mcp_servers.chorusgate]
 command = "chorusgate-mcp"
 env_vars = [
@@ -7,3 +8,52 @@ env_vars = [
 
 [mcp_servers.chorusgate.env]
 MCP_SENDER_ONLY = "1"
+=======
+# Codex Gateway 配置参考
+# 文件: ~/.codex/config.toml (用户级) 或 <project>/.codex/config.toml (项目级)
+# Gateway spawn codex exec 时可通过 -c key=value 覆盖任意配置
+
+# ---- MCP Servers (Codex 直接调用 Slack 工具) --------------------------------
+[mcp_servers.chorusgate]
+command = "chorusgate-mcp"
+env_vars = [
+    "SLACK_BOT_TOKEN",
+    "SLACK_APP_TOKEN",
+]
+
+[mcp_servers.chorusgate.env]
+MCP_SENDER_ONLY = "1"
+
+[mcp_servers.trello]
+command = "npx"
+args = [
+    "-y",
+    "trello-mcp-server@2.2.3",
+]
+env_vars = [
+    "TRELLO_API_KEY",
+    "TRELLO_TOKEN",
+]
+
+# ---- 审批模式 (headless 下用 --dangerously-bypass-approvals-and-sandbox 替代) ----
+# [approvals]
+# mode = "never"              # never | on-request | untrusted
+
+# ---- 模型选择 ----------------------------------------------------------------
+# [model]
+# provider = "openai"         # 模型 provider
+# name = "gpt-5"              # 模型名
+
+# ---- 迭代限制 (CLI 参数 -c max_iterations=N 可覆盖) --------------------------
+# [agent]
+# max_iterations = 10         # 单个 turn 最大迭代次数
+# sandbox_mode = "workspace-write"
+
+# ---- Web 搜索 (全局 flag --search，非 codex exec flag) -----------------------
+# [tools]
+# web_search = true
+
+# ---- Shell 环境策略 ----------------------------------------------------------
+# [shell_environment_policy]
+# inherit = "all"             # all | none | selective
+>>>>>>> 074f01df880c5c7457e226da64a255058d3ee07e
