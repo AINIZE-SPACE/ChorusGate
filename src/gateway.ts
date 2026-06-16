@@ -649,8 +649,12 @@ async function processEvent(
 
     await stopProgress();
 
+    console.error(
+      `[gateway] reply result: ok=${result.ok} textLen=${result.text?.length || 0} ` +
+      `text=${(result.text || "").slice(0, 80)} error=${result.error || "-"}`,
+    );
+
     if (result.ok) {
-      // Provider-assigned sessionId (Codex thread_id) replaces pre-generated UUID
       if (result.sessionId && result.sessionId !== session.sessionId) {
         sessionStore.setSession(id, result.sessionId);
       }
@@ -663,12 +667,15 @@ async function processEvent(
       ? result.text
       : `:warning: 抱歉，我暂时无法生成回复（${result.error}）。`;
 
-    // If Claude already sent a response via Slack tools, the stream
-    // result may be short/empty. Use the streamed text as fallback.
     const displayText = (text && text.trim().length > 10) ? text
       : planTracker.getPlanMessageTs(`${event.channel}:${replyThreadTs}`)
         ? "👆 以上为任务进度，最终回复见上方的消息。"
         : (text || "✅ 完成");
+
+    console.error(
+      `[gateway] posting reply: placeholderTs=${placeholderTs} ` +
+      `displayLen=${displayText.length}`,
+    );
 
     if (placeholderTs) {
       await web.chat.update({
