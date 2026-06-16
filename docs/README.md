@@ -1,35 +1,64 @@
 # ChorusGate docs/
 
-ChorusGate is the project formerly described as `chorusgate`: a local-first
-gateway that connects collaboration channels such as Slack and Feishu/Lark to
-coding agent runtimes such as Claude Code and Codex.
+> 产品文档索引。所有文档中文撰写，面向后续维护者。
 
-产品文档索引。所有文档中文撰写，面向后续维护者。
-
-## 已实现功能
+## 架构
 
 | 文档 | 内容 |
 |------|------|
 | [architecture.md](./architecture.md) | 架构总览：两种模式、数据流、目录结构、核心决策 |
-| [feature-auto-reply.md](./feature-auto-reply.md) | 自动回复：触发条件、回复流程、session 复用、并发控制、prompt 策略 |
-| [feature-session-management.md](./feature-session-management.md) | Session 管理：slash command、sessions.md 存储、为什么不读 jsonl |
-| [feature-live-progress.md](./feature-live-progress.md) | 实时进度提示：占位消息、心跳、stream-json 解析、工具标签 |
-| [feature-gateway-lifecycle.md](./feature-gateway-lifecycle.md) | Gateway 生命周期：start/stop/restart/status/list、控制文件、idle eviction |
-| [feature-mcp-server.md](./feature-mcp-server.md) | MCP server 模式：Web API tools、配置方式 |
-| [gotchas.md](./gotchas.md) | 调试踩坑记录：13 个实测故障及修复方案 |
-| [roadmap.md](./roadmap.md) | 版本规划方向 + 永久否决方案 |
+| [gotchas.md](./gotchas.md) | 调试踩坑记录 |
+| [roadmap.md](./roadmap.md) | 版本规划方向 |
 
-## 规划中特性
+## 已实现功能 ([spec/](./spec/README.md))
 
-> 以下文档描述尚未实现的规划。详见 [`planning/`](./planning/README.md)。
+| 文档 | 功能 |
+|------|------|
+| [auto-reply.md](./spec/auto-reply.md) | 自动回复：触发条件、session 复用、并发控制 |
+| [gateway-lifecycle.md](./spec/gateway-lifecycle.md) | Gateway 生命周期：start/stop/restart/status/list |
+| [live-progress.md](./spec/live-progress.md) | 实时进度提示：占位消息、stream-json 解析 |
+| [mcp-server.md](./spec/mcp-server.md) | MCP server 模式：Web API tools、配置 |
+| [session-management.md](./spec/session-management.md) | Session 管理：slash command、sessions.md、路由 |
+
+## 规划中 ([planning/](./planning/README.md))
 
 | 文档 | 内容 |
 |------|------|
-| [planning/feature-slack-commands.md](./planning/feature-slack-commands.md) | Slack command 增强：/stop /retry /model /agents /restart /update |
-| [planning/feature-install-lifecycle.md](./planning/feature-install-lifecycle.md) | 安装生命周期：一键安装脚本、系统服务注册 |
-| [planning/feature-feishu.md](./planning/feature-feishu.md) | 飞书支持：Platform 抽象层、飞书长连接接入 |
-| [planning/architecture-boundaries.md](./planning/architecture-boundaries.md) | 架构边界分析 |
-| [planning/product-positioning.md](./planning/product-positioning.md) | 产品定位文档 |
-| [planning/runtime-adapters.md](./planning/runtime-adapters.md) | 运行时适配器方案 |
-| [planning/tracking.md](./planning/tracking.md) | 追踪/日志方案 |
-| [planning/version-planning-2026-06.md](./planning/version-planning-2026-06.md) | 版本规划（2026-06）|
+| [v4-story-8-stream-incremental.md](./planning/v4-story-8-stream-incremental.md) | M3 增量流式 (#85) |
+| [v4-story-8-unified-approval.md](./planning/v4-story-8-unified-approval.md) | 统一审批方案 (#84) |
+| [v4-story-8-unified-streaming.md](./planning/v4-story-8-unified-streaming.md) | 统一 StreamUpdate 接口 (#86) |
+| [feature-feishu.md](./planning/feature-feishu.md) | 飞书支持 |
+| [feature-install-lifecycle.md](./planning/feature-install-lifecycle.md) | 安装生命周期 |
+| [feature-slack-commands.md](./planning/feature-slack-commands.md) | Slack command 增强 |
+
+## 参考资料 ([reference/](./reference/))
+
+| 文档 | 内容 |
+|------|------|
+| [v3-stories/](./reference/v3-stories/) | v3 已完成设计文档 (12 篇) |
+| [hermes-agent-analysis.md](./reference/hermes-agent-analysis.md) | Hermes Agent 源码借鉴分析 |
+| [ccpocket.md](./reference/ccpocket.md) | CC Pocket 参考架构 |
+
+## 评审记录 ([reviews/](./reviews/README.md))
+
+| 目录 | 内容 |
+|------|------|
+| [v3/2026-06-12-hermes-review.md](./reviews/v3/2026-06-12-hermes-review.md) | v3 第一轮评审 |
+| [v3/2026-06-13-hermes-review.md](./reviews/v3/2026-06-13-hermes-review.md) | v3 第二轮评审 |
+
+## 测试方案 ([tests/](./tests/README.md))
+
+| 目录 | 内容 |
+|------|------|
+| [v3/](./tests/v3/) | v3 Issue 跟踪 |
+| [plans/](./tests/plans/) | 测试计划 |
+| [cases/](./tests/cases/) | 测试用例 |
+
+## 迭代报告 ([reports/](./reports/README.md))
+
+| 文档 | 类型 | 作者 |
+|------|------|------|
+| [v3/sprint-3-daily-claude.md](./reports/v3/sprint-3-daily-claude.md) | 日报 | 小克 |
+| [v3/sprint-3-daily-hermes.md](./reports/v3/sprint-3-daily-hermes.md) | 日报 | 小马 |
+| [v3/sprint-3-retrospective.md](./reports/v3/sprint-3-retrospective.md) | 迭代回顾 | — |
+| [v3/sprint-3-retrospective-roles.md](./reports/v3/sprint-3-retrospective-roles.md) | 角色复盘 | 全角色 |
