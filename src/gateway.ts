@@ -169,24 +169,33 @@ function sessionIdentity(
   );
 }
 
+/** Bot user IDs — skip messages from these (self-reply loop prevention). */
+const BOT_USER_IDS = new Set([
+  "U0B8VHLHJAX",  // 小克 (CC)
+  "U0BAGFVD8VB",  // 小扣 (CX)
+]);
+
 /** Decide whether a stored event warrants an auto-reply. */
 function shouldReply(event: StoredEvent): boolean {
-  // Skip system events: edits, deletions, assistant_thread_started, etc.
+  // Skip system events: edits, deletions, message_changed, etc.
   if (event.subtype) return false;
-  // Skip empty messages (no text, or whitespace/mention-only after cleaning)
+  // Skip bot-authored messages to prevent self-reply loops.
+  // Bot progress messages have empty user; bot replies have bot user ID.
+  if (!event.user || BOT_USER_IDS.has(event.user)) return false;
+  // Skip empty messages
   if (!cleanText(event.text || "")) return false;
 
   // Always reply to explicit @mentions (any channel)
   if (event.type === "app_mention") return true;
 
-  // Reply to direct messages (DMs). channel_type lives on the raw payload.
+  // Reply to direct messages (DMs).
   if (event.type === "message") {
     const channelType = (event.raw as Record<string, unknown> | undefined)
       ?.channel_type as string | undefined;
     if (channelType === "im") return true;
   }
 
-  // Ignore plain channel chatter (not addressed to the bot) and reactions.
+  // Ignore plain channel chatter and reactions.
   return false;
 }
 
@@ -532,6 +541,7 @@ async function processEvent(
       sessionId: session.sessionId,
       resume,
       profileId,
+      providerId: profileProvider(profileId),
       botToken: profile?.botToken,
       appToken: profile?.appToken,
       onSpawn: (child: import("node:child_process").ChildProcess) => {
@@ -644,6 +654,10 @@ async function processEvent(
     await stopProgress();
 
     if (result.ok) {
+      // Provider-assigned sessionId (Codex thread_id) replaces pre-generated UUID
+      if (result.sessionId && result.sessionId !== session.sessionId) {
+        sessionStore.setSession(id, result.sessionId);
+      }
       sessionStore.markStarted(id);
     } else if (!resume) {
       sessionStore.reset(id);
@@ -713,6 +727,8 @@ async function processEvent(
 
 async function main(): Promise<void> {
   console.error("[gateway] starting Slack auto-reply gateway...");
+  console.error(`[gateway] gateway cwd: ${process.cwd()}`);
+  console.error(`[gateway] profiles: ${profiles.map(p => `${p.id}(${p.providerId})`).join(", ")}`);
   console.error(`[gateway] claude cwd: ${CLAUDE_CWD}`);
 
   // Write PID file so the control commands (status/stop/restart) find us.

@@ -84,10 +84,25 @@ Refs: #{N}
 - `chat.postMessage`: `link_names: true`
 - mention 在顶层 `text`，不在 blocks
 
+## Bug 修复强制流程
+
+**任何 bug 修复或新功能必须走完整流程，不得跳过：**
+
+1. **提单**: `gh issue create` → 记录现象、根因、修复方案
+2. **修复**: 代码 + `npm test && npx tsc --noEmit` + `git push`
+3. **CC 影响审查**: 检查 Claude Code 路径是否受影响（`grep` 改动涉及的函数/类型）
+4. **通知**: `slack_send_message` → `{CHANNEL_ID}` → `@{TESTER}` `@{REVIEWER}`
+5. **Issue 关闭**: `gh issue close {N}`
+
+**:warning: CLI flag 硬规则**: 任何新 CLI flag 必须先加入 `scripts/verify-codex-cli.mjs` 实测通过再提交。
+**文档有 ≠ 实际版本支持**。`codex --help` 列的是全局 flag，`codex exec --help` 列的是子命令 flag，两者必须分别实测。
+
 ## Quality Bar
 
-- [ ] Issue 存在且状态正确
+- [ ] Issue 提单了（不是修完才补）
+- [ ] 测试通过 (`npm test` + `npx tsc --noEmit`)
+- [ ] CLI 实测通过 (`node scripts/verify-codex-cli.mjs`，如涉及)
+- [ ] CC 路径审查通过（改动不影响 Claude Code）
 - [ ] `git push` 到远程
-- [ ] Slack 频道通知（非 DM），mention 置首行
-- [ ] GitHub Issue comment 更新状态
-- [ ] 关键决策记录到 project memory
+- [ ] Slack 频道通知（`@{TESTER}` `@{REVIEWER}`，mention 置首行）
+- [ ] GitHub Issue 已关闭

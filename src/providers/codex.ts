@@ -1,11 +1,13 @@
 // ============================================================
 // CodexProvider — spawn `codex exec --json`, parse JSONL
 //
-// 基于 M0 实测（Codex CLI v0.139.0）:
-//   - codex exec <prompt> --json
-//   - codex exec resume <tid> <prompt> --json
+// 基于 M0 实测 + CLI --help（Codex CLI v0.139.0+）:
+//   - codex exec --json --cd <dir> ... -  (prompt via stdin)
+//   - codex exec resume --json --cd <dir> ... <tid> -  (resume + stdin prompt)
 //   - thread_id 是 UUID 格式顶层字段
-//   - --ask-for-approval CLI flag 不存在，审批策略在 config.toml
+//   - --ask-for-approval 在 headless 用 --dangerously-bypass-approvals-and-sandbox
+//
+// Prompt 通过 stdin 传入，避免 Windows shell 转义问题。
 //
 // 跟踪: [#23](https://github.com/AINIZE-SPACE/chorusgate/issues/23)
 // ============================================================
@@ -13,7 +15,6 @@
 import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { CodexEventParser } from "./codex-parser.js";
 import type {
   AgentProvider,
@@ -22,26 +23,47 @@ import type {
   SessionOutput,
 } from "./types.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const projectRoot = resolve(__dirname, "..", "..");
-
 const CODEX_BIN = process.env.CODEX_BIN || "codex";
 
+/**
+ * Shared flags for headless, non-interactive Codex execution.
+ *
+ * VERIFIED against codex 0.139.0 via scripts/verify-codex-cli.mjs.
+ * --search and --no-alt-screen are GLOBAL flags, NOT supported by `codex exec`.
+ * Add new flags ONLY after testing with: node scripts/verify-codex-cli.mjs
+ */
+const HEADLESS_FLAGS = [
+  "--json",
+  "--skip-git-repo-check",
+  "--dangerously-bypass-approvals-and-sandbox",
+];
+
+/** Max iterations to prevent infinite loops (configurable via env). */
+const MAX_ITERATIONS = process.env.CODEX_MAX_ITERATIONS || "10";
+
+// ---- spawn helper ------------------------------------------------------------
+
 function spawnCodex(
-  args: string[],
+  positionalArgs: string[],
   prompt: string,
   cwd: string,
   timeoutMs: number,
   parser: CodexEventParser,
 ): Promise<SessionOutput> {
   return new Promise<SessionOutput>((resolve) => {
+    // Exec flags (--cd only for new sessions, not resume)
+    const execFlags = [
+      "-c", `max_iterations=${MAX_ITERATIONS}`,
+      ...HEADLESS_FLAGS,
+    ];
+    const allArgs = [...positionalArgs, ...execFlags];
+
     const win = process.platform === "win32";
     const cmd = win
-      ? `"${CODEX_BIN}" ${args
-          .map((a) => (a.includes(" ") ? `"${a}"` : a))
-          .join(" ")}`
+      ? `"${CODEX_BIN}" ${allArgs.map((a) => (a.includes(" ") ? `"${a}"` : a)).join(" ")}`
       : CODEX_BIN;
-    const spawnArgs = win ? [] : args;
+    const spawnArgs = win ? [] : allArgs;
+
     const child = spawn(cmd, spawnArgs, {
       cwd,
       stdio: ["pipe", "pipe", "pipe"],
@@ -49,11 +71,9 @@ function spawnCodex(
       windowsHide: true,
     });
 
-    // codex exec reads prompt from argv; stdin for pipe-only mode
-    if (prompt) {
-      child.stdin.write(prompt);
-      child.stdin.end();
-    }
+    // Prompt via stdin (avoids shell quoting issues with CJK/quotes)
+    child.stdin!.write(prompt);
+    child.stdin!.end();
 
     let stdoutBuf = "";
     let stderr = "";
@@ -71,14 +91,14 @@ function spawnCodex(
       });
     }, timeoutMs);
 
-    child.stdout.on("data", (chunk) => {
+    child.stdout!.on("data", (chunk) => {
       stdoutBuf += chunk.toString();
       const lines = stdoutBuf.split("\n");
       stdoutBuf = lines.pop() ?? "";
       for (const line of lines) parser.feed(line);
     });
 
-    child.stderr.on("data", (chunk) => {
+    child.stderr!.on("data", (chunk) => {
       stderr += chunk.toString();
     });
 
@@ -87,9 +107,7 @@ function spawnCodex(
       settled = true;
       clearTimeout(timer);
       resolve({
-        ok: false,
-        text: "",
-        sessionId: "",
+        ok: false, text: "", sessionId: "",
         error: `failed to spawn codex: ${err.message}`,
       });
     });
@@ -106,22 +124,20 @@ function spawnCodex(
         resolve({ ok: true, text, sessionId: "" });
       } else if (code === 0 && !text) {
         resolve({
-          ok: false,
-          text: "",
-          sessionId: "",
+          ok: false, text: "", sessionId: "",
           error: "codex exec exited 0 but produced no output",
         });
       } else {
         resolve({
-          ok: false,
-          text,
-          sessionId: "",
+          ok: false, text, sessionId: "",
           error: `codex exec exited ${code}: ${stderr.trim().slice(0, 500)}`,
         });
       }
     });
   });
 }
+
+// ---- Provider ----------------------------------------------------------------
 
 export const codexProvider: AgentProvider = {
   id: "codex",
@@ -133,11 +149,9 @@ export const codexProvider: AgentProvider = {
     const effectiveApp = appToken || process.env.SLACK_APP_TOKEN || "";
     const cacheKey = effectiveBot.slice(0, 8);
     const configPath = resolve(
-      projectRoot, "config", `codex-mcp-${cacheKey}.generated.toml`,
+      process.cwd(), "config", `codex-mcp-${cacheKey}.generated.toml`,
     );
-    const senderBin = resolve(projectRoot, "bin", "chorusgate-mcp.mjs");
-
-    // TOML format — Codex uses TOML for config, unlike CC's JSON.
+    const senderBin = resolve(process.cwd(), "bin", "chorusgate-mcp.mjs");
     const toml = [
       "# Codex MCP config — auto-generated by ChorusGate",
       `# Generated at: ${new Date().toISOString()}`,
@@ -150,21 +164,13 @@ export const codexProvider: AgentProvider = {
       `SLACK_BOT_TOKEN = "${effectiveBot}"`,
       `SLACK_APP_TOKEN = "${effectiveApp}"`,
       "",
-      "# Headless mode: auto-approve MCP tool calls",
       'default_tools_approval_mode = "approve"',
       "",
     ].join("\n");
-
     try {
       mkdirSync(dirname(configPath), { recursive: true });
       writeFileSync(configPath, toml);
-    } catch (err) {
-      console.error(
-        "[codex-provider] WARNING: could not write Codex MCP config:",
-        (err as Error).message,
-      );
-    }
-
+    } catch { /* ignore */ }
     return configPath;
   },
 
@@ -172,9 +178,8 @@ export const codexProvider: AgentProvider = {
     prompt: string,
     opts: CreateSessionOptions,
   ): Promise<SessionOutput> {
-    // Codex: session ID 后解析（从 JSONL thread.started.thread_id）
     let resolvedSessionId = "";
-    const args = ["exec", prompt, "--json"];
+    const args = ["exec", "--cd", opts.cwd]; // prompt via stdin, --cd sets workspace
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
@@ -183,14 +188,7 @@ export const codexProvider: AgentProvider = {
       opts.onSessionId?.(tid);
     };
 
-    const result = await spawnCodex(
-      args,
-      "",
-      opts.cwd,
-      opts.timeoutMs,
-      parser,
-    );
-
+    const result = await spawnCodex(args, prompt, opts.cwd, opts.timeoutMs, parser);
     return { ...result, sessionId: resolvedSessionId };
   },
 
@@ -199,13 +197,12 @@ export const codexProvider: AgentProvider = {
     sessionId: string,
     opts: ResumeSessionOptions,
   ): Promise<SessionOutput> {
-    // codex exec resume <thread_id> <prompt> --json
-    const args = ["exec", "resume", sessionId, prompt, "--json"];
+    const args = ["exec", "resume", sessionId]; // prompt via stdin, --cd not supported on resume
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
 
-    return spawnCodex(args, "", opts.cwd, opts.timeoutMs, parser).then((r) => ({
+    return spawnCodex(args, prompt, opts.cwd, opts.timeoutMs, parser).then((r) => ({
       ...r,
       sessionId,
     }));

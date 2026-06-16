@@ -126,6 +126,8 @@ export interface ReplyEngineOptions {
   cwd?: string;
   sessionId?: string;
   resume?: boolean;
+  /** Agent provider to route to: "claude" | "claude-stream" | "codex". */
+  providerId?: string;
   /** Per-profile tokens (STORY-7). */
   botToken?: string;
   appToken?: string;
@@ -139,4 +141,6 @@ export interface ReplyResult {
   ok: boolean;
   text: string;
   error?: string;
+  /** Provider-assigned session ID (CC: pre-generated UUID, Codex: thread_id from JSONL) */
+  sessionId?: string;
 }

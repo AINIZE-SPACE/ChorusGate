@@ -25,11 +25,24 @@ export async function generateReply(
   prompt: string,
   opts: ReplyEngineOptions = {}
 ): Promise<ReplyResult> {
+  // Select provider based on profileId → providerId routing.
+  // Falls back to GATEWAY_CLAUDE_MODE for backward compat.
+  const providerId = opts.providerId || "claude";
   const mode = process.env.GATEWAY_CLAUDE_MODE || "legacy";
-  const provider =
-    mode === "stream"
-      ? (await import("./providers/claude-stream.js")).claudeStreamProvider
-      : (await import("./providers/claude.js")).claudeProvider;
+
+  let provider;
+  switch (providerId) {
+    case "codex":
+      provider = (await import("./providers/codex.js")).codexProvider;
+      break;
+    case "claude-stream":
+      provider = (await import("./providers/claude-stream.js")).claudeStreamProvider;
+      break;
+    default: // "claude"
+      provider = mode === "stream"
+        ? (await import("./providers/claude-stream.js")).claudeStreamProvider
+        : (await import("./providers/claude.js")).claudeProvider;
+  }
 
   const timeoutMs = opts.timeoutMs ?? 180_000;
   console.error(`[reply-engine] generateReply opts.timeoutMs=${opts.timeoutMs} → timeoutMs=${timeoutMs}`);
@@ -51,7 +64,29 @@ export async function generateReply(
         onProgress: opts.onProgress,
         onSpawn: opts.onSpawn,
       });
-      return { ok: r.ok, text: r.text, error: r.error };
+      if (r.ok) return { ok: true, text: r.text, sessionId: r.sessionId };
+      // Resume failed — auto fallback to new session.
+      // Mark the response so the user knows this is a fresh start.
+      console.error(
+        `[reply-engine] resume failed (${r.error}), auto-creating new session`,
+      );
+      const fr = await provider.createSession(prompt, {
+        cwd,
+        timeoutMs,
+        mcpConfigPath: "",
+        permissionMode,
+        botToken: opts.botToken,
+        appToken: opts.appToken,
+        onProgress: opts.onProgress,
+        onSpawn: opts.onSpawn,
+      });
+      if (fr.ok) {
+        return {
+          ok: true,
+          text: `🆕 新会话（之前的会话已过期，已自动创建新会话）\n\n${fr.text}`,
+        };
+      }
+      return { ok: false, text: "", error: fr.error };
     }
 
     const r = await provider.createSession(prompt, {
@@ -65,7 +100,7 @@ export async function generateReply(
       onProgress: opts.onProgress,
       onSpawn: opts.onSpawn,
     });
-    return { ok: r.ok, text: r.text, error: r.error };
+    return { ok: r.ok, text: r.text, error: r.error, sessionId: r.sessionId };
   } catch (err) {
     return {
       ok: false,
