@@ -522,14 +522,17 @@ async function processEvent(
         .catch(() => {});
     };
 
-    // Heartbeat: rotate generic phrases so pure-reasoning turns still move.
+    // Heartbeat: show elapsed time so user knows it's still working.
     if (placeholderTs) {
+      const startTime = Date.now();
       heartbeatTimer = setInterval(() => {
-        hbIndex = (hbIndex + 1) % HEARTBEAT_PHRASES.length;
         const recentlyUsedTool = Date.now() - lastToolAt < TOOL_LABEL_STICKY_MS;
-        updatePlaceholder(
-          recentlyUsedTool && lastLabel ? lastLabel : HEARTBEAT_PHRASES[hbIndex]
-        );
+        if (recentlyUsedTool && lastLabel) {
+          updatePlaceholder(lastLabel);
+        } else {
+          const elapsed = Math.floor((Date.now() - startTime) / 1000);
+          updatePlaceholder(`⏳ 处理中… (${elapsed}s)`);
+        }
       }, 6000);
       heartbeatTimer.unref?.();
     }
