@@ -62,6 +62,7 @@ function spawnStream(
 ): StreamSpawnResult {
   const { cmd, spawnArgs } = buildSpawnCommand(CLAUDE_BIN, args);
   const spawnOpts = buildSpawnOptions(cwd, env);
+  console.error(`[claude-stream] SPAWN: ${cmd}`);
   const child = spawn(cmd, spawnArgs, spawnOpts);
 
   try { onSpawn?.(child); } catch { /* best effort */ }
@@ -133,6 +134,7 @@ function streamToResult(
           error: "claude stream exited 0 but produced no output",
         });
       } else {
+        console.error(`[claude-stream] EXIT ${code}, stderr(${spawnResult.stderr.length}B): ${spawnResult.stderr.trim().slice(0, 500)}`);
         resolve({
           ok: false, text, sessionId: (parser.init?.sessionId || ""),
           error: `claude stream exited ${code}: ${spawnResult.stderr.trim().slice(0, 500)}`,
@@ -309,6 +311,7 @@ export function createStreamSession(
       type: "user",
       message: { role: "user", content: prompt },
     }) + "\n";
+  console.error(`[claude-stream] stdin prompt (${userMsg.length}B): ${userMsg.slice(0, 100)}...`);
   if (sr.child.stdin) {
     sr.child.stdin.write(userMsg);
   } else {
