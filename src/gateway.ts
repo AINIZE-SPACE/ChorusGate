@@ -728,7 +728,7 @@ async function processEvent(
 async function main(): Promise<void> {
   console.error("[gateway] starting Slack auto-reply gateway...");
   console.error(`[gateway] gateway cwd: ${process.cwd()}`);
-  console.error(`[gateway] profiles: ${profiles.map(p => `${p.id}(${p.providerId})`).join(", ")}`);
+  console.error(`: ${profiles.map(p => `${p.id}(${p.providerId})`).join(", ")}`);
   console.error(`[gateway] claude cwd: ${CLAUDE_CWD}`);
 
   // Write PID file so the control commands (status/stop/restart) find us.
