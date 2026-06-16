@@ -226,6 +226,12 @@ export class SocketManager {
     socket.on("interactive", async ({ body, ack }) => {
       const payload = body as Record<string, unknown>;
       if (payload.type !== "block_actions") {
+        if (payload.type === "view_submission" || payload.type === "view_closed") {
+          console.error(
+            `[socket-manager] profile '${pid}': unsupported interactive type ` +
+              `"${payload.type}" — modal/view handlers not implemented`,
+          );
+        }
         await ack();
         return;
       }

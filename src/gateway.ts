@@ -33,6 +33,8 @@ import {
   PermissionTracker,
   buildApprovalBlocks,
 } from "./permission-tracker.js";
+import { PlanTracker } from "./plan-tracker.js";
+import { interruptManager } from "./interrupt.js";
 import { detectCommand, handleCommand } from "./session-commands.js";
 import { type SessionIdentity, formatIdentityKey } from "./session-store.js";
 import {
@@ -116,16 +118,6 @@ function profileProvider(profileId: string): string {
   return profileMap.get(profileId)?.providerId || "claude";
 }
 
-// Rotating heartbeat phrases shown while the agent works with no tool activity.
-const HEARTBEAT_PHRASES = [
-  "🤔 正在思考…",
-  "🔍 分析中…",
-  "🧩 整理中…",
-  "📊 汇总结果中…",
-  "✅ 审核结果中…",
-];
-const TOOL_LABEL_STICKY_MS = 6000;
-
 // ============================================================
 // Reply decision
 // ============================================================
@@ -167,24 +159,33 @@ function sessionIdentity(
   );
 }
 
+/** Bot user IDs — skip messages from these (self-reply loop prevention). */
+const BOT_USER_IDS = new Set([
+  "U0B8VHLHJAX",  // 小克 (CC)
+  "U0BAGFVD8VB",  // 小扣 (CX)
+]);
+
 /** Decide whether a stored event warrants an auto-reply. */
 function shouldReply(event: StoredEvent): boolean {
-  // Skip system events: edits, deletions, assistant_thread_started, etc.
+  // Skip system events: edits, deletions, message_changed, etc.
   if (event.subtype) return false;
-  // Skip empty messages (no text, or whitespace/mention-only after cleaning)
+  // Skip bot-authored messages to prevent self-reply loops.
+  // Bot progress messages have empty user; bot replies have bot user ID.
+  if (!event.user || BOT_USER_IDS.has(event.user)) return false;
+  // Skip empty messages
   if (!cleanText(event.text || "")) return false;
 
   // Always reply to explicit @mentions (any channel)
   if (event.type === "app_mention") return true;
 
-  // Reply to direct messages (DMs). channel_type lives on the raw payload.
+  // Reply to direct messages (DMs).
   if (event.type === "message") {
     const channelType = (event.raw as Record<string, unknown> | undefined)
       ?.channel_type as string | undefined;
     if (channelType === "im") return true;
   }
 
-  // Ignore plain channel chatter (not addressed to the bot) and reactions.
+  // Ignore plain channel chatter and reactions.
   return false;
 }
 
@@ -273,6 +274,8 @@ const inFlight = new Set<string>();
 let running = 0;
 const waiters: Array<() => void> = [];
 
+// ---- concurrency ------------------------------------------------------------
+
 function acquireSlot(): Promise<void> {
   if (running < MAX_CONCURRENT) {
     running += 1;
@@ -298,6 +301,8 @@ const threadChains = new Map<string, Promise<void>>();
 
 // M2: Permission tracker for interactive approve/deny via Slack buttons
 const permissionTracker = new PermissionTracker();
+// Plan tracker: parse Claude todo tool output → Slack plan status message
+const planTracker = new PlanTracker();
 
 /** Handle a native Slack slash command for session control. */
 function onSlash(slashCmd: SlashCommand): void {
@@ -363,9 +368,12 @@ function onEvent(event: StoredEvent, profileId: string): void {
   }
   inFlight.add(dedupKey);
 
-  const replyThreadTs = event.thread_ts || event.ts;
   const channelType = (event.raw as Record<string, unknown> | undefined)
     ?.channel_type as string | undefined;
+  // DM: reply directly, not in thread. Channel: reply in thread.
+  const replyThreadTs = channelType === "im"
+    ? undefined
+    : (event.thread_ts || event.ts);
 
   const providerId = profileProvider(profileId);
   const id = sessionIdentity(
@@ -419,11 +427,18 @@ async function processEvent(
   event: StoredEvent,
   id: SessionIdentity,
   tKey: string,
-  replyThreadTs: string,
+  replyThreadTs: string | undefined,
   profileId: string,
 ): Promise<void> {
+  // ---- busy interrupt check ----
+  // If this session already has a running claude -p, interrupt or queue.
+  // interrupt() kills the current process (interrupt mode) or awaits its
+  // exit (queue mode), then returns true so we proceed with the new message.
+  if (interruptManager.isRunning(tKey)) {
+    await interruptManager.interrupt(tKey, event.channel, replyThreadTs);
+  }
+
   const web = getWebClient();
-  let heartbeatTimer: NodeJS.Timeout | undefined;
   let progressDone = false;
   let progressChain = Promise.resolve();
   let placeholderTs: string | undefined;
@@ -443,10 +458,6 @@ async function processEvent(
 
   /** Stop heartbeat + wait for the progress update queue to drain. */
   const stopProgress = async (): Promise<void> => {
-    if (heartbeatTimer) {
-      clearInterval(heartbeatTimer);
-      heartbeatTimer = undefined;
-    }
     progressDone = true;
     await progressChain;
   };
@@ -469,14 +480,14 @@ async function processEvent(
     let lastUpdate = 0;
     let lastLabel = "";
     let lastToolAt = 0;
-    let hbIndex = 0;
 
     if (PROGRESS_ENABLED) {
       try {
         const ph = await web.chat.postMessage({
           channel: event.channel,
           thread_ts: replyThreadTs,
-          text: HEARTBEAT_PHRASES[0],
+          text: "⏳ 处理中…",
+          link_names: true,
         });
         placeholderTs = ph.ts as string | undefined;
       } catch {
@@ -498,17 +509,8 @@ async function processEvent(
         .catch(() => {});
     };
 
-    // Heartbeat: rotate generic phrases so pure-reasoning turns still move.
-    if (placeholderTs) {
-      heartbeatTimer = setInterval(() => {
-        hbIndex = (hbIndex + 1) % HEARTBEAT_PHRASES.length;
-        const recentlyUsedTool = Date.now() - lastToolAt < TOOL_LABEL_STICKY_MS;
-        updatePlaceholder(
-          recentlyUsedTool && lastLabel ? lastLabel : HEARTBEAT_PHRASES[hbIndex]
-        );
-      }, 6000);
-      heartbeatTimer.unref?.();
-    }
+    // No heartbeat — Claude stream emits tool_use events for real progress.
+    // Placeholder is updated via onProgress callback only.
 
     const profile = profileMap.get(profileId);
     const replyOpts = {
@@ -517,8 +519,12 @@ async function processEvent(
       sessionId: session.sessionId,
       resume,
       profileId,
+      providerId: profileProvider(profileId),
       botToken: profile?.botToken,
       appToken: profile?.appToken,
+      onSpawn: (child: import("node:child_process").ChildProcess) => {
+        interruptManager.register(tKey, child);
+      },
       onProgress: (label: string) => {
         lastLabel = label;
         lastToolAt = Date.now();
@@ -531,17 +537,30 @@ async function processEvent(
       ? await generateReplyStream(prompt, {
           ...replyOpts,
           onPermission: async (req) => {
-            // Post Slack interactive message with Approve/Deny buttons
+            // Check auto-approval cache first (session/always scope).
+            const providerId = profile?.providerId ?? "claude";
+            const sessionIdentity = `${profileId}:${providerId}:${event.channel}:${replyThreadTs}`;
+            const autoScope = permissionTracker.checkAutoApproval(
+              sessionIdentity, req.toolName, event.user,
+            );
+            if (autoScope) {
+              console.error(
+                `[gateway] permission ${req.requestId} (${req.toolName}): ` +
+                  `auto-approved (${autoScope})`,
+              );
+              return true;
+            }
+
+            // Post Slack interactive message with 4 approval buttons
             if (placeholderTs) {
-              // Update the placeholder to show the permission request
               await stopProgress();
             }
             const blocks = buildApprovalBlocks(
               req.toolName,
               req.toolInput,
               req.requestId,
-              event.user,             // P0-3: requesterUserId for auth
-              REPLY_TIMEOUT_MS_LONG,  // P1-2: dynamic timeout text
+              event.user,
+              REPLY_TIMEOUT_MS_LONG,
             );
             try {
               await web.chat.postMessage({
@@ -549,6 +568,7 @@ async function processEvent(
                 thread_ts: replyThreadTs,
                 blocks,
                 text: `Claude 请求执行 \`${req.toolName}\` — 需要你的批准`,
+                link_names: true,
               });
             } catch (err) {
               console.error(
@@ -558,28 +578,89 @@ async function processEvent(
             }
 
             // Wait for user response (auto-denies after timeout)
-            const granted = await permissionTracker.waitForApproval(
+            const scope = await permissionTracker.waitForApproval(
               req.requestId,
               {
                 toolName: req.toolName,
                 toolInput: req.toolInput,
                 channel: event.channel,
                 threadTs: replyThreadTs,
-                requesterUserId: event.user,  // P0-3: store for auth check
+                requesterUserId: event.user,
+                sessionIdentity,
               },
             );
             console.error(
               `[gateway] permission ${req.requestId} (${req.toolName}): ` +
-                `${granted ? "approved" : "denied"}`,
+                `${scope}`,
             );
-            return granted;
+            return scope !== "deny";
+          },
+          onTextDelta: (text: string) => {
+            if (placeholderTs) {
+              updatePlaceholder(`💬 ${text.slice(-500)}`);
+            }
+          },
+          onBlockStart: (blockType: string) => {
+            if (placeholderTs) {
+              const label = blockType === "thinking" ? "🧠 思考中…" : "💬 回复中…";
+              updatePlaceholder(label, true);
+            }
+          },
+          onBlockStop: (_blockType: string) => {
+            // block end — next text_delta or tool_use will update the placeholder
+          },
+          onMetrics: (m: { costUsd?: number; inputTokens?: number; outputTokens?: number }) => {
+            console.error(
+              `[gateway] stream metrics: ` +
+              `tokens(in=${m.inputTokens},out=${m.outputTokens}) ` +
+              `cost=${m.costUsd}`,
+            );
+          },
+          onPlanUpdate: async (plan) => {
+            const planKey = `${event.channel}:${replyThreadTs}`;
+            const update = planTracker.updatePlan(planKey, plan.entries);
+            if (!update || !update.changed) return;
+
+            const existingTs = planTracker.getPlanMessageTs(planKey);
+            try {
+              if (existingTs) {
+                await web.chat.update({
+                  channel: event.channel,
+                  ts: existingTs,
+                  text: update.text,
+                });
+              } else {
+                const msg = await web.chat.postMessage({
+                  channel: event.channel,
+                  thread_ts: replyThreadTs,
+                  text: update.text,
+                  link_names: true,
+                });
+                if (msg.ts) {
+                  planTracker.setPlanMessageTs(planKey, msg.ts as string);
+                }
+              }
+            } catch (err) {
+              console.error(
+                "[gateway] failed to update plan message:",
+                (err as Error).message,
+              );
+            }
           },
         })
       : await generateReply(prompt, replyOpts);
 
     await stopProgress();
 
+    console.error(
+      `[gateway] reply result: ok=${result.ok} textLen=${result.text?.length || 0} ` +
+      `text=${(result.text || "").slice(0, 80)} error=${result.error || "-"}`,
+    );
+
     if (result.ok) {
+      if (result.sessionId && result.sessionId !== session.sessionId) {
+        sessionStore.setSession(id, result.sessionId);
+      }
       sessionStore.markStarted(id);
     } else if (!resume) {
       sessionStore.reset(id);
@@ -589,17 +670,28 @@ async function processEvent(
       ? result.text
       : `:warning: 抱歉，我暂时无法生成回复（${result.error}）。`;
 
+    const displayText = (text && text.trim().length > 10) ? text
+      : planTracker.getPlanMessageTs(`${event.channel}:${replyThreadTs}`)
+        ? "👆 以上为任务进度，最终回复见上方的消息。"
+        : (text || "✅ 完成");
+
+    console.error(
+      `[gateway] posting reply: placeholderTs=${placeholderTs} ` +
+      `displayLen=${displayText.length}`,
+    );
+
     if (placeholderTs) {
       await web.chat.update({
         channel: event.channel,
         ts: placeholderTs,
-        text,
+        text: displayText,
       });
     } else {
       await web.chat.postMessage({
         channel: event.channel,
         thread_ts: replyThreadTs,
         text,
+        link_names: true,
       });
     }
 
@@ -626,6 +718,7 @@ async function processEvent(
           channel: event.channel,
           thread_ts: replyThreadTs,
           text: errText,
+          link_names: true,
         });
       }
     } catch {
@@ -633,7 +726,7 @@ async function processEvent(
     }
   } finally {
     progressDone = true;
-    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    interruptManager.unregister(tKey);
     eventStore.markHandled(event.id);
     inFlight.delete(event.ts || event.id);
     releaseSlot();
@@ -646,6 +739,8 @@ async function processEvent(
 
 async function main(): Promise<void> {
   console.error("[gateway] starting Slack auto-reply gateway...");
+  console.error(`[gateway] gateway cwd: ${process.cwd()}`);
+  console.error(`: ${profiles.map(p => `${p.id}(${p.providerId})`).join(", ")}`);
   console.error(`[gateway] claude cwd: ${CLAUDE_CWD}`);
 
   // Write PID file so the control commands (status/stop/restart) find us.
@@ -701,7 +796,6 @@ async function main(): Promise<void> {
   socketManager.setSlashCallback(onSlash);
   if (INTERACTIVE_PERMISSIONS) {
     socketManager.setBlockActionCallback(async (action) => {
-      // P0-3: 校验按钮点击者是否为审批发起者
       const result = permissionTracker.handleAction(action.actionValue);
       if (!result.handled) return;
 
@@ -713,10 +807,15 @@ async function main(): Promise<void> {
         return;
       }
 
-      // P0-2: 替换审批按钮为"Approved/Denied by @user"，防止幽灵按钮
-      const statusText = result.granted
-        ? `✅ *Approved* by <@${action.userId}>`
-        : `❌ *Denied* by <@${action.userId}>`;
+      // Build status text reflecting the chosen scope
+      const scopeLabel: Record<string, string> = {
+        once: `✅ Approved once by <@${action.userId}>`,
+        session: `📋 Approved for session by <@${action.userId}>`,
+        always: `🔒 Always approved by <@${action.userId}>`,
+        deny: `❌ Denied by <@${action.userId}>`,
+      };
+      const statusText = scopeLabel[result.scope ?? "deny"] ??
+        `✅ Approved by <@${action.userId}>`;
       try {
         const webClient = getWebClient();
         await webClient.chat.update({

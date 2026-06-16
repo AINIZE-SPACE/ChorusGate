@@ -21,14 +21,19 @@
 //   - system.permission_request → 审批回调 → stdin 回写
 //   - --replay-user-messages 回显用户消息（isReplay:true 忽略）
 //
-// MCP: `claude -p` 继承父进程环境，直接加载 `.claude/mcp.json`。
+// MCP: `claude -p` 继承父进程环境，直接加载项目 `.mcp.json`。
 // ChorusGate MCP 固定为 Web API 工具集，不承担 Socket Mode 收事件。
 //
 // 跟踪: [#34](https://github.com/AINIZE-SPACE/chorusgate/issues/34)
 // ============================================================
 
-import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { ClaudeStreamParser } from "./claude-stream-parser.js";
+import {
+  buildSpawnCommand,
+  buildSpawnOptions,
+  buildSpawnEnv,
+} from "./_spawn-helpers.js";
 import type {
   AgentProvider,
   CreateSessionOptions,
@@ -38,19 +43,29 @@ import type {
 
 const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
 
-// ---- env helper (per-profile token injection, STORY-7) -----------------------
-
-function buildSpawnEnv(opts: CreateSessionOptions): Record<string, string | undefined> {
-  const env: Record<string, string | undefined> = { ...process.env };
-  if (opts.botToken) env.SLACK_BOT_TOKEN = opts.botToken;
-  if (opts.appToken) env.SLACK_APP_TOKEN = opts.appToken;
-  return env;
+/** Build shared args for claude -p stream-json mode. */
+function buildStreamArgs(sessionFlag: "--session-id" | "--resume", sessionId: string): string[] {
+  const args = [
+    "-p",
+    "--input-format", "stream-json",
+    "--output-format", "stream-json",
+    "--verbose",
+    "--replay-user-messages",
+    "--permission-mode", process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
+    sessionFlag, sessionId,
+  ];
+  // M3: opt-in token-level streaming (#85)
+  if (process.env.CLAUDE_STREAM_PARTIAL === "true") {
+    args.splice(args.indexOf("--verbose") + 1, 0, "--include-partial-messages");
+  }
+  return args;
 }
 
 // ---- spawn helper ------------------------------------------------------------
 
 interface StreamSpawnResult {
   child: ChildProcess;
+  parser: ClaudeStreamParser;
   stdoutBuf: string;
   stderr: string;
   settled: boolean;
@@ -61,25 +76,18 @@ function spawnStream(
   cwd: string,
   parser: ClaudeStreamParser,
   env?: Record<string, string | undefined>,
+  onSpawn?: (child: ChildProcess) => void,
 ): StreamSpawnResult {
-  const win = process.platform === "win32";
-  const cmd = win
-    ? `"${CLAUDE_BIN}" ${args
-        .map((a) => (a.includes(" ") ? `"${a}"` : a))
-        .join(" ")}`
-    : CLAUDE_BIN;
-  const spawnArgs = win ? [] : args;
-  const opts: SpawnOptions = {
-    cwd,
-    stdio: ["pipe", "pipe", "pipe"],
-    shell: win,
-    windowsHide: true,
-  };
-  if (env) opts.env = env;
-  const child = spawn(cmd, spawnArgs, opts);
+  const { cmd, spawnArgs } = buildSpawnCommand(CLAUDE_BIN, args);
+  const spawnOpts = buildSpawnOptions(cwd, env);
+  console.error(`[claude-stream] SPAWN: ${cmd}`);
+  const child = spawn(cmd, spawnArgs, spawnOpts);
+
+  try { onSpawn?.(child); } catch { /* best effort */ }
 
   const result: StreamSpawnResult = {
     child,
+    parser,
     stdoutBuf: "",
     stderr: "",
     settled: false,
@@ -105,10 +113,7 @@ function streamToResult(
   timeoutMs: number,
 ): Promise<SessionOutput> {
   return new Promise((resolve) => {
-    const { child, parser } = spawnResult as StreamSpawnResult & {
-      parser: ClaudeStreamParser;
-    };
-    // parser is captured via closure below
+    const { child, parser } = spawnResult;
 
     const timer = setTimeout(() => {
       if (spawnResult.settled) return;
@@ -147,6 +152,7 @@ function streamToResult(
           error: "claude stream exited 0 but produced no output",
         });
       } else {
+        console.error(`[claude-stream] EXIT ${code}, stderr(${spawnResult.stderr.length}B): ${spawnResult.stderr.trim().slice(0, 500)}`);
         resolve({
           ok: false, text, sessionId: (parser.init?.sessionId || ""),
           error: `claude stream exited ${code}: ${spawnResult.stderr.trim().slice(0, 500)}`,
@@ -170,21 +176,12 @@ export const claudeStreamProvider: AgentProvider = {
     // Even if opts.sessionId is truthy (from sessionStore), use --session-id.
     const sessionId = opts.sessionId || crypto.randomUUID();
     const env = buildSpawnEnv(opts);
-    const args = [
-      "-p",
-      "--input-format", "stream-json",
-      "--output-format", "stream-json",
-      "--verbose",
-      "--replay-user-messages",
-      "--permission-mode", process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
-      "--session-id", sessionId,
-    ];
-
+    const args = buildStreamArgs("--session-id", sessionId);
     const parser = new ClaudeStreamParser();
     parser.onProgress = opts.onProgress;
     parser.onSessionId = opts.onSessionId;
-
-    const sr = spawnStream(args, opts.cwd, parser, env);
+    const sr = spawnStream(args, opts.cwd, parser, env, opts.onSpawn);
+    parser.onResult = () => { if (!sr.settled) sr.child.stdin?.end(); };
 
     // Send user prompt on stdin (keep pipe open for future approve/deny)
     const userMsg = JSON.stringify({
@@ -195,10 +192,7 @@ export const claudeStreamProvider: AgentProvider = {
     // NOTE: stdin NOT closed — open for approve/deny responses
 
     // Wait for result
-    const result = await streamToResult(
-      { ...sr, parser } as StreamSpawnResult & { parser: ClaudeStreamParser },
-      opts.timeoutMs,
-    );
+    const result = await streamToResult(sr, opts.timeoutMs);
 
     // Close stdin now that we have the result
     if (!sr.settled) sr.child.stdin?.end();
@@ -212,20 +206,11 @@ export const claudeStreamProvider: AgentProvider = {
     opts: ResumeSessionOptions,
   ): Promise<SessionOutput> {
     const env = buildSpawnEnv(opts);
-    const args = [
-      "-p",
-      "--input-format", "stream-json",
-      "--output-format", "stream-json",
-      "--verbose",
-      "--replay-user-messages",
-      "--permission-mode", process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
-      "--resume", sessionId,
-    ];
-
+    const args = buildStreamArgs("--resume", sessionId);
     const parser = new ClaudeStreamParser();
     parser.onProgress = opts.onProgress;
-
-    const sr = spawnStream(args, opts.cwd, parser, env);
+    const sr = spawnStream(args, opts.cwd, parser, env, opts.onSpawn);
+    parser.onResult = () => { if (!sr.settled) sr.child.stdin?.end(); };
 
     const userMsg = JSON.stringify({
       type: "user",
@@ -233,10 +218,7 @@ export const claudeStreamProvider: AgentProvider = {
     }) + "\n";
     sr.child.stdin?.write(userMsg);
 
-    const result = await streamToResult(
-      { ...sr, parser } as StreamSpawnResult & { parser: ClaudeStreamParser },
-      opts.timeoutMs,
-    );
+    const result = await streamToResult(sr, opts.timeoutMs);
 
     if (!sr.settled) sr.child.stdin?.end();
 
@@ -292,29 +274,47 @@ export function createStreamSession(
   opts: CreateSessionOptions & {
     /** 审批回调 (构造时绑定以避免竞态) */
     onPermissionRequest?: (req: import("./claude-stream-parser.js").PermissionRequest) => void;
+    /** 任务计划回调 (构造时绑定) */
+    onPlanUpdate?: (plan: import("./claude-parser.js").PlanUpdate) => void;
+    /** M3 流式增量回调 (#85) */
+    onTextDelta?: (text: string) => void;
+    onThinkingDelta?: (thinking: string) => void;
+    onBlockStart?: (blockType: string) => void;
+    onBlockStop?: (blockType: string) => void;
+    onMetrics?: (m: { costUsd?: number; inputTokens?: number; outputTokens?: number }) => void;
+    /** 续接已有 session (true) vs 新 session (false) */
+    resume?: boolean;
   },
 ): ClaudeStreamSession {
-  // 区分新 session (--session-id) vs 续接已有 session (--resume)
-  const isResume = !!opts.sessionId;
+  // 使用 resume 标志而非 !!opts.sessionId，因为新 session 也有预生成的 UUID
   const sessionId = opts.sessionId || crypto.randomUUID();
+  const isResume = !!opts.resume;
   const env = buildSpawnEnv(opts);
-  const args = [
-    "-p",
-    "--input-format", "stream-json",
-    "--output-format", "stream-json",
-    "--verbose",
-    "--replay-user-messages",
-    "--permission-mode", process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
+  const args = buildStreamArgs(
     isResume ? "--resume" : "--session-id", sessionId,
-  ];
+  );
 
   const parser = new ClaudeStreamParser();
   parser.onProgress = opts.onProgress;
   parser.onSessionId = opts.onSessionId;
-  // P1-4 fix: 在 spawn 前绑定审批回调，消除竞态
   if (opts.onPermissionRequest) {
     parser.onPermissionRequest = opts.onPermissionRequest;
   }
+  if (opts.onPlanUpdate) {
+    parser.onPlanUpdate = opts.onPlanUpdate;
+  }
+  // M3: 流式增量回调 (#85)
+  if (opts.onTextDelta) parser.onTextDelta = opts.onTextDelta;
+  if (opts.onThinkingDelta) parser.onThinkingDelta = opts.onThinkingDelta;
+  if (opts.onBlockStart) parser.onBlockStart = opts.onBlockStart;
+  if (opts.onBlockStop) parser.onBlockStop = opts.onBlockStop;
+  if (opts.onMetrics) parser.onMetrics = opts.onMetrics;
+  // result → close stdin
+  parser.onResult = () => {
+    if (!sr.settled) {
+      try { sr.child.stdin?.end(); } catch { /* ignore */ }
+    }
+  };
 
   const sr = spawnStream(args, opts.cwd, parser, env);
 
@@ -324,6 +324,7 @@ export function createStreamSession(
       type: "user",
       message: { role: "user", content: prompt },
     }) + "\n";
+  console.error(`[claude-stream] stdin prompt (${userMsg.length}B): ${userMsg.slice(0, 100)}...`);
   if (sr.child.stdin) {
     sr.child.stdin.write(userMsg);
   } else {

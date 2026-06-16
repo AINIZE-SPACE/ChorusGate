@@ -1,16 +1,19 @@
 {
   "mcpServers": {
     "chorusgate": {
-      "command": "cmd",
-      "args": ["/c", "chorusgate-mcp"],
+      "type": "stdio",
+      "command": "chorusgate-mcp",
+      "args": [],
       "env": {
         "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}",
-        "SLACK_APP_TOKEN": "${SLACK_APP_TOKEN}"
+        "SLACK_APP_TOKEN": "${SLACK_APP_TOKEN}",
+        "MCP_SENDER_ONLY": "1"
       }
     },
     "trello": {
+      "type": "stdio",
       "command": "npx",
-      "args": ["-y", "trello-mcp-server"],
+      "args": ["-y", "trello-mcp-server@2.2.3"],
       "env": {
         "TRELLO_API_KEY": "${TRELLO_API_KEY}",
         "TRELLO_TOKEN": "${TRELLO_TOKEN}"

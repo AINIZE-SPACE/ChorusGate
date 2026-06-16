@@ -43,6 +43,7 @@ export const replyTool = {
       channel: input.channel,
       thread_ts: input.thread_ts,
       text: input.text,
+      link_names: true,
     });
 
     if (!result.ok) {

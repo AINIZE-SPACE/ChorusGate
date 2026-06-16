@@ -3,15 +3,22 @@
 //                      and resolve them via Slack block_actions
 //
 // When Claude emits a permission_request, the gateway posts an
-// interactive Slack message with Approve/Deny buttons. This module
-// bridges the gap between the async stream-json event and the
-// user's button click.
+// interactive Slack message with 4 approval buttons (Hermes style):
+//   Allow Once | Allow Session | Always Allow | Deny
+//
+// Session/always approvals cache so subsequent same-tool requests
+// auto-approve without blocking the user again.
 //
 // M2: Claude 双向 stream-json 控制面
 // 跟踪: [#34](https://github.com/AINIZE-SPACE/chorusgate/issues/34)
+// 跟踪: [#32](https://github.com/AINIZE-SPACE/chorusgate/issues/32)
 // ============================================================
 
-/** Slack Block Kit 类型（本模块所需子集） */
+/** Approval scope returned by handleAction. */
+export type ApprovalScope = "once" | "session" | "always" | "deny";
+
+// ---- Slack Block Kit types (subset needed by this module) ---------------------
+
 interface SlackText {
   type: "plain_text" | "mrkdwn";
   text: string;
@@ -26,10 +33,7 @@ interface SlackButtonElement {
   value: string;
 }
 
-interface SlackContextElement {
-  type: "mrkdwn";
-  text: string;
-}
+interface SlackContextElement { type: "mrkdwn"; text: string; }
 
 type SlackElement = SlackButtonElement | SlackContextElement;
 
@@ -41,72 +45,137 @@ interface SlackBlock {
   elements?: SlackElement[];
 }
 
-/** handleAction 返回值 */
+// ---- result types -------------------------------------------------------------
+
 export interface HandleActionResult {
   handled: boolean;
-  /** 发起审批的用户 ID（从 button value 解析） */
   requesterUserId?: string;
-  /** 审批结果 */
+  /** The approval scope the user chose. */
+  scope?: ApprovalScope;
+  /** Legacy compat: true for any non-deny scope. */
   granted?: boolean;
 }
 
-/** 单个待审批项 */
+// ---- pending item -------------------------------------------------------------
+
 interface PendingPermission {
   requestId: string;
   toolName: string;
   toolInput: Record<string, unknown>;
   channel: string;
-  threadTs: string;
-  /** 发起审批的 Slack 用户 ID */
+  threadTs?: string;
   requesterUserId: string;
-  /** 用户响应后 resolve */
-  resolve: (granted: boolean) => void;
-  /** 超时自动拒绝 */
+  /** Session identity — scopes auto-approval to the right profile+provider. */
+  sessionIdentity: string;
+  resolve: (scope: ApprovalScope) => void;
   timer: NodeJS.Timeout;
 }
+
+// ---- auto-approval cache ------------------------------------------------------
 
 const DEFAULT_TIMEOUT_MS = 2 * 60 * 1000; // 2 min
 
 /**
- * 审批追踪器。
- *
- * 用法:
- *   const tracker = new PermissionTracker();
- *   tracker.onBlockAction = (action) => { ... };
- *
- *   // 在 gateway 中:
- *   const granted = await tracker.waitForApproval(requestId, details);
- *   session.sendPermissionResponse(requestId, granted);
+ * Auto-approval entry: when a user chose "session" or "always" for a tool,
+ * subsequent requests for the same tool auto-approve without prompting.
  */
+interface AutoApprovalEntry {
+  toolName: string;
+  scope: "session" | "always";
+  grantedAt: number;
+}
+
+// ---- PermissionTracker --------------------------------------------------------
+
 export class PermissionTracker {
   private pending = new Map<string, PendingPermission>();
   private timeoutMs: number;
+
+  /**
+   * Auto-approval cache keyed by `${sessionKey}:${toolName}`.
+   * "session" entries are cleared when the gateway restarts.
+   * "always" entries persist across restarts (in-memory only for now).
+   */
+  private autoApprovals = new Map<string, AutoApprovalEntry>();
 
   constructor(timeoutMs = DEFAULT_TIMEOUT_MS) {
     this.timeoutMs = timeoutMs;
   }
 
-  /** 注册一个待审批请求，返回 Promise 在用户响应后 resolve */
+  /**
+   * Check whether a tool should auto-approve based on prior approvals.
+   *
+   * Looks up two cache entries:
+   * 1. "always" scope: `${requesterUserId}:${toolName}` (per-user, global across sessions)
+   * 2. "session" scope: `${sessionIdentity}:${toolName}` (per session identity)
+   *
+   * Returns the scope if auto-approved, or null if user input is needed.
+   */
+  checkAutoApproval(
+    sessionIdentity: string,
+    toolName: string,
+    requesterUserId: string,
+  ): "session" | "always" | null {
+    // Check "always" scope first (broader).
+    const alwaysKey = `${requesterUserId}:${toolName}`;
+    const alwaysEntry = this.autoApprovals.get(alwaysKey);
+    if (alwaysEntry && alwaysEntry.scope === "always") {
+      return "always";
+    }
+
+    // Check "session" scope.
+    const sessionKey = `${sessionIdentity}:${toolName}`;
+    const sessionEntry = this.autoApprovals.get(sessionKey);
+    if (sessionEntry) {
+      return sessionEntry.scope;
+    }
+
+    return null;
+  }
+
+  /**
+   * Register a pending approval request. Returns Promise resolving to the scope.
+   *
+   * Dedup (P2-6): if a request for the same tool+session is already pending,
+   * the new request is rejected immediately. Prevents permission prompt spam
+   * when Claude rapidly retries a blocked tool.
+   */
   waitForApproval(
     requestId: string,
     details: {
       toolName: string;
       toolInput: Record<string, unknown>;
       channel: string;
-      threadTs: string;
-      /** 发起审批的 Slack 用户 ID（用于鉴权） */
+      threadTs?: string;
       requesterUserId: string;
+      /** Session identity key (profileId:providerId:channel:threadTs). */
+      sessionIdentity?: string;
     },
-  ): Promise<boolean> {
-    // 清理已存在（理论上不会）
-    this.reject(requestId, false);
+  ): Promise<ApprovalScope> {
+    const effectiveIdentity = details.sessionIdentity ??
+      `${details.channel}:${details.threadTs}`;
 
-    return new Promise<boolean>((resolve) => {
+    // P2-6 dedup: check for duplicate pending request for same tool+session
+    const dupKey = `${effectiveIdentity}:${details.toolName}`;
+    for (const [, p] of this.pending) {
+      if (`${p.sessionIdentity}:${p.toolName}` === dupKey) {
+        console.error(
+          `[permission-tracker] duplicate request ${requestId} ` +
+          `(same tool+session as ${p.requestId}), skipping`,
+        );
+        return Promise.resolve("deny");
+      }
+    }
+
+    // Clean up any previous request with the same requestId (shouldn't happen)
+    this.reject(requestId, "deny");
+
+    return new Promise<ApprovalScope>((resolve) => {
       const timer = setTimeout(() => {
         console.error(
           `[permission-tracker] request ${requestId} timed out, auto-denying`,
         );
-        this.reject(requestId, false);
+        this.reject(requestId, "deny");
       }, this.timeoutMs);
 
       this.pending.set(requestId, {
@@ -116,89 +185,124 @@ export class PermissionTracker {
         channel: details.channel,
         threadTs: details.threadTs,
         requesterUserId: details.requesterUserId,
+        sessionIdentity: effectiveIdentity,
         resolve,
         timer,
       });
     });
   }
 
-  /** 处理 Slack block_actions 回调 — 解析 action_value 并 resolve */
+  /**
+   * Handle a Slack block_actions callback.
+   *
+   * action_value format: "${scope}:${requestId}:${requesterUserId}"
+   * where scope is "allow_once" | "allow_session" | "allow_always" | "deny".
+   */
   handleAction(actionValue: string): HandleActionResult {
-    // action_value 格式: "${action}:${requestId}:${requesterUserId}"
-    // userId 固定为最后一段 (Slack ID 不含 ":")，requestId 可为中间多段（含 ":" 时）
-    // 例如: "approve:req_abc123:U0B8VHLHJAX"
-    // 或:   "approve:claude:req:a/b:U0B8VHLHJAX"
     const lastColon = actionValue.lastIndexOf(":");
     if (lastColon === -1) return { handled: false };
     const requesterUserId = actionValue.slice(lastColon + 1);
 
     const firstColon = actionValue.indexOf(":");
     if (firstColon === lastColon) return { handled: false };
-    const action = actionValue.slice(0, firstColon);
+    const scopeRaw = actionValue.slice(0, firstColon);
     const requestId = actionValue.slice(firstColon + 1, lastColon);
+
+    const scope = this.mapScope(scopeRaw);
+    if (!scope) return { handled: false };
 
     const pending = this.pending.get(requestId);
     if (!pending) return { handled: false };
 
-    if (action === "approve") {
-      const handled = this.approve(requestId);
-      return { handled, requesterUserId: pending.requesterUserId, granted: true };
-    } else if (action === "deny") {
-      const handled = this.deny(requestId);
-      return { handled, requesterUserId: pending.requesterUserId, granted: false };
+    // Register auto-approval for session/always scope
+    if (scope === "session" || scope === "always") {
+      // session identity = `${profileId}:${providerId}:${channel}:${threadTs}`
+      // "always" entries use a profile-level key for cross-session reuse
+      const cacheKey = scope === "always"
+        ? `${pending.requesterUserId}:${pending.toolName}`
+        : `${pending.sessionIdentity}:${pending.toolName}`;
+      this.autoApprovals.set(cacheKey, {
+        toolName: pending.toolName,
+        scope,
+        grantedAt: Date.now(),
+      });
     }
-    return { handled: false };
+
+    // Resolve the pending request
+    const handled = this.resolve(requestId, scope);
+    return {
+      handled,
+      requesterUserId: pending.requesterUserId,
+      scope,
+      granted: scope !== "deny",
+    };
   }
 
-  /** 批准指定请求 */
+  /** Resolve a specific request with the given scope. */
+  resolve(requestId: string, scope: ApprovalScope): boolean {
+    const p = this.pending.get(requestId);
+    if (!p) return false;
+    clearTimeout(p.timer);
+    p.resolve(scope);
+    this.pending.delete(requestId);
+    return true;
+  }
+
+  /** Convenience: approve with "once" scope (legacy compat). */
   approve(requestId: string): boolean {
-    return this.reject(requestId, true);
+    return this.resolve(requestId, "once");
   }
 
-  /** 拒绝指定请求 */
+  /** Convenience: deny (legacy compat). */
   deny(requestId: string): boolean {
-    return this.reject(requestId, false);
+    return this.resolve(requestId, "deny");
   }
 
-  /** 获取待审批请求详情（用于构建 Slack 消息） */
+  private reject(requestId: string, scope: ApprovalScope): boolean {
+    const p = this.pending.get(requestId);
+    if (!p) return false;
+    clearTimeout(p.timer);
+    p.resolve(scope);
+    this.pending.delete(requestId);
+    return true;
+  }
+
+  private mapScope(raw: string): ApprovalScope | null {
+    switch (raw) {
+      case "allow_once": return "once";
+      case "allow_session": return "session";
+      case "allow_always": return "always";
+      case "deny": return "deny";
+      // Legacy compat: old format "approve" / "deny"
+      case "approve": return "once";
+      default: return null;
+    }
+  }
+
   getPending(requestId: string): PendingPermission | undefined {
     return this.pending.get(requestId);
   }
 
-  /** 是否有待审批项 */
-  get hasPending(): boolean {
-    return this.pending.size > 0;
-  }
+  get hasPending(): boolean { return this.pending.size > 0; }
+  get pendingCount(): number { return this.pending.size; }
 
-  get pendingCount(): number {
-    return this.pending.size;
-  }
-
-  /** 清理所有待审批项 */
+  /** Clear all pending + auto-approvals. */
   clear(): void {
-    for (const [id, p] of this.pending) {
+    for (const [, p] of this.pending) {
       clearTimeout(p.timer);
-      p.resolve(false);
-      this.pending.delete(id);
+      p.resolve("deny");
     }
-  }
-
-  private reject(requestId: string, granted: boolean): boolean {
-    const p = this.pending.get(requestId);
-    if (!p) return false;
-    clearTimeout(p.timer);
-    p.resolve(granted);
-    this.pending.delete(requestId);
-    return true;
+    this.pending.clear();
+    this.autoApprovals.clear();
   }
 }
 
+// ---- buildApprovalBlocks (4-button Hermes style) -----------------------------
+
 /**
- * 构建审批 Slack 消息的 blocks（interactive message）。
- * 使用 Slack Block Kit 格式。
+ * Build Slack Block Kit approval message with 4 buttons.
  *
- * @param timeoutMs 审批超时毫秒数，用于生成动态超时文案
- * @param requesterUserId 发起审批的 Slack 用户 ID，编码到按钮 value 中用于鉴权
+ * Buttons: ✅ Allow Once | 📋 Allow Session | 🔒 Always Allow | ❌ Deny
  */
 export function buildApprovalBlocks(
   toolName: string,
@@ -212,39 +316,51 @@ export function buildApprovalBlocks(
 
   return [
     {
-      type: "section",
+      type: "section" as const,
       text: {
         type: "mrkdwn",
         text: `:warning: *Claude 请求执行工具* — 需要你的批准`,
       },
     },
     {
-      type: "section",
+      type: "section" as const,
       fields: [
         { type: "mrkdwn", text: `*工具:*\n\`${toolName}\`` },
         { type: "mrkdwn", text: `*请求ID:*\n\`${requestId}\`` },
       ],
     },
     {
-      type: "section",
+      type: "section" as const,
       text: {
         type: "mrkdwn",
         text: `*参数:*\n\`\`\`${inputSummary}\`\`\``,
       },
     },
     {
-      type: "actions",
+      type: "actions" as const,
       block_id: `perm_${requestId}`,
       elements: [
         {
-          type: "button",
-          text: { type: "plain_text", text: "✅ Approve", emoji: true },
+          type: "button" as const,
+          text: { type: "plain_text", text: "✅ Allow Once", emoji: true },
           style: "primary",
-          action_id: "permission_approve",
-          value: `approve:${requestId}:${requesterUserId}`,
+          action_id: "permission_allow_once",
+          value: `allow_once:${requestId}:${requesterUserId}`,
         },
         {
-          type: "button",
+          type: "button" as const,
+          text: { type: "plain_text", text: "📋 Allow Session", emoji: true },
+          action_id: "permission_allow_session",
+          value: `allow_session:${requestId}:${requesterUserId}`,
+        },
+        {
+          type: "button" as const,
+          text: { type: "plain_text", text: "🔒 Always Allow", emoji: true },
+          action_id: "permission_allow_always",
+          value: `allow_always:${requestId}:${requesterUserId}`,
+        },
+        {
+          type: "button" as const,
           text: { type: "plain_text", text: "❌ Deny", emoji: true },
           style: "danger",
           action_id: "permission_deny",
@@ -253,7 +369,7 @@ export function buildApprovalBlocks(
       ],
     },
     {
-      type: "context",
+      type: "context" as const,
       elements: [
         {
           type: "mrkdwn",
