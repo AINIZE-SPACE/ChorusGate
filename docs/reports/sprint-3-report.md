@@ -1,6 +1,6 @@
 # ChorusGate v3 迭代报告 — Sprint 3
 
-> **日期**: 2026-06-13 ~ 2026-06-14
+> **日期**: 2026-06-13 ~ 2026-06-16
 > **分支**: `v3/story-8-claude-stream-json`
 > **目标**: 将 gateway 从单 Claude Code Slack bot 扩展为多 AI agent + 多 channel/app + 多项目的通用协作网关
 

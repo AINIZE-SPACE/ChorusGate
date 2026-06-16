@@ -368,9 +368,12 @@ function onEvent(event: StoredEvent, profileId: string): void {
   }
   inFlight.add(dedupKey);
 
-  const replyThreadTs = event.thread_ts || event.ts;
   const channelType = (event.raw as Record<string, unknown> | undefined)
     ?.channel_type as string | undefined;
+  // DM: reply directly, not in thread. Channel: reply in thread.
+  const replyThreadTs = channelType === "im"
+    ? undefined
+    : (event.thread_ts || event.ts);
 
   const providerId = profileProvider(profileId);
   const id = sessionIdentity(
@@ -424,7 +427,7 @@ async function processEvent(
   event: StoredEvent,
   id: SessionIdentity,
   tKey: string,
-  replyThreadTs: string,
+  replyThreadTs: string | undefined,
   profileId: string,
 ): Promise<void> {
   // ---- busy interrupt check ----
@@ -592,6 +595,27 @@ async function processEvent(
             );
             return scope !== "deny";
           },
+          onTextDelta: (text: string) => {
+            if (placeholderTs) {
+              updatePlaceholder(`💬 ${text.slice(-500)}`);
+            }
+          },
+          onBlockStart: (blockType: string) => {
+            if (placeholderTs) {
+              const label = blockType === "thinking" ? "🧠 思考中…" : "💬 回复中…";
+              updatePlaceholder(label, true);
+            }
+          },
+          onBlockStop: (_blockType: string) => {
+            // block end — next text_delta or tool_use will update the placeholder
+          },
+          onMetrics: (m: { costUsd?: number; inputTokens?: number; outputTokens?: number }) => {
+            console.error(
+              `[gateway] stream metrics: ` +
+              `tokens(in=${m.inputTokens},out=${m.outputTokens}) ` +
+              `cost=${m.costUsd}`,
+            );
+          },
           onPlanUpdate: async (plan) => {
             const planKey = `${event.channel}:${replyThreadTs}`;
             const update = planTracker.updatePlan(planKey, plan.entries);
@@ -628,8 +652,12 @@ async function processEvent(
 
     await stopProgress();
 
+    console.error(
+      `[gateway] reply result: ok=${result.ok} textLen=${result.text?.length || 0} ` +
+      `text=${(result.text || "").slice(0, 80)} error=${result.error || "-"}`,
+    );
+
     if (result.ok) {
-      // Provider-assigned sessionId (Codex thread_id) replaces pre-generated UUID
       if (result.sessionId && result.sessionId !== session.sessionId) {
         sessionStore.setSession(id, result.sessionId);
       }
@@ -642,11 +670,21 @@ async function processEvent(
       ? result.text
       : `:warning: 抱歉，我暂时无法生成回复（${result.error}）。`;
 
+    const displayText = (text && text.trim().length > 10) ? text
+      : planTracker.getPlanMessageTs(`${event.channel}:${replyThreadTs}`)
+        ? "👆 以上为任务进度，最终回复见上方的消息。"
+        : (text || "✅ 完成");
+
+    console.error(
+      `[gateway] posting reply: placeholderTs=${placeholderTs} ` +
+      `displayLen=${displayText.length}`,
+    );
+
     if (placeholderTs) {
       await web.chat.update({
         channel: event.channel,
         ts: placeholderTs,
-        text,
+        text: displayText,
       });
     } else {
       await web.chat.postMessage({

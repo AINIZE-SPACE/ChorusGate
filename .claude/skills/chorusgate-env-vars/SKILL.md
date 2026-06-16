@@ -79,14 +79,17 @@ rg -n "^const [A-Z_]+\\s*=\\s*process\\.env\\." src tests
 src/providers/claude.ts:27          const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude"
 src/providers/claude-stream.ts:44  const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude"
 src/providers/codex.ts:26          const CODEX_BIN  = process.env.CODEX_BIN  || "codex"
+src/providers/codex.ts:48          const MAX_ITERATIONS = process.env.CODEX_MAX_ITERATIONS || "10"
 src/gateway.ts:51                  const CLAUDE_CWD = process.env.GATEWAY_CLAUDE_CWD || process.cwd()
+src/gateway.ts:52                  const REPLY_TIMEOUT_MS = Number(process.env.GATEWAY_REPLY_TIMEOUT_MS || 180_000)
+src/gateway.ts:55                  const REPLY_TIMEOUT_MS_LONG = Number(process.env.GATEWAY_REPLY_TIMEOUT_MS_LONG || REPLY_TIMEOUT_MS * 2)
 src/gateway.ts:73                  const PROGRESS_ENABLED = process.env.GATEWAY_PROGRESS !== "0"
 src/gateway.ts:94                  const STREAM_MODE = process.env.GATEWAY_CLAUDE_MODE === "stream"
 ```
 
-> 注：`gateway.ts:52` 的 `REPLY_TIMEOUT_MS` 顶层 const 仍在，同时 `processEvent` 内有 inline 读，属于 `a4f05c1` partial fix 残留。
+> 注：`gateway.ts:52` 的 `REPLY_TIMEOUT_MS` 顶层 const 仍在，同时 `processEvent` 内有 inline 读（#452），属于 `a4f05c1` partial fix 残留。`REPLY_TIMEOUT_MS_LONG` 还依赖了 `REPLY_TIMEOUT_MS` 顶层 const，会级联失效。
 
-修法：删 const，inline 读，或函数顶部局部 const 共享。`CLAUDE_PERMISSION_MODE` 已按 `1d7f1c1` 模式修，按同样 pattern 处理其余 6 处。
+修法：删 const，inline 读，或函数顶部局部 const 共享。`CLAUDE_PERMISSION_MODE` 已按 `1d7f1c1` 模式修，按同样 pattern 处理其余 7 处。
 
 ## 测试守门
 
@@ -105,4 +108,3 @@ src/gateway.ts:94                  const STREAM_MODE = process.env.GATEWAY_CLAUD
 - #36 [CRITICAL] Slack approval auth check happens after permission resolution（env 早绑定的下游症状之一）
 - #41 [P0] MCP_SENDER_ONLY=1 added in PR #39, violates STORY-9 closure（顶层 const 决策时不读 STORY-9 env）
 - 上一轮提的 5 处 follow-up（CLAUDE_BIN/CODEX_BIN/gateway 三处等）见上“仍存在的反例”表
-

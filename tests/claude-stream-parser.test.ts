@@ -155,3 +155,36 @@ test("ClaudeStreamParser ignores empty and invalid lines", () => {
   assert.equal(parser.init, null);
   assert.equal(parser.getResultText(), "");
 });
+
+// ---- M3: stream_event wrapped events (#85) ---------------------------------
+
+test("ClaudeStreamParser: stream_event unwrapping", () => {
+  const parser = new ClaudeStreamParser();
+  const texts: string[] = [];
+  const thinkings: string[] = [];
+  const blocks: string[] = [];
+  let metrics: Record<string, unknown> | null = null;
+
+  parser.onTextDelta = (t) => texts.push(t);
+  parser.onThinkingDelta = (t) => thinkings.push(t);
+  parser.onBlockStart = (bt) => blocks.push("start:" + bt);
+  parser.onBlockStop = (bt) => blocks.push("stop:" + bt);
+  parser.onMetrics = (m) => { metrics = m as Record<string, unknown>; };
+
+  const lines = readFixtureLines("claude-stream-partial-messages.jsonl");
+  for (const line of lines) parser.feed(line);
+
+  assert.ok(blocks.includes("start:thinking"));
+  assert.ok(thinkings.join("").includes("Let me think"));
+  assert.equal(texts.join(""), "Hello world");
+  assert.ok(metrics);
+  assert.equal(metrics.costUsd, 0.01);
+});
+
+test("ClaudeStreamParser: direct delta still works", () => {
+  const parser = new ClaudeStreamParser();
+  const texts: string[] = [];
+  parser.onTextDelta = (t) => texts.push(t);
+  parser.feed(JSON.stringify({ type: "content_block_delta", delta: { type: "text_delta", text: "x" } }));
+  assert.equal(texts[0], "x");
+});

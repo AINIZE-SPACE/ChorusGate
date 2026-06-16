@@ -145,6 +145,11 @@ export async function generateReplyStream(
     onPermission?: (req: PermissionRequest) => Promise<boolean>;
     /** 任务计划回调: Claude 更新 todo list 时调用 */
     onPlanUpdate?: (plan: PlanUpdate) => void;
+    /** M3 流式增量回调 (#85) */
+    onTextDelta?: (text: string) => void;
+    onBlockStart?: (blockType: string) => void;
+    onBlockStop?: (blockType: string) => void;
+    onMetrics?: (m: { costUsd?: number; inputTokens?: number; outputTokens?: number }) => void;
   } = {}
 ): Promise<ReplyResult> {
   const { createStreamSession } = await import(
@@ -169,7 +174,10 @@ export async function generateReplyStream(
       onProgress: opts.onProgress,
       onSpawn: opts.onSpawn,
       onPlanUpdate: opts.onPlanUpdate,
-      // P1-4 fix: 构造时绑定，消除 spawn 后绑定竞态
+      onTextDelta: opts.onTextDelta,
+      onBlockStart: opts.onBlockStart,
+      onBlockStop: opts.onBlockStop,
+      onMetrics: opts.onMetrics,
       onPermissionRequest: opts.onPermission
         ? async (req) => {
             try {
