@@ -100,7 +100,24 @@ export async function generateReply(
       onProgress: opts.onProgress,
       onSpawn: opts.onSpawn,
     });
-    return { ok: r.ok, text: r.text, error: r.error, sessionId: r.sessionId };
+    if (r.ok) return { ok: true, text: r.text, sessionId: r.sessionId };
+
+    // New session also failed — retry once, then give user a clear message
+    console.error(
+      `[reply-engine] createSession failed (${r.error}), retrying once...`,
+    );
+    const r2 = await provider.createSession(prompt, {
+      cwd,
+      timeoutMs: Math.min(timeoutMs * 2, 900_000),
+      mcpConfigPath: "",
+      permissionMode,
+      botToken: opts.botToken,
+      appToken: opts.appToken,
+      onProgress: opts.onProgress,
+      onSpawn: opts.onSpawn,
+    });
+    if (r2.ok) return { ok: true, text: r2.text, sessionId: r2.sessionId };
+    return { ok: false, text: "", error: r2.error };
   } catch (err) {
     return {
       ok: false,
