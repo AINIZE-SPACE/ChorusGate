@@ -9,7 +9,9 @@
 //   - user (isReplay)              → stdin 回显消息
 //
 // M2: Claude 双向 stream-json 控制面
+// M3: content_block_delta 增量流式 (--include-partial-messages)
 // 跟踪: [#34](https://github.com/AINIZE-SPACE/chorusgate/issues/34)
+//       [#85](https://github.com/AINIZE-SPACE/chorusgate/issues/85)
 // ============================================================
 
 import { ClaudeEventParser } from "./claude-parser.js";
@@ -43,47 +45,62 @@ export class ClaudeStreamParser extends ClaudeEventParser {
   /** 用户消息回显回调（可选） */
   onUserReplay?: (message: unknown) => void;
 
+  // ---- M3: 增量流式回调 (#85) ------------------------------------------------
+  /** 正文增量（逐 token） */
+  onTextDelta?: (text: string) => void;
+  /** Extended Thinking 增量 */
+  onThinkingDelta?: (thinking: string) => void;
+
   private _init: StreamInit | null = null;
   private _permissionRequests: PermissionRequest[] = [];
+  /** 累积的增量文本（不写入父类 assistantText，避免与完整 assistant 重复） */
+  private _streamText = "";
 
-  get init(): StreamInit | null {
-    return this._init;
-  }
-
-  get permissionRequests(): readonly PermissionRequest[] {
-    return this._permissionRequests;
-  }
-
-  /** session_id 便捷访问器（从 init 事件提取） */
-  get sessionId(): string {
-    return this._init?.sessionId || "";
-  }
+  get init(): StreamInit | null { return this._init; }
+  get permissionRequests(): readonly PermissionRequest[] { return this._permissionRequests; }
+  get sessionId(): string { return this._init?.sessionId || ""; }
+  /** 流式累积文本（用于中途展示） */
+  get streamText(): string { return this._streamText; }
 
   feed(line: string): void {
     const t = line.trim();
     if (!t || t[0] !== "{") return;
 
     let evt: Record<string, unknown>;
-    try {
-      evt = JSON.parse(t);
-    } catch {
-      return;
-    }
+    try { evt = JSON.parse(t); } catch { return; }
 
     const type = evt.type as string | undefined;
+
+    // M3: content_block_delta events (#85)
+    if (type === "content_block_delta") {
+      this._handleDelta(evt);
+      return;
+    }
 
     if (type === "system") {
       this._handleSystem(evt);
     } else if (type === "user") {
       this._handleUser(evt);
     } else {
-      // 委托给父类处理 assistant / result
       super.feed(line);
-      // result 事件到达 → 通知 caller 关闭 stdin
-      if (evt.type === "result") {
-        this.onResult?.();
-      }
+      if (evt.type === "result") this.onResult?.();
     }
+  }
+
+  // ---- M3 delta handler ------------------------------------------------------
+
+  private _handleDelta(evt: Record<string, unknown>): void {
+    const delta = evt.delta as Record<string, unknown> | undefined;
+    if (!delta) return;
+    const deltaType = delta.type as string | undefined;
+
+    if (deltaType === "text_delta" && typeof delta.text === "string") {
+      this._streamText += delta.text;
+      this.onTextDelta?.(delta.text);
+    } else if (deltaType === "thinking_delta" && typeof delta.thinking === "string") {
+      this.onThinkingDelta?.(delta.thinking);
+    }
+    // input_json_delta: 工具参数片段，暂不推送（内容敏感）
   }
 
   private _handleSystem(evt: Record<string, unknown>): void {

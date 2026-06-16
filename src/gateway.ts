@@ -592,6 +592,12 @@ async function processEvent(
             );
             return scope !== "deny";
           },
+          onTextDelta: (text: string) => {
+            // M3: 逐 token 更新 Slack 占位消息 (#85)
+            if (placeholderTs) {
+              updatePlaceholder(`💬 ${text.slice(-500)}`, true);
+            }
+          },
           onPlanUpdate: async (plan) => {
             const planKey = `${event.channel}:${replyThreadTs}`;
             const update = planTracker.updatePlan(planKey, plan.entries);

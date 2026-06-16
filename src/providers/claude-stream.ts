@@ -43,6 +43,24 @@ import type {
 
 const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
 
+/** Build shared args for claude -p stream-json mode. */
+function buildStreamArgs(sessionFlag: "--session-id" | "--resume", sessionId: string): string[] {
+  const args = [
+    "-p",
+    "--input-format", "stream-json",
+    "--output-format", "stream-json",
+    "--verbose",
+    "--replay-user-messages",
+    "--permission-mode", process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
+    sessionFlag, sessionId,
+  ];
+  // M3: opt-in token-level streaming (#85)
+  if (process.env.CLAUDE_STREAM_PARTIAL === "true") {
+    args.splice(args.indexOf("--verbose") + 1, 0, "--include-partial-messages");
+  }
+  return args;
+}
+
 // ---- spawn helper ------------------------------------------------------------
 
 interface StreamSpawnResult {
@@ -158,20 +176,10 @@ export const claudeStreamProvider: AgentProvider = {
     // Even if opts.sessionId is truthy (from sessionStore), use --session-id.
     const sessionId = opts.sessionId || crypto.randomUUID();
     const env = buildSpawnEnv(opts);
-    const args = [
-      "-p",
-      "--input-format", "stream-json",
-      "--output-format", "stream-json",
-      "--verbose",
-      "--replay-user-messages",
-      "--permission-mode", process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
-      "--session-id", sessionId,
-    ];
-
+    const args = buildStreamArgs("--session-id", sessionId);
     const parser = new ClaudeStreamParser();
     parser.onProgress = opts.onProgress;
     parser.onSessionId = opts.onSessionId;
-
     const sr = spawnStream(args, opts.cwd, parser, env, opts.onSpawn);
 
     // Send user prompt on stdin (keep pipe open for future approve/deny)
@@ -197,19 +205,9 @@ export const claudeStreamProvider: AgentProvider = {
     opts: ResumeSessionOptions,
   ): Promise<SessionOutput> {
     const env = buildSpawnEnv(opts);
-    const args = [
-      "-p",
-      "--input-format", "stream-json",
-      "--output-format", "stream-json",
-      "--verbose",
-      "--replay-user-messages",
-      "--permission-mode", process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
-      "--resume", sessionId,
-    ];
-
+    const args = buildStreamArgs("--resume", sessionId);
     const parser = new ClaudeStreamParser();
     parser.onProgress = opts.onProgress;
-
     const sr = spawnStream(args, opts.cwd, parser, env, opts.onSpawn);
 
     const userMsg = JSON.stringify({
@@ -276,6 +274,9 @@ export function createStreamSession(
     onPermissionRequest?: (req: import("./claude-stream-parser.js").PermissionRequest) => void;
     /** 任务计划回调 (构造时绑定) */
     onPlanUpdate?: (plan: import("./claude-parser.js").PlanUpdate) => void;
+    /** M3 流式增量回调 (#85) */
+    onTextDelta?: (text: string) => void;
+    onThinkingDelta?: (thinking: string) => void;
     /** 续接已有 session (true) vs 新 session (false) */
     resume?: boolean;
   },
@@ -284,27 +285,23 @@ export function createStreamSession(
   const sessionId = opts.sessionId || crypto.randomUUID();
   const isResume = !!opts.resume;
   const env = buildSpawnEnv(opts);
-  const args = [
-    "-p",
-    "--input-format", "stream-json",
-    "--output-format", "stream-json",
-    "--verbose",
-    "--replay-user-messages",
-    "--permission-mode", process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions",
+  const args = buildStreamArgs(
     isResume ? "--resume" : "--session-id", sessionId,
-  ];
+  );
 
   const parser = new ClaudeStreamParser();
   parser.onProgress = opts.onProgress;
   parser.onSessionId = opts.onSessionId;
-  // P1-4 fix: 在 spawn 前绑定回调，消除竞态
   if (opts.onPermissionRequest) {
     parser.onPermissionRequest = opts.onPermissionRequest;
   }
   if (opts.onPlanUpdate) {
     parser.onPlanUpdate = opts.onPlanUpdate;
   }
-  // result 事件到达 → 关闭 stdin 让 Claude 退出（否则永远等待 stdin）
+  // M3: 流式增量回调 (#85)
+  if (opts.onTextDelta) parser.onTextDelta = opts.onTextDelta;
+  if (opts.onThinkingDelta) parser.onThinkingDelta = opts.onThinkingDelta;
+  // result → close stdin
   parser.onResult = () => {
     if (!sr.settled) {
       try { sr.child.stdin?.end(); } catch { /* ignore */ }
