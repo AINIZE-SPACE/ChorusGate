@@ -113,8 +113,11 @@ export class ClaudeStreamParser extends ClaudeEventParser {
     } else if (type === "user") {
       this._handleUser(evt);
     } else {
-      super.feed(rawLine);
-      if (evt.type === "result") {
+      // Feed the inner event as JSON so parent parser sees type=assistant/result
+      // (not the raw stream_event wrapper line which parent can't parse)
+      super.feed(JSON.stringify(evt));
+      if (type === "result") {
+        console.error("[stream-parser] RESULT detected — closing stdin");
         const u = evt.usage as Record<string, unknown> | undefined;
         if (u || typeof evt.total_cost_usd === "number") {
           this.onMetrics?.({
