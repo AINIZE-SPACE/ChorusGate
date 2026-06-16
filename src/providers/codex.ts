@@ -29,14 +29,31 @@ const CODEX_BIN = process.env.CODEX_BIN || "codex";
  * Shared flags for headless, non-interactive Codex execution.
  *
  * VERIFIED against codex 0.139.0 via scripts/verify-codex-cli.mjs.
- * --search and --no-alt-screen are GLOBAL flags, NOT supported by `codex exec`.
  * Add new flags ONLY after testing with: node scripts/verify-codex-cli.mjs
+ *
+ * Approval mode:
+ * - GATEWAY_INTERACTIVE_PERMISSIONS=1 → --ask-for-approval=on-request
+ *   (Codex manages its own approval; gateway approval infrastructure is
+ *    separate from Codex — see #84 for unified design)
+ * - default → --dangerously-bypass-approvals-and-sandbox (headless)
  */
-const HEADLESS_FLAGS = [
-  "--json",
-  "--skip-git-repo-check",
-  "--dangerously-bypass-approvals-and-sandbox",
-];
+function getApprovalFlag(): string {
+  const interactive =
+    process.env.GATEWAY_INTERACTIVE_PERMISSIONS === "1" &&
+    process.env.CLAUDE_PERMISSION_MODE !== "bypassPermissions";
+  return interactive
+    ? "--ask-for-approval=on-request"
+    : "--dangerously-bypass-approvals-and-sandbox";
+}
+
+/** Build headless flags with correct approval mode. */
+function buildHeadlessFlags(): string[] {
+  return [
+    "--json",
+    "--skip-git-repo-check",
+    getApprovalFlag(),
+  ];
+}
 
 /** Max iterations to prevent infinite loops (configurable via env). */
 const MAX_ITERATIONS = process.env.CODEX_MAX_ITERATIONS || "10";
@@ -54,7 +71,7 @@ function spawnCodex(
     // Exec flags (--cd only for new sessions, not resume)
     const execFlags = [
       "-c", `max_iterations=${MAX_ITERATIONS}`,
-      ...HEADLESS_FLAGS,
+      ...buildHeadlessFlags(),
     ];
     const allArgs = [...positionalArgs, ...execFlags];
 
