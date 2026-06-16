@@ -1,14 +1,3 @@
-<<<<<<< HEAD
-[mcp_servers.chorusgate]
-command = "chorusgate-mcp"
-env_vars = [
-    "SLACK_BOT_TOKEN",
-    "SLACK_APP_TOKEN",
-]
-
-[mcp_servers.chorusgate.env]
-MCP_SENDER_ONLY = "1"
-=======
 # Codex Gateway 配置参考
 # 文件: ~/.codex/config.toml (用户级) 或 <project>/.codex/config.toml (项目级)
 # Gateway spawn codex exec 时可通过 -c key=value 覆盖任意配置
@@ -56,4 +45,3 @@ env_vars = [
 # ---- Shell 环境策略 ----------------------------------------------------------
 # [shell_environment_policy]
 # inherit = "all"             # all | none | selective
->>>>>>> 074f01df880c5c7457e226da64a255058d3ee07e
