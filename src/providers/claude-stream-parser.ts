@@ -76,13 +76,21 @@ export class ClaudeStreamParser extends ClaudeEventParser {
     let evt: Record<string, unknown>;
     try { evt = JSON.parse(t); } catch { return; }
 
-    const type = evt.type as string | undefined;
-    const subtype = (evt as Record<string, unknown>).subtype as string | undefined;
-    // Diagnostic: log every event type so we can see what Claude emits
-    const preview = t.length > 120 ? t.slice(0, 120) + "…" : t;
-    console.error(`[stream-parser] EVENT: ${type}${subtype ? "/" + subtype : ""} | ${preview}`);
+    // M3: --include-partial-messages wraps events inside stream_event
+    if (evt.type === "stream_event") {
+      const inner = evt.event as Record<string, unknown> | undefined;
+      if (inner) this._routeEvent(inner, t, "stream_event.");
+      return;
+    }
 
-    // M3: content_block events (#85)
+    // Direct events (without --include-partial-messages)
+    this._routeEvent(evt, t, "");
+  }
+
+  /** Route an event (top-level or unwrapped from stream_event). */
+  private _routeEvent(evt: Record<string, unknown>, rawLine: string, _prefix: string): void {
+    const type = evt.type as string | undefined;
+
     if (type === "content_block_start") {
       const cb = evt.content_block as Record<string, unknown> | undefined;
       const bt = (cb?.type as string) || "";
@@ -105,9 +113,8 @@ export class ClaudeStreamParser extends ClaudeEventParser {
     } else if (type === "user") {
       this._handleUser(evt);
     } else {
-      super.feed(line);
+      super.feed(rawLine);
       if (evt.type === "result") {
-        // M3: extract metrics from result
         const u = evt.usage as Record<string, unknown> | undefined;
         if (u || typeof evt.total_cost_usd === "number") {
           this.onMetrics?.({
