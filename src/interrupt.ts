@@ -14,12 +14,13 @@
 import type { ChildProcess } from "node:child_process";
 import { getWebClient } from "./slack-clients.js";
 
-// ---- config ------------------------------------------------------------------
+// ---- config — read at call time to pick up .env loaded by bootstrap() ---------
 
-const BUSY_MODE =
-  (process.env.GATEWAY_BUSY_MODE || "interrupt").toLowerCase() as
+function getBusyMode(): "interrupt" | "queue" {
+  return (process.env.GATEWAY_BUSY_MODE || "interrupt").toLowerCase() as
     | "interrupt"
     | "queue";
+}
 
 /** Test seam: override the web-client getter (used by tests/interrupt.test.ts). */
 let webClientOverride: (() => ReturnType<typeof getWebClient>) | null = null;
@@ -70,7 +71,7 @@ export class InterruptManager {
     const child = this.running.get(key);
     if (!child) return true; // no running process — proceed
 
-    if (BUSY_MODE === "queue") {
+    if (getBusyMode() === "queue") {
       // Queue mode: send ack, then wait for the current task to finish.
       // When the child exits, return true so the gateway proceeds normally.
       await this.sendBusyAck(channel, threadTs, "queue");

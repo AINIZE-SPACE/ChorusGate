@@ -24,8 +24,6 @@ import type {
   SessionOutput,
 } from "./types.js";
 
-const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
-
 // ---- spawn helper ------------------------------------------------------------
 
 function spawnClaude(
@@ -33,10 +31,9 @@ function spawnClaude(
   prompt: string,
   opts: CreateSessionOptions,
   parser: ClaudeEventParser,
-  env?: Record<string, string | undefined>,
 ): Promise<SessionOutput> {
   return new Promise<SessionOutput>((resolve) => {
-    const { cmd, spawnArgs } = buildSpawnCommand(CLAUDE_BIN, args);
+    const { cmd, spawnArgs } = buildSpawnCommand(process.env.CLAUDE_BIN || "claude", args);
     const env = buildSpawnEnv(opts);
     const spawnOpts = buildSpawnOptions(opts.cwd, env);
 
@@ -75,7 +72,7 @@ function spawnClaude(
 
 export const claudeProvider: AgentProvider = {
   id: "claude",
-  bin: CLAUDE_BIN,
+  get bin() { return process.env.CLAUDE_BIN || "claude"; },
 
   async createSession(
     prompt: string,

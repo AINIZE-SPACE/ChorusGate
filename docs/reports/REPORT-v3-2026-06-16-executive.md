@@ -247,7 +247,7 @@ ChorusGate v3 迭代由一个碳基核心 + 三个硅基数字员工组成，所
 迭代目标由 Z 通过 Slack DM 下发给 K，后续设计环、开发环、发布回顾环串行推进；各环之间通过独立的 Slack 频道通知节点衔接，GitHub Repo 仅作为 issues / PRs 的 artifact 库，不是流程节点。
 
 ```mermaid
-flowchart LR
+flowchart TD
     %% === 样式定义区 ===
     classDef actor     fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#0d47a1
     classDef system    fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#bf360c
@@ -261,71 +261,73 @@ flowchart LR
     classDef highlight fill:#fff9c4,stroke:#f57f17,stroke-width:3px,color:#e65100
 
     %% === 阶段背景色 ===
-    style 设计规划环 fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
-    style 开发环 fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    style 测试验证环 fill:#fffde7,stroke:#f9a825,stroke-width:2px
-    style 集成发布环 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style D fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style P fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style T fill:#fffde7,stroke:#f9a825,stroke-width:2px
+    style I fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
 
-    Z(["🛡️ Z / delez / Zederer（老乐）<br>目标下发 & 设计验收 & 最终验收"]):::actor
-    K("🤖 K / 小克 / Claude Code<br>开发"):::system
-    M("🤖 M / 小马 / Hermes<br>测试"):::system
-    C("🤖 C / 小查 / 小扣 / Codex<br>管理整合"):::system
-    S[("📢 <#C0BAB3Y7LLC><br>Slack 迭代协作频道")]:::database
-    DM[("💬 Slack DM<br>Z → K")]:::database
-    Git[("🗄️ GitHub Repo")]:::database
+    subgraph Actor
+        direction LR
+        Z(["🛡️ 老乐 / Zederer <br>指挥吏"]):::actor
+        K("🤖 小克 / Claude Code<br>设计与开发"):::system
+        M("🤖 小马 / Hermes<br>测试与评审"):::system
+        C("🤖 小查 / 小扣 / Codex<br>整体管理"):::system
+    end
+    subgraph Slack
+        direction LR
+        SC[("📢 Slack Chnanel 协作频道")]:::database
+        DM[("💬 Slack DM")]:::database
+    end
+    subgraph GitHub
+        direction LR
+        GR[("🗄️ GitHub Repo")]:::database
+        GI[("🗄️ GitHub Issues")]:::database
+    end
 
-    Z -->|下发任务 goal| DM
-    DM --> K
+    Z -.-> N[/"📣下发迭代Goal"/]:::async
 
-    subgraph 设计规划环
-        direction TB
-        D1["➡️ 调研需求、分析产品方案"]:::process --> D2["➡️ 输出产品方案"]:::process
-        D2 --> D3["➡️ 编写任务 issues<br>feature / epic"]:::process
+    subgraph D[设计规划环]
+        direction LR
+        D1["➡️ 需求调研分析"]:::process --> D2["➡️ 产品方案"]:::process
+        D2 --> D3["➡️ 编写需求跟踪单 issues<br>feature / epic"]:::process
         D3 --> D4["➡️ 提请验收"]:::process
-        D4 --> D5{"❓ 设计验收通过?"}:::decision
-        D5 -->|驳回修改| D1
+        D4 --> D5{"❓ 产品需求评审"}:::decision 
+        D5 -->|需求基线|D6[提需求单]:::process
+        D5 -->|优化产品方案| D1
     end
 
-    K --> D1
-    D5 -->|通过| N1[/📣 Slack 通知消息<br>进入开发环/]:::async
-    N1 -.-> S
+    N --> D
+    D6 --> N1[/"📣通知开发"/]:::async
 
-    subgraph 开发环
-        direction TB
-        P1["➡️ 取 issues 开始开发"]:::process --> P2["➡️ 编写 spec 技术方案开发计划"]:::process
-        P2 --> P3["➡️ 代码实现单元测试与自测"]:::process
-        P3 --> P4["➡️ 提交代码/推送至功能分支并创建 PR 草稿"]:::process
+    subgraph P[开发环]
+        direction LR
+        P0[创建迭代分支]:::async --> P1["➡️ 取一张需求或问题单"]:::process 
+        P1 --> P2["➡️ 编写技术方案"]:::process
+        P2 --> P3["➡️ 代码实现"]:::process --> P4["➡️ 单元测试"]:::process
+        P4 --> P5["➡️ 提交代码"]:::process
     end
+    N1 --> P
+    P5 --> N3[/"📣通知测试"/]:::async --> T
 
-    N1 --> P1
-    P4 --> P5
-
-    subgraph 测试验证环
-        direction TB
-        P5["➡️ 执行系统测试提交 bug 待修复"]:::process --> P6{"❓ 需求测试通过?"}:::decision
-        P6 -->|不通过| P7["➡️ 代码评审修订改进"]:::process
-        P7 --> P5
-        P6 -->|通过| P8["➡️ 创建提交合并 PR"]:::process
+    subgraph T[测试验证环]
+        direction LR
+        T1["➡️ 取需求或问题单"]:::process --> T2["➡️ 获取代码"]:::process 
+        T2 --> R1[代码评审]:::process
+        T2 --> T3["➡️ 测试方案、策略、用例"]:::process --> T5["➡️ 测试脚本、执行"]:::process
+        T6 --> T7{"❓ 测试通过?"}:::decision
+        R1 --> T7
+        T7 -->|不通过| T8["➡️ 提单跟踪"]:::process
+        T7 -->|通过| T9["➡️ 关闭需求和问题单"]:::process --> T10["➡️ 测试报告"]:::process
     end
+    T8 -.-> N4[/"📣通知开发"/]:::async -.-> P
 
-    P8 --> P9
-
-    subgraph 集成发布环
-        direction TB
-        P9{"❓ 评审验收通过?"}:::decision -->|驳回修改| P1
-        P9 -->|验收通过| N2[/📣 Slack 通知消息<br>开发完成待发布/]:::async
-        N2 --> R1["➡️ 合并发布"]:::process
-        R1 --> R2["➡️ 回顾总结"]:::process
-        R2 --> R3["➡️ 文档整理归档发布"]:::process
-        R3 --> R4["➡️ 合并 PR 至 main 分支发布"]:::process
+    subgraph I[集成发布环]
+        direction LR
+        I1[/📣 Slack 通知消息<br>开发完成待发布/]:::async
+        I1 --> I2["➡️ 合并发布"]:::process --> I3["➡️ 回顾总结"]:::process --> I4["➡️ 文档整理归档发布"]:::process --> I5["➡️ 合并 PR 至 main 分支发布"]:::process
     end
-
-    N2 -.-> S
-
-    D3 -.->|创建 issues| Git
-    P1 -.->|拉取 issue| Git
-    P8 -.->|提交 PR| Git
-    R4 -.->|合并 PR| Git
+    Z -.-> N5[/"📣通知发布"/]:::async -.-> I
+    T -..-> I
 ```
 
 **设计规划环**
