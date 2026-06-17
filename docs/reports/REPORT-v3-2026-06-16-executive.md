@@ -248,60 +248,61 @@ ChorusGate v3 迭代由一个碳基核心 + 三个硅基数字员工组成，所
 
 ```mermaid
 flowchart LR
-    Z["Z / delez / Zederer（老乐）<br>目标下发 & 设计验收 & 最终验收"]
-    K["K / 小克 / Claude Code<br>开发"]
-    M["M / 小马 / Hermes<br>测试"]
-    C["C / 小查 / 小扣 / Codex<br>管理整合"]
-    S["<#C0BAB3Y7LLC><br>Slack 迭代协作频道"]
-    DM["Slack DM<br>Z → K"]
+    Z["Z / delez / Zederer????<br>???? & ???? & ????"]
+    K["K / ?? / Claude Code<br>??"]
+    M["M / ?? / Hermes<br>??"]
+    C["C / ?? / ?? / Codex<br>????"]
+    S[("<#C0BAB3Y7LLC><br>Slack ??????")]
+    DM[("Slack DM")]
     Git[(GitHub Repo)]
 
-    Z -->|下发迭代 goal| DM
+    Z -->|???? goal| DM
     DM --> K
 
-    subgraph 设计环
+    subgraph ???
         direction TB
-        D1["K 调研需求、分析产品方案"] --> D2["K @M 评审产品方案"]
-        D2 --> D3["M @C 规划落地 GitHub issues<br>feature / epic"]
-        D3 --> D4["C @Z 验收"]
-        D4 --> D5{设计验收通过?}
-        D5 -->|补充要求| D1
+        D1["???????????"] --> D2["??????"]
+        D2 --> D3["???? issues<br>feature / epic"]
+        D3 --> D4["????"]
+        D4 --> D5{???????}
+        D5 -->|????| D1
     end
 
     K --> D1
-    D5 -->|通过| N1["Slack 频道通知<br>进入开发环"]
+    D5 -->|??| N1["Slack ????<br>?????"]
     N1 -.-> S
 
-    subgraph 开发环
+    subgraph ???
         direction TB
-        P1["K 从 issues 认领需求"] --> P2["K 设计 spec、开发、单元测试"]
-        P2 --> P3["K @M 评审代码与需求方案对齐"]
-        P3 --> P4["M 制定集成/系统测试方案策略、用例、脚本"]
-        P4 --> P5["M 运行脚本，持续提 bug 并 @K 修复"]
-        P5 --> P6{需求测试通过?}
-        P6 -->|未通过| P2
-        P6 -->|通过| P7["M 输出需求测试报告"]
-        P7 --> P8["M @C 评审发布特性 PR"]
+        P1["? issues ????"] --> P2["?? spec????????"]
+        P2 --> P3["???????????"]
+        P3 --> P4["????/??????????????"]
+        P4 --> P5["???????? bug ???"]
+        P5 --> P6{???????}
+        P6 -->|???| P2
+        P6 -->|??| P7["????????"]
+        P7 --> P8["?????? PR"]
+        P8 --> P9{???????}
+        P9 -->|????| P1
+        P9 -->|????| N2["Slack ????<br>???????"]
     end
 
     N1 --> P1
-    P8 -->|进入下一需求| P1
-    P8 -->|全部需求完成| N2["Slack 频道通知<br>进入发布回顾环"]
     N2 -.-> S
 
-    subgraph 发布回顾环
+    subgraph ?????
         direction TB
-        R1["Z 牵头迭代回顾"] --> R2["各方补充回顾"]
-        R2 --> R3["C 输出产品迭代报告"]
-        R3 --> R4["C 发起 PR 到 main 完成发布"]
+        R1["????"] --> R2["????"]
+        R2 --> R3["????????"]
+        R3 --> R4["?? PR ? main ????"]
     end
 
     N2 --> R1
 
-    D3 -.->|落地 issues| Git
-    P1 -.->|认领 issue| Git
-    P8 -.->|发布 PR| Git
-    R4 -.->|合并 PR| Git
+    D3 -.->|?? issues| Git
+    P1 -.->|?? issue| Git
+    P8 -.->|?? PR| Git
+    R4 -.->|?? PR| Git
 ```
 
 **设计环**
