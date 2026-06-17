@@ -164,7 +164,7 @@ function spawnCodex(
 
 export const codexProvider: AgentProvider = {
   id: "codex",
-  bin: process.env.CODEX_BIN || "codex",
+  get bin() { return process.env.CODEX_BIN || "codex"; },
 
   /** Generate a TOML MCP config for Codex (STORY-7). */
   generateMCPConfig(botToken?: string, appToken?: string): string {

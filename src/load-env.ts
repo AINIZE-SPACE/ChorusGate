@@ -13,16 +13,41 @@
 // ============================================================
 
 import { parse as parseDotEnv } from "dotenv";
-import { dirname, resolve } from "node:path";
+import { dirname, resolve, join, parse as parsePath } from "node:path";
 import { homedir } from "node:os";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+
+/**
+ * Walk upward from `startDir` until we find a directory containing
+ * `package.json` or `.git`, then return that directory as the project root.
+ * Falls back to `startDir` if neither marker is found (e.g. running from
+ * a temp directory).
+ *
+ * This prevents `loadEnv` from reading a `.env` belonging to an adjacent
+ * project in a monorepo or a parent directory that happens to have one.
+ */
+function findProjectRoot(startDir: string): string {
+  let dir = resolve(startDir);
+  const root = parsePath(dir).root; // filesystem root (e.g. "C:\\" or "/")
+
+  while (dir !== root) {
+    if (existsSync(join(dir, "package.json")) || existsSync(join(dir, ".git"))) {
+      return dir;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break; // reached filesystem root
+    dir = parent;
+  }
+  // Fallback: use the original cwd
+  return resolve(startDir);
+}
 
 // NOTE: __dirname is compile-time and points to the installed package
 // location (e.g. AppData/Roaming/npm/node_modules/chorusgate/src). For a CLI
-// invoked from a project directory, project root MUST be runtime cwd so that
-// PROJECT_ENV_PATH resolves to the correct project, not the npm install dir.
-const projectRoot = process.cwd();
+// invoked from a project directory, project root MUST be the actual project
+// root (found via package.json/.git), not the npm install dir.
+const projectRoot = findProjectRoot(process.cwd());
 
 /** Path to the global .env under the user's home .gateway directory. */
 export const GLOBAL_ENV_PATH = resolve(homedir(), ".gateway", ".env");

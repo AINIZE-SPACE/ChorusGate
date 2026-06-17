@@ -1,6 +1,6 @@
 # ChorusGate Planning Tracking
 
-Status: planning index
+Status: planning index | 当前迭代: [迭代 4](./iteration-4-scope.md)
 
 This file maps the next-version planning docs to GitHub issues.
 
