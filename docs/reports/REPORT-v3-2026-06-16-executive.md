@@ -260,6 +260,12 @@ flowchart LR
     classDef async     fill:#e0f7fa,stroke:#00838f,stroke-width:2px,color:#006064,stroke-dasharray:5 5
     classDef highlight fill:#fff9c4,stroke:#f57f17,stroke-width:3px,color:#e65100
 
+    %% === 阶段背景色 ===
+    style 设计规划环 fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style 开发环 fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style 测试验证环 fill:#fffde7,stroke:#f9a825,stroke-width:2px
+    style 集成发布环 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+
     Z(["🛡️ Z / delez / Zederer（老乐）<br>目标下发 & 设计验收 & 最终验收"]):::actor
     K("🤖 K / 小克 / Claude Code<br>开发"):::system
     M("🤖 M / 小马 / Hermes<br>测试"):::system
@@ -271,7 +277,7 @@ flowchart LR
     Z -->|下发任务 goal| DM
     DM --> K
 
-    subgraph 设计环
+    subgraph 设计规划环
         direction TB
         D1["➡️ 调研需求、分析产品方案"]:::process --> D2["➡️ 输出产品方案"]:::process
         D2 --> D3["➡️ 编写任务 issues<br>feature / epic"]:::process
@@ -289,27 +295,32 @@ flowchart LR
         P1["➡️ 取 issues 开始开发"]:::process --> P2["➡️ 编写 spec 技术方案开发计划"]:::process
         P2 --> P3["➡️ 代码实现单元测试与自测"]:::process
         P3 --> P4["➡️ 提交代码/推送至功能分支并创建 PR 草稿"]:::process
-        P4 --> P5["➡️ 执行系统测试提交 bug 待修复"]:::process
-        P5 --> P6{"❓ 需求测试通过?"}:::decision
-        P6 -->|不通过| P2
-        P6 -->|通过| P7["➡️ 代码评审修订改进"]:::process
-        P7 --> P8["➡️ 创建提交合并 PR"]:::process
-        P8 --> P9{"❓ 评审验收通过?"}:::decision
-        P9 -->|驳回修改| P1
-        P9 -->|验收通过| N2[/📣 Slack 通知消息<br>开发完成待发布/]:::async
     end
 
     N1 --> P1
-    N2 -.-> S
+    P4 --> P5
 
-    subgraph 发布回顾环
+    subgraph 测试验证环
         direction TB
-        R1["➡️ 合并发布"]:::process --> R2["➡️ 回顾总结"]:::process
+        P5["➡️ 执行系统测试提交 bug 待修复"]:::process --> P6{"❓ 需求测试通过?"}:::decision
+        P6 -->|不通过| P7["➡️ 代码评审修订改进"]:::process
+        P7 --> P5
+        P6 -->|通过| P8["➡️ 创建提交合并 PR"]:::process
+    end
+
+    P8 --> P9
+
+    subgraph 集成发布环
+        direction TB
+        P9{"❓ 评审验收通过?"}:::decision -->|驳回修改| P1
+        P9 -->|验收通过| N2[/📣 Slack 通知消息<br>开发完成待发布/]:::async
+        N2 --> R1["➡️ 合并发布"]:::process
+        R1 --> R2["➡️ 回顾总结"]:::process
         R2 --> R3["➡️ 文档整理归档发布"]:::process
         R3 --> R4["➡️ 合并 PR 至 main 分支发布"]:::process
     end
 
-    N2 --> R1
+    N2 -.-> S
 
     D3 -.->|创建 issues| Git
     P1 -.->|拉取 issue| Git
@@ -317,7 +328,7 @@ flowchart LR
     R4 -.->|合并 PR| Git
 ```
 
-**设计环**
+**设计规划环**
 1. Z 通过 Slack DM 向 K 下发本次迭代目标（goal）。
 2. K 调研需求并输出产品方案，完成后在频道 `@M` 提请评审。
 3. M 评审产品方案，通过后 `@C` 将目标拆分为可落地的 GitHub issues（feature / epic）。
@@ -325,16 +336,17 @@ flowchart LR
 5. **判断结束节点**：若 Z 提出补充要求，则回到第 2 步再次循环；若验收通过，由独立通知节点向 Slack 频道发送消息，宣布进入开发环。
 
 **开发环**
-1. K 从 GitHub issues 中认领一个需求，完成 spec 方案设计、代码开发与单元测试。
-2. K 在频道 `@M` 提请代码评审，确保需求、方案、代码三者对齐。
-3. M 评审通过后，制定集成/系统测试方案、策略、用例与脚本，并运行测试。
-4. 测试过程中 M 持续在 GitHub 提单并 `@K` 修复。
-5. **判断结束节点**：若测试未通过，回到第 2 步继续修复/评审；若通过，M 输出需求测试报告。
-6. M `@C` 评审发布特性 PR，评审通过后：
-   - 若仍有未开发需求，由独立通知节点向 Slack 频道发送消息，进入下一需求开发；
-   - 若全部需求完成，由独立通知节点向 Slack 频道发送消息，进入发布回顾环。
+1. K 从 GitHub issues 认领需求，完成 spec、代码开发与单元测试。
+2. K 提交代码/推送功能分支并创建 PR 草稿。
+3. 完成后由异步通知节点驱动进入测试验证环。
 
-**发布回顾环**
+**测试验证环**
+1. M 对 PR 草稿进行代码评审，确保需求/方案/代码三者对齐。
+2. M 制定并执行集成/系统测试方案、用例与脚本，持续提 bug 并驱动 K 修复。
+3. **判断结束节点**：若测试不通过，回到代码评审/修复；若通过，创建并提交合并 PR。
+4. C/M 评审发布特性 PR，**判断结束节点**：若驳回，回到开发环重新开发；若验收通过，由异步通知节点在 Slack 频道宣布进入集成发布环。
+
+**集成发布环**
 1. 全部需求开发测试完成后，Z 在频道发起用户验收与迭代回顾。
 2. 各方在频道补充回顾内容；C 整理并输出产品迭代报告。
 3. C 将迭代报告与最终代码通过 PR 合并到 `main` 分支，并在频道通知完成发布。
