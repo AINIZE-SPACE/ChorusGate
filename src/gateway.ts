@@ -229,12 +229,20 @@ const waiters: Array<() => void> = [];
 
 // ---- concurrency ------------------------------------------------------------
 
+/** Parse GATEWAY_MAX_CONCURRENT — single source of truth, read at call time. */
+function getMaxConcurrent(): number {
+  const r = Number(process.env.GATEWAY_MAX_CONCURRENT || 3);
+  return Number.isFinite(r) && r > 0 ? Math.floor(r) : 3;
+}
+
+/** Check if interactive permission flow is enabled — read at call time. */
+function isInteractivePermissionsEnabled(): boolean {
+  return process.env.GATEWAY_INTERACTIVE_PERMISSIONS !== "0" &&
+    (process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions") !== "bypassPermissions";
+}
+
 function acquireSlot(): Promise<void> {
-  const maxConcurrentRaw = Number(process.env.GATEWAY_MAX_CONCURRENT || 3);
-  const MAX_CONCURRENT =
-    Number.isFinite(maxConcurrentRaw) && maxConcurrentRaw > 0
-      ? Math.floor(maxConcurrentRaw)
-      : 3;
+  const MAX_CONCURRENT = getMaxConcurrent();
   if (running < MAX_CONCURRENT) {
     running += 1;
     return Promise.resolve();
@@ -407,9 +415,9 @@ async function processEvent(
   const isResume = sessionStore.getOrCreate(id).started;
   // 动态读取 process.env 而非模块常量——ESM 导入链中可能有模块
   // 在 bootstrap()/loadEnv() 之前已读取默认值 180000。
-  const _replyTimeoutMs = Number(process.env.GATEWAY_REPLY_TIMEOUT_MS || 180_000);
-  const _replyTimeoutMsLong = Number(process.env.GATEWAY_REPLY_TIMEOUT_MS_LONG || _replyTimeoutMs * 2);
-  const timeoutMs = isResume ? _replyTimeoutMsLong : _replyTimeoutMs;
+  const replyTimeoutMs = Number(process.env.GATEWAY_REPLY_TIMEOUT_MS || 180_000);
+  const replyTimeoutMsLong = Number(process.env.GATEWAY_REPLY_TIMEOUT_MS_LONG || replyTimeoutMs * 2);
+  const timeoutMs = isResume ? replyTimeoutMsLong : replyTimeoutMs;
 
   // Wait for a global concurrency slot (queues if MAX_CONCURRENT reached).
   await acquireSlot();
@@ -426,7 +434,7 @@ async function processEvent(
     const session = sessionStore.getOrCreate(id);
     const resume = session.started;
     console.error(
-      `[gateway] reply (${running} slots, timeout ${timeoutMs / 1000}s) ` +
+      `[gateway] reply (${running}/${getMaxConcurrent()} slots, timeout ${timeoutMs / 1000}s) ` +
         `${resume ? "resume" : "new"} session ${session.sessionId.slice(0, 8)} ` +
         `for ${event.type} from ${event.user_name || event.user} in ` +
         `${event.channel_name || event.channel}`
@@ -490,10 +498,9 @@ async function processEvent(
       },
     };
 
-    console.error(`[gateway] generating reply — timeoutMs=${timeoutMs} isResume=${isResume} replyOpts.timeoutMs=${replyOpts.timeoutMs}`);
+    console.error(`[gateway] generating reply — timeoutMs=${timeoutMs} isResume=${isResume}`);
     const result =
-      process.env.GATEWAY_INTERACTIVE_PERMISSIONS !== "0" &&
-      (process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions") !== "bypassPermissions"
+      isInteractivePermissionsEnabled()
       ? await generateReplyStream(prompt, {
           ...replyOpts,
           onPermission: async (req) => {
@@ -520,7 +527,7 @@ async function processEvent(
               req.toolInput,
               req.requestId,
               event.user,
-              _replyTimeoutMsLong,
+              replyTimeoutMsLong,
             );
             try {
               await web.chat.postMessage({
@@ -700,8 +707,13 @@ async function processEvent(
 async function main(): Promise<void> {
   console.error("[gateway] starting Slack auto-reply gateway...");
   console.error(`[gateway] gateway cwd: ${process.cwd()}`);
-  console.error(`: ${profiles.map(p => `${p.id}(${p.providerId})`).join(", ")}`);
+  console.error(`[gateway] profiles: ${profiles.map(p => `${p.id}(${p.providerId})`).join(", ")}`);
   console.error(`[gateway] claude cwd: ${process.env.GATEWAY_CLAUDE_CWD || process.cwd()}`);
+  {
+    const t = Number(process.env.GATEWAY_REPLY_TIMEOUT_MS || 180_000);
+    const tl = Number(process.env.GATEWAY_REPLY_TIMEOUT_MS_LONG || t * 2);
+    console.error(`[gateway] REPLY_TIMEOUT_MS/REPLY_TIMEOUT_MS_LONG: ${t}/${tl}`);
+  }
 
   // Write PID file so the control commands (status/stop/restart) find us.
   ensureGatewayDir();
@@ -722,7 +734,7 @@ async function main(): Promise<void> {
       startedAt,
       updatedAt: Date.now(),
       activeSlots: running,
-      maxConcurrent: (() => { const r = Number(process.env.GATEWAY_MAX_CONCURRENT || 3); return Number.isFinite(r) && r > 0 ? Math.floor(r) : 3; })(),
+      maxConcurrent: getMaxConcurrent(),
       sessions: sessionStore.entries(),
     };
     try {
@@ -756,10 +768,7 @@ async function main(): Promise<void> {
     onEvent(event, profileId);
   });
   socketManager.setSlashCallback(onSlash);
-  if (
-    process.env.GATEWAY_INTERACTIVE_PERMISSIONS !== "0" &&
-    (process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions") !== "bypassPermissions"
-  ) {
+  if (isInteractivePermissionsEnabled()) {
     socketManager.setBlockActionCallback(async (action) => {
       const result = permissionTracker.handleAction(action.actionValue);
       if (!result.handled) return;

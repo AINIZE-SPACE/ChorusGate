@@ -164,7 +164,7 @@ function streamToResult(
 
 export const claudeStreamProvider: AgentProvider = {
   id: "claude-stream",
-  bin: process.env.CLAUDE_BIN || "claude",
+  get bin() { return process.env.CLAUDE_BIN || "claude"; },
 
   async createSession(
     prompt: string,
@@ -314,7 +314,7 @@ export function createStreamSession(
     }
   };
 
-  const sr = spawnStream(args, opts.cwd, parser, env);
+  const sr = spawnStream(args, opts.cwd, parser, env, opts.onSpawn);
 
   // Send user prompt on stdin (keep pipe open)
   const userMsg =

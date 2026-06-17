@@ -31,7 +31,6 @@ function spawnClaude(
   prompt: string,
   opts: CreateSessionOptions,
   parser: ClaudeEventParser,
-  env?: Record<string, string | undefined>,
 ): Promise<SessionOutput> {
   return new Promise<SessionOutput>((resolve) => {
     const { cmd, spawnArgs } = buildSpawnCommand(process.env.CLAUDE_BIN || "claude", args);
@@ -73,7 +72,7 @@ function spawnClaude(
 
 export const claudeProvider: AgentProvider = {
   id: "claude",
-  bin: process.env.CLAUDE_BIN || "claude",
+  get bin() { return process.env.CLAUDE_BIN || "claude"; },
 
   async createSession(
     prompt: string,
