@@ -1,9 +1,10 @@
 // ============================================================
-// CodexProvider — spawn `codex exec --json`, parse JSONL
+// CodexProvider — spawn `codex --json exec`, parse JSONL
 //
 // 基于 M0 实测 + CLI --help（Codex CLI v0.139.0+）:
-//   - codex exec --json --cd <dir> ... -  (prompt via stdin)
-//   - codex exec resume --json --cd <dir> ... <tid> -  (resume + stdin prompt)
+//   - codex --json exec --cd <dir> ... -  (prompt via stdin)
+//   - codex --json exec resume ... <tid> -  (resume + stdin prompt)
+//   - --json 是全局 flag，必须在子命令 exec/resume 之前
 //   - thread_id 是 UUID 格式顶层字段
 //   - --ask-for-approval 在 headless 用 --dangerously-bypass-approvals-and-sandbox
 //
@@ -12,7 +13,7 @@
 // 跟踪: [#23](https://github.com/AINIZE-SPACE/chorusgate/issues/23)
 // ============================================================
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { CodexEventParser } from "./codex-parser.js";
@@ -22,8 +23,6 @@ import type {
   ResumeSessionOptions,
   SessionOutput,
 } from "./types.js";
-
-const CODEX_BIN = process.env.CODEX_BIN || "codex";
 
 /**
  * Shared flags for headless, non-interactive Codex execution.
@@ -38,14 +37,10 @@ const CODEX_BIN = process.env.CODEX_BIN || "codex";
  */
 function buildHeadlessFlags(): string[] {
   return [
-    "--json",
     "--skip-git-repo-check",
     "--dangerously-bypass-approvals-and-sandbox",
   ];
 }
-
-/** Max iterations to prevent infinite loops (configurable via env). */
-const MAX_ITERATIONS = process.env.CODEX_MAX_ITERATIONS || "10";
 
 // ---- spawn helper ------------------------------------------------------------
 
@@ -58,17 +53,34 @@ function spawnCodex(
   onSpawn?: (child: import("node:child_process").ChildProcess) => void,
 ): Promise<SessionOutput> {
   return new Promise<SessionOutput>((resolve) => {
+    const codexBin = process.env.CODEX_BIN || "codex";
+    const maxIterations = process.env.CODEX_MAX_ITERATIONS || "10";
+
+    // Pre-check binary existence — avoids shell-mode ambiguity on Windows
+    // (shell:true spawns cmd.exe which always succeeds, even when the
+    //  wrapped binary doesn't exist, causing a misleading timeout error)
+    const whichCmd = process.platform === "win32" ? "where" : "which";
+    const whichCheck = spawnSync(whichCmd, [codexBin], {
+      timeout: 3000, stdio: "ignore", windowsHide: true,
+    });
+    if (whichCheck.status !== 0) {
+      return Promise.resolve({
+        ok: false, text: "", sessionId: "",
+        error: `failed to spawn codex: ENOENT — ${codexBin} not found`,
+      });
+    }
+
     // Exec flags (--cd only for new sessions, not resume)
     const execFlags = [
-      "-c", `max_iterations=${MAX_ITERATIONS}`,
+      "-c", `max_iterations=${maxIterations}`,
       ...buildHeadlessFlags(),
     ];
     const allArgs = [...positionalArgs, ...execFlags];
 
     const win = process.platform === "win32";
     const cmd = win
-      ? `"${CODEX_BIN}" ${allArgs.map((a) => (a.includes(" ") ? `"${a}"` : a)).join(" ")}`
-      : CODEX_BIN;
+      ? `"${codexBin}" ${allArgs.map((a) => (a.includes(" ") ? `"${a}"` : a)).join(" ")}`
+      : codexBin;
     const spawnArgs = win ? [] : allArgs;
 
     const child = spawn(cmd, spawnArgs, {
@@ -152,7 +164,7 @@ function spawnCodex(
 
 export const codexProvider: AgentProvider = {
   id: "codex",
-  bin: CODEX_BIN,
+  bin: process.env.CODEX_BIN || "codex",
 
   /** Generate a TOML MCP config for Codex (STORY-7). */
   generateMCPConfig(botToken?: string, appToken?: string): string {
@@ -190,7 +202,7 @@ export const codexProvider: AgentProvider = {
     opts: CreateSessionOptions,
   ): Promise<SessionOutput> {
     let resolvedSessionId = "";
-    const args = ["exec", "--cd", opts.cwd]; // prompt via stdin, --cd sets workspace
+    const args = ["--json", "exec", "--cd", opts.cwd]; // --json global flag before subcommand; prompt via stdin
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
@@ -215,7 +227,7 @@ export const codexProvider: AgentProvider = {
     sessionId: string,
     opts: ResumeSessionOptions,
   ): Promise<SessionOutput> {
-    const args = ["exec", "resume", sessionId]; // prompt via stdin, --cd not supported on resume
+    const args = ["--json", "exec", "resume", sessionId]; // --json global flag before subcommand; prompt via stdin
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;

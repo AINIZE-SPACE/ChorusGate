@@ -46,53 +46,6 @@ import {
 import { writeFileSync, rmSync } from "node:fs";
 import type { StoredEvent } from "./types.js";
 
-// ============================================================
-// Config
-const CLAUDE_CWD = process.env.GATEWAY_CLAUDE_CWD || process.cwd();
-const REPLY_TIMEOUT_MS = Number(process.env.GATEWAY_REPLY_TIMEOUT_MS || 180_000);
-// Long-task timeout (e.g. channel summary, multi-tool chains). Set
-// GATEWAY_REPLY_TIMEOUT_MS_LONG to override; defaults to 2× the normal timeout.
-const REPLY_TIMEOUT_MS_LONG = Number(
-  process.env.GATEWAY_REPLY_TIMEOUT_MS_LONG || REPLY_TIMEOUT_MS * 2
-);
-console.error(
-  `[gateway] REPLY_TIMEOUT_MS/REPLY_TIMEOUT_MS_LONG: ${REPLY_TIMEOUT_MS}/${REPLY_TIMEOUT_MS_LONG}`
-);
-// Max concurrent `claude -p` replies. Excess events queue and run as slots free.
-const maxConcurrentRaw = Number(process.env.GATEWAY_MAX_CONCURRENT || 3);
-const MAX_CONCURRENT =
-  Number.isFinite(maxConcurrentRaw) && maxConcurrentRaw > 0
-    ? Math.floor(maxConcurrentRaw)
-    : 3;
-// Evict thread→session mappings idle longer than this (default 24h).
-const SESSION_IDLE_MS = Number(
-  process.env.GATEWAY_SESSION_IDLE_MS || 24 * 60 * 60 * 1000
-);
-// Live progress updates (placeholder message edited in place). Set
-// GATEWAY_PROGRESS=0 to disable and just post the final reply.
-const PROGRESS_ENABLED = process.env.GATEWAY_PROGRESS !== "0";
-// Session scope: "channel" (default) = one session per channel/DM;
-// "thread" = one session per thread (falls back to channel for slash commands).
-const SESSION_SCOPE = (
-  process.env.GATEWAY_SESSION_SCOPE || "channel"
-) as "channel" | "thread";
-// Permission mode for spawned claude processes.
-const PERMISSION_MODE =
-  process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions";
-
-// Interactive permission approval: when CLAUDE_PERMISSION_MODE is NOT
-// "bypassPermissions" (i.e. "default" or "acceptEdits"), the gateway will
-// intercept permission_request events and post Slack buttons for approve/deny.
-// Set GATEWAY_INTERACTIVE_PERMISSIONS=0 to disable this behavior even when
-// permission mode would otherwise trigger it.
-const INTERACTIVE_PERMISSIONS =
-  process.env.GATEWAY_INTERACTIVE_PERMISSIONS !== "0" &&
-  PERMISSION_MODE !== "bypassPermissions";
-
-// M2: Claude 双向 stream-json 控制面
-// 跟踪: [#34](https://github.com/AINIZE-SPACE/chorusgate/issues/34)
-const STREAM_MODE = process.env.GATEWAY_CLAUDE_MODE === "stream";
-
 // ---- multi-profile routing ---------------------------------------------------
 // Build a lookup map from profile id → ProfileConfig for O(1) routing.
 const profileMap = new Map<string, ProfileConfig>();
@@ -105,7 +58,7 @@ const scopeProjectOverrides = new Map<string, string>();
 
 /** Get the CLI working directory for a profile. */
 function profileCwd(profileId: string): string {
-  return profileMap.get(profileId)?.cwd || CLAUDE_CWD;
+  return profileMap.get(profileId)?.cwd || process.env.GATEWAY_CLAUDE_CWD || process.cwd();
 }
 
 /** Get the command prefix for a profile. */
@@ -140,7 +93,7 @@ function sessionIdentity(
 ): SessionIdentity {
   // Check for a per-scope project dir override (set by /cc_new --project).
   const useThread =
-    (SESSION_SCOPE === "thread" && threadTs) ||
+    ((process.env.GATEWAY_SESSION_SCOPE || "channel") === "thread" && threadTs) ||
     (channelType === "im" && threadTs);
 
   const scopeKey = useThread
@@ -277,6 +230,11 @@ const waiters: Array<() => void> = [];
 // ---- concurrency ------------------------------------------------------------
 
 function acquireSlot(): Promise<void> {
+  const maxConcurrentRaw = Number(process.env.GATEWAY_MAX_CONCURRENT || 3);
+  const MAX_CONCURRENT =
+    Number.isFinite(maxConcurrentRaw) && maxConcurrentRaw > 0
+      ? Math.floor(maxConcurrentRaw)
+      : 3;
   if (running < MAX_CONCURRENT) {
     running += 1;
     return Promise.resolve();
@@ -468,7 +426,7 @@ async function processEvent(
     const session = sessionStore.getOrCreate(id);
     const resume = session.started;
     console.error(
-      `[gateway] reply (${running}/${MAX_CONCURRENT} slots, timeout ${timeoutMs / 1000}s) ` +
+      `[gateway] reply (${running} slots, timeout ${timeoutMs / 1000}s) ` +
         `${resume ? "resume" : "new"} session ${session.sessionId.slice(0, 8)} ` +
         `for ${event.type} from ${event.user_name || event.user} in ` +
         `${event.channel_name || event.channel}`
@@ -481,7 +439,7 @@ async function processEvent(
     let lastLabel = "";
     let lastToolAt = 0;
 
-    if (PROGRESS_ENABLED) {
+    if (process.env.GATEWAY_PROGRESS !== "0") {
       try {
         const ph = await web.chat.postMessage({
           channel: event.channel,
@@ -533,7 +491,9 @@ async function processEvent(
     };
 
     console.error(`[gateway] generating reply — timeoutMs=${timeoutMs} isResume=${isResume} replyOpts.timeoutMs=${replyOpts.timeoutMs}`);
-    const result = INTERACTIVE_PERMISSIONS
+    const result =
+      process.env.GATEWAY_INTERACTIVE_PERMISSIONS !== "0" &&
+      (process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions") !== "bypassPermissions"
       ? await generateReplyStream(prompt, {
           ...replyOpts,
           onPermission: async (req) => {
@@ -560,7 +520,7 @@ async function processEvent(
               req.toolInput,
               req.requestId,
               event.user,
-              REPLY_TIMEOUT_MS_LONG,
+              _replyTimeoutMsLong,
             );
             try {
               await web.chat.postMessage({
@@ -741,7 +701,7 @@ async function main(): Promise<void> {
   console.error("[gateway] starting Slack auto-reply gateway...");
   console.error(`[gateway] gateway cwd: ${process.cwd()}`);
   console.error(`: ${profiles.map(p => `${p.id}(${p.providerId})`).join(", ")}`);
-  console.error(`[gateway] claude cwd: ${CLAUDE_CWD}`);
+  console.error(`[gateway] claude cwd: ${process.env.GATEWAY_CLAUDE_CWD || process.cwd()}`);
 
   // Write PID file so the control commands (status/stop/restart) find us.
   ensureGatewayDir();
@@ -762,7 +722,7 @@ async function main(): Promise<void> {
       startedAt,
       updatedAt: Date.now(),
       activeSlots: running,
-      maxConcurrent: MAX_CONCURRENT,
+      maxConcurrent: (() => { const r = Number(process.env.GATEWAY_MAX_CONCURRENT || 3); return Number.isFinite(r) && r > 0 ? Math.floor(r) : 3; })(),
       sessions: sessionStore.entries(),
     };
     try {
@@ -777,7 +737,9 @@ async function main(): Promise<void> {
 
   // Periodically evict idle thread→session mappings to bound memory.
   const evictTimer = setInterval(() => {
-    const removed = sessionStore.evictIdle(SESSION_IDLE_MS);
+    const removed = sessionStore.evictIdle(
+      Number(process.env.GATEWAY_SESSION_IDLE_MS || 24 * 60 * 60 * 1000)
+    );
     if (removed > 0) {
       console.error(
         `[gateway] evicted ${removed} idle session mapping(s); ` +
@@ -794,7 +756,10 @@ async function main(): Promise<void> {
     onEvent(event, profileId);
   });
   socketManager.setSlashCallback(onSlash);
-  if (INTERACTIVE_PERMISSIONS) {
+  if (
+    process.env.GATEWAY_INTERACTIVE_PERMISSIONS !== "0" &&
+    (process.env.CLAUDE_PERMISSION_MODE || "bypassPermissions") !== "bypassPermissions"
+  ) {
     socketManager.setBlockActionCallback(async (action) => {
       const result = permissionTracker.handleAction(action.actionValue);
       if (!result.handled) return;
@@ -845,7 +810,7 @@ async function main(): Promise<void> {
     "[gateway] listening on " +
       `${profiles.length} Slack app(s) — ` +
       `will auto-reply to @mentions and DMs. ` +
-      `Sessions are reused per ${SESSION_SCOPE} scope. Ctrl+C to stop.`
+      `Sessions are reused per ${process.env.GATEWAY_SESSION_SCOPE || "channel"} scope. Ctrl+C to stop.`
   );
 }
 

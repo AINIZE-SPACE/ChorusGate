@@ -41,8 +41,6 @@ import type {
   SessionOutput,
 } from "./types.js";
 
-const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
-
 /** Build shared args for claude -p stream-json mode. */
 function buildStreamArgs(sessionFlag: "--session-id" | "--resume", sessionId: string): string[] {
   const args = [
@@ -78,7 +76,7 @@ function spawnStream(
   env?: Record<string, string | undefined>,
   onSpawn?: (child: ChildProcess) => void,
 ): StreamSpawnResult {
-  const { cmd, spawnArgs } = buildSpawnCommand(CLAUDE_BIN, args);
+  const { cmd, spawnArgs } = buildSpawnCommand(process.env.CLAUDE_BIN || "claude", args);
   const spawnOpts = buildSpawnOptions(cwd, env);
   console.error(`[claude-stream] SPAWN: ${cmd}`);
   const child = spawn(cmd, spawnArgs, spawnOpts);
@@ -131,7 +129,7 @@ function streamToResult(
       clearTimeout(timer);
       resolve({
         ok: false, text: "", sessionId: "",
-        error: `failed to spawn ${CLAUDE_BIN}: ${err.message}`,
+        error: `failed to spawn ${process.env.CLAUDE_BIN || "claude"}: ${err.message}`,
       });
     });
 
@@ -166,7 +164,7 @@ function streamToResult(
 
 export const claudeStreamProvider: AgentProvider = {
   id: "claude-stream",
-  bin: CLAUDE_BIN,
+  bin: process.env.CLAUDE_BIN || "claude",
 
   async createSession(
     prompt: string,
