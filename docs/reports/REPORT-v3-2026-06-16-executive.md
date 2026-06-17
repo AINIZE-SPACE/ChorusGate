@@ -242,27 +242,95 @@ ChorusGate v3 迭代由一个碳基核心 + 三个硅基数字员工组成，所
 | 硅基 | **小马 / Hermes** | `<@U0B91BVKTL2>` | 测试 BOT：ST 计划、Bug Reopen、评审、技能沉淀 |
 | 硅基 | **小查 / 小扣 / Codex** | `<@U0B92RM5AGH>` / `<@U0BAGFVD8VB>` | 管理整合 BOT：主持收尾、报告整合、技能分层、domain 抽取、推送通知 |
 
-### 10.2 通过 Slack 频道跑完全流程（需求 → 设计 → 开发 → 测试 → 集成）
+### 10.2 通过 Slack 频道跑迭代三闭环（设计环 → 开发环 → 发布回顾环）
+
+迭代目标由 Z 通过 Slack DM 下发给 K，后续设计环、开发环、发布回顾环串行推进；各环之间通过独立的 Slack 频道通知节点衔接，GitHub Repo 仅作为 issues / PRs 的 artifact 库，不是流程节点。
 
 ```mermaid
 flowchart LR
-    subgraph 碳基 Carbon
-        Z["delez / Zederer（老乐）<br>需求 & 决策 & 架构"]
+    Z["Z / delez / Zederer（老乐）<br>目标下发 & 设计验收 & 最终验收"]
+    K["K / 小克 / Claude Code<br>开发"]
+    M["M / 小马 / Hermes<br>测试"]
+    C["C / 小查 / 小扣 / Codex<br>管理整合"]
+    S["<#C0BAB3Y7LLC><br>Slack 迭代协作频道"]
+    DM["Slack DM<br>Z → K"]
+    Git[(GitHub Repo)]
+
+    Z -->|下发迭代 goal| DM
+    DM --> K
+
+    subgraph 设计环
+        direction TB
+        D1["K 调研需求、分析产品方案"] --> D2["K @M 评审产品方案"]
+        D2 --> D3["M @C 规划落地 GitHub issues<br>feature / epic"]
+        D3 --> D4["C @Z 验收"]
+        D4 --> D5{设计验收通过?}
+        D5 -->|补充要求| D1
     end
-    S["<#C0BAB3Y7LLC><br>Slack 协作频道"]
-    subgraph 硅基 Silicon
-        K["小克 / Claude Code<br>开发"]
-        M["小马 / Hermes<br>测试"]
-        C["小查 / 小扣 / Codex<br>管理整合"]
+
+    K --> D1
+    D5 -->|通过| N1["Slack 频道通知<br>进入开发环"]
+    N1 -.-> S
+
+    subgraph 开发环
+        direction TB
+        P1["K 从 issues 认领需求"] --> P2["K 设计 spec、开发、单元测试"]
+        P2 --> P3["K @M 评审代码与需求方案对齐"]
+        P3 --> P4["M 制定集成/系统测试方案策略、用例、脚本"]
+        P4 --> P5["M 运行脚本，持续提 bug 并 @K 修复"]
+        P5 --> P6{需求测试通过?}
+        P6 -->|未通过| P2
+        P6 -->|通过| P7["M 输出需求测试报告"]
+        P7 --> P8["M @C 评审发布特性 PR"]
     end
-    Z -->|Epic/需求/决策/验收| S
-    S -->|任务/评审/通知| K
-    S -->|ST 计划/Bug reopen| M
-    S -->|报告/技能/推送| C
-    K -->|代码 / PR| Repo[(GitHub Repo)]
-    M -->|测试报告 / Review| Repo
-    C -->|文档 / Commit| Repo
+
+    N1 --> P1
+    P8 -->|进入下一需求| P1
+    P8 -->|全部需求完成| N2["Slack 频道通知<br>进入发布回顾环"]
+    N2 -.-> S
+
+    subgraph 发布回顾环
+        direction TB
+        R1["Z 牵头迭代回顾"] --> R2["各方补充回顾"]
+        R2 --> R3["C 输出产品迭代报告"]
+        R3 --> R4["C 发起 PR 到 main 完成发布"]
+    end
+
+    N2 --> R1
+
+    D3 -.->|落地 issues| Git
+    P1 -.->|认领 issue| Git
+    P8 -.->|发布 PR| Git
+    R4 -.->|合并 PR| Git
 ```
+
+**设计环**
+1. Z 通过 Slack DM 向 K 下发本次迭代目标（goal）。
+2. K 调研需求并输出产品方案，完成后在频道 `@M` 提请评审。
+3. M 评审产品方案，通过后 `@C` 将目标拆分为可落地的 GitHub issues（feature / epic）。
+4. C 汇总 issue 规划并 `@Z` 验收。
+5. **判断结束节点**：若 Z 提出补充要求，则回到第 2 步再次循环；若验收通过，由独立通知节点向 Slack 频道发送消息，宣布进入开发环。
+
+**开发环**
+1. K 从 GitHub issues 中认领一个需求，完成 spec 方案设计、代码开发与单元测试。
+2. K 在频道 `@M` 提请代码评审，确保需求、方案、代码三者对齐。
+3. M 评审通过后，制定集成/系统测试方案、策略、用例与脚本，并运行测试。
+4. 测试过程中 M 持续在 GitHub 提单并 `@K` 修复。
+5. **判断结束节点**：若测试未通过，回到第 2 步继续修复/评审；若通过，M 输出需求测试报告。
+6. M `@C` 评审发布特性 PR，评审通过后：
+   - 若仍有未开发需求，由独立通知节点向 Slack 频道发送消息，进入下一需求开发；
+   - 若全部需求完成，由独立通知节点向 Slack 频道发送消息，进入发布回顾环。
+
+**发布回顾环**
+1. 全部需求开发测试完成后，Z 在频道发起用户验收与迭代回顾。
+2. 各方在频道补充回顾内容；C 整理并输出产品迭代报告。
+3. C 将迭代报告与最终代码通过 PR 合并到 `main` 分支，并在频道通知完成发布。
+
+**版本优化**
+
+1. **需求管理跟踪移至 Trello**：迭代目标与需求看板统一迁移到 Trello 管理；GitHub issues 继续承担 bug 跟踪。只需升级 `sprint-handoff` 等技能，让 bot 在 Trello 卡片与 GitHub issue 之间同步状态即可。
+2. **多需求 / BUG 并行**：当前基线流程为串行；未来依托 git tree，设计环与开发环的子环可多环并行。不同 feature / epic 在独立分支上同时推进，频道消息按需求上下文区分，避免串线。
+3. **Slack stream 输出 + approve / reject**：补齐 agent 流式输出到 Slack 频道的实时渲染；在关键节点（设计验收、测试通过、发布评审）支持 approve / reject 按钮，点击后自动驱动流程进入下一节点或打回重做。
 
 ### 10.3 全流程数量统计
 
