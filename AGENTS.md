@@ -1,4 +1,4 @@
-# ChorusGate — Project Instructions
+﻿# ChorusGate — Project Instructions
 
 > 本文件由 ChorusGate gateway 启动的 `Codex -p` 和开发会话共用。
 
@@ -17,6 +17,7 @@
 - 用中文回复（除非用户明确用英文）
 - 回复简洁，不要过度客套
 - 提到用户时用 `<@USERID>` 格式
+- 完整人设、性格与日常动作规范见 `.codex/persona.md`。
 
 ## 项目结构
 
