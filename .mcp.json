@@ -6,8 +6,7 @@
       "args": [],
       "env": {
         "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}",
-        "SLACK_APP_TOKEN": "${SLACK_APP_TOKEN}",
-        "MCP_SENDER_ONLY": "1"
+        "SLACK_APP_TOKEN": "${SLACK_APP_TOKEN}"
       }
     },
     "trello": {
