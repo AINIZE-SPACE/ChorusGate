@@ -20,8 +20,10 @@ import { dirname, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// ---- ST-CX-001: --json flag is before positional args in createSession ----
-test("ST-CX-001: codex createSession --json before positional args", async () => {
+// ---- ST-CX-001: --json flag is after exec subcommand in createSession ----
+// Verified against real codex CLI: tip says 'exec --json' exists.
+// --json is an exec subcommand flag, not a global flag.
+test("ST-CX-001: codex createSession exec --json (after subcommand)", async () => {
   const { codexProvider } = await import("../src/providers/codex.js");
 
   let capturedArgs: string[] = [];
@@ -48,16 +50,17 @@ test("ST-CX-001: codex createSession --json before positional args", async () =>
 
   const argsStr = capturedArgs.join(" ");
   // Verify format: codex exec --json --cd <dir> ...
-  // NOT: codex exec <prompt> --json --cd <dir>  (wrong)
   assert.match(argsStr, /--json/, "Must include --json flag");
-  // --json must come BEFORE the positional "exec" args
+  // --json must come AFTER exec (verified: real CLI says 'exec --json' exists)
   const jsonIdx = argsStr.indexOf("--json");
   const execIdx = argsStr.indexOf("exec");
-  assert.ok(jsonIdx < execIdx, "--json must come before 'exec' subcommand");
+  assert.ok(execIdx >= 0, "exec subcommand must be present");
+  assert.ok(jsonIdx >= 0, "--json flag must be present");
+  assert.ok(execIdx < jsonIdx, `--json must come after exec: ${argsStr}`);
 });
 
-// ---- ST-CX-002: --json flag is before positional args in resumeSession ----
-test("ST-CX-002: codex resumeSession --json before positional args", async () => {
+// ---- ST-CX-002: --json flag is after exec subcommand in resumeSession ----
+test("ST-CX-002: codex resumeSession exec --json resume (after subcommand)", async () => {
   const { codexProvider } = await import("../src/providers/codex.js");
 
   let capturedArgs: string[] = [];
@@ -77,13 +80,17 @@ test("ST-CX-002: codex resumeSession --json before positional args", async () =>
   }
 
   const argsStr = capturedArgs.join(" ");
-  // Correct: codex exec resume --json <thread_id> <prompt>
-  // Wrong:   codex exec resume <thread_id> <prompt> --json
+  // Correct: codex exec --json resume <thread_id>
+  // Verified: real CLI says 'exec --json' exists
   assert.match(argsStr, /--json/, "Must include --json flag");
   const jsonIdx = argsStr.indexOf("--json");
+  const execIdx = argsStr.indexOf("exec");
   const resumeIdx = argsStr.indexOf("resume");
-  assert.ok(jsonIdx < resumeIdx + 10, "--json must come before resume positional args");
-  assert.ok(argsStr.includes("resume"), "Must include resume subcommand");
+  assert.ok(execIdx >= 0, "exec subcommand must be present");
+  assert.ok(jsonIdx >= 0, "--json flag must be present");
+  assert.ok(resumeIdx >= 0, "resume subcommand must be present");
+  assert.ok(execIdx < jsonIdx, `--json must come after exec: ${argsStr}`);
+  assert.ok(jsonIdx < resumeIdx, `--json must come before resume: ${argsStr}`);
 });
 
 // ---- ST-CX-003: Windows cmd.exe quoting for args with spaces ----
@@ -94,7 +101,7 @@ test("ST-CX-003: args with spaces are quoted; prompt not in args (goes via stdin
   if (!isWin) return;
 
   // Replicate current spawnCodex logic — prompt goes via stdin, NOT in args
-  const args = ["--json", "exec", "--cd", "C:\\Program Files\\test dir"];
+  const args = ["exec", "--json", "--cd", "C:\\Program Files\\test dir"];
   const CODEX_BIN = "codex";
 
   const cmd = `"${CODEX_BIN}" ${args

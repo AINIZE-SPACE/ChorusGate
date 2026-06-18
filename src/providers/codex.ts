@@ -64,10 +64,11 @@ function spawnCodex(
       timeout: 3000, stdio: "ignore", windowsHide: true,
     });
     if (whichCheck.status !== 0) {
-      return Promise.resolve({
+      resolve({
         ok: false, text: "", sessionId: "",
         error: `failed to spawn codex: ENOENT — ${codexBin} not found`,
       });
+      return;
     }
 
     // Exec flags (--cd only for new sessions, not resume)
