@@ -1,10 +1,10 @@
 // ============================================================
-// CodexProvider — spawn `codex --json exec`, parse JSONL
+// CodexProvider — spawn `codex exec --json`, parse JSONL
 //
 // 基于 M0 实测 + CLI --help（Codex CLI v0.139.0+）:
-//   - codex --json exec --cd <dir> ... -  (prompt via stdin)
-//   - codex --json exec resume ... <tid> -  (resume + stdin prompt)
-//   - --json 是全局 flag，必须在子命令 exec/resume 之前
+//   - codex exec --json --cd <dir> ... -  (prompt via stdin)
+//   - codex exec --json resume ... <tid> -  (resume + stdin prompt)
+//   - --json 是 exec 子命令的 flag，不是全局 flag，必须放在 exec 之后
 //   - thread_id 是 UUID 格式顶层字段
 //   - --ask-for-approval 在 headless 用 --dangerously-bypass-approvals-and-sandbox
 //
@@ -79,7 +79,12 @@ function spawnCodex(
 
     const win = process.platform === "win32";
     const cmd = win
-      ? `"${codexBin}" ${allArgs.map((a) => (a.includes(" ") ? `"${a}"` : a)).join(" ")}`
+      ? `"${codexBin}" ${allArgs.map((a) => {
+          if (a.includes(" ") || a.includes(`"`)) {
+            return `"${a.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+          }
+          return a;
+        }).join(" ")}`
       : codexBin;
     const spawnArgs = win ? [] : allArgs;
 
