@@ -93,8 +93,15 @@ Refs: #{N}
 3. **自测**: `npm test` + 涉及 CLI 的跑 `node scripts/verify-codex-cli.mjs`
 4. **CC 影响审查**: 检查 Claude Code 路径是否受影响
 5. **提交**: `git add -A && git commit && git push`
-6. **通知**: `slack_send_message` → `{CHANNEL_ID}` → `@{TESTER}` `@{REVIEWER}`
-7. **Issue 关闭**: `gh issue close {N}`
+6. **更新 Issue**: `gh issue comment {N}` — 附修复摘要和 commit hash，**不要关**，状态标记为 `in_review` 等待评审
+7. **通知**: `slack_send_message` → `{CHANNEL_ID}` → `@{TESTER}` `@{REVIEWER}`
+8. **等待评审**: 小马评审 + ST 验收通过后在频道回复
+9. **Issue 关闭**: 评审通过后 `gh issue close {N} --reason completed`
+
+**:zap: 关键纪律——Issue 不要提前关**:
+- 步骤 6 时 issue 保持 OPEN，comment 附 `Status: in_review — pending @小马 ST`
+- 步骤 9 **只在评审通过后执行**——提前关会切断状态流，评审反馈无迹可寻
+- 每个 bug 走完完整 9 步闭环再领下一个
 
 **:zap: 自测硬规则（Sprint 3 血泪教训）**:
 - **改完代码必须先 `npm test` 再提交**——代码写完不是终点
@@ -108,8 +115,9 @@ Refs: #{N}
 - [ ] CLI 实测通过 (`node scripts/verify-codex-cli.mjs`，如涉及)
 - [ ] CC 路径审查通过（改动不影响 Claude Code）
 - [ ] `git push` 到远程
+- [ ] Issue **未关闭**——已添加 comment 附修复摘要 + commit hash
 - [ ] Slack 频道通知（`@{TESTER}` `@{REVIEWER}`，mention 置首行）
-- [ ] GitHub Issue 已关闭
+- [ ] 等待评审通过后 → `gh issue close {N}`
 
 ## Sprint 3 实战教训
 
