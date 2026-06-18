@@ -15,9 +15,11 @@ Issue (epic/feature/story/task/bug)
   │  backlog / open
   │  gh issue create / view {N}
   ▼
-研究规划 (Spike → SPEC → 评审)
+研究规划 (Spike → SPEC → M 评审)
   │  状态: in_progress
   │  gh issue comment {N} --body "开始开发"
+  │  M 评审必须抓第一性原因, 用公开资源体现/佐证
+  │  判断与产品定位、目标用户、现有技术框架适配度
   ▼
 开发 (分支 → 代码 → 测试)
   │  状态: in_progress
