@@ -15,6 +15,7 @@
 |------|------|--------|
 | P0 技术债务 | 3 (含 1 个拆分子任务) | 第一周必须清零 |
 | P1 测试基建 | 2 | 第一~二周 |
+| P1 Codex Provider Bug | 4 (含 1 个测试断言) | 第一周（#96 后立即） |
 | P2 工程质量 | 2 | 中后期 |
 | Feature: 统一流式 (StreamUpdate) | 1 epic (含 Claude M3 + Codex 降级) | 核心功能 |
 | Feature: Codex 统一审批 | 1 (研究 → 实现) | 核心功能 |
@@ -23,7 +24,7 @@
 | 中期：安装生命周期 | 1 (分批实现) | 中 |
 | 远期：飞书 / 开源 / 架构抽象 | 3 | 低，延后 |
 
-> 对应 GitHub issues: #86, #93, #94, #95, #96, #97, #98, #99, #33, #6, #9, #7, #10, #5
+> 对应 GitHub issues: #86, #93, #94, #95, #96, #97, #98, #99, #117, #118, #119, #120, #121, #33, #6, #9, #7, #10, #5
 
 ---
 
@@ -82,6 +83,56 @@
 |------|------|
 | **问题** | MCP server 未启动导致 6 项 ST 失败，集成测试环境依赖外部进程 |
 | **方案** | ① 提供 MCP server 启动脚本 (`scripts/start-mcp-server.sh`)；② 或提供 mock 降级（fake binary）|
+| **负责** | Hermes（小马） |
+| **依赖** | 无 |
+
+### 4.3 #117 — codex `--json` flag 顺序错误
+
+| 项 | 说明 |
+|------|------|
+| **问题** | `codexProvider` 拼装 `codex exec` 时 `--json` 放在子命令之后，CLI 无法识别 |
+| **影响** | ST-CX-001 / ST-CX-002 失败，Codex JSON 输出不可用 |
+| **修复** | 调整 args 数组顺序：`--json` 在 `exec` / `resume` 之前 |
+| **负责** | Claude Code（小克） |
+| **依赖** | 无 |
+
+### 4.4 #118 — Windows shell 转义产生空 quote 对
+
+| 项 | 说明 |
+|------|------|
+| **问题** | `codex.ts` Windows shell 拼接逻辑对含双引号 prompt 转义错误，产生 `""` 空 quote 对 |
+| **影响** | ST-CX-003 失败，含特殊字符的 prompt 在 Windows 上无法正确传递 |
+| **修复** | 修正转义逻辑或改用 `spawn` 数组传参避免手动 shell 拼接 |
+| **负责** | Claude Code（小克） |
+| **依赖** | 无 |
+
+### 4.5 #120 — ENOENT 超时而非 spawn 失败
+
+| 项 | 说明 |
+|------|------|
+| **问题** | `CODEX_BIN` 不存在时，spawn `'error'` 事件未被监听，等到 timeout 才返回 |
+| **影响** | ST-CX-006 失败，错误信息不明确（"timeout" 而非 "ENOENT"） |
+| **修复** | 添加 `child.on('error')` 监听 short-circuit；或启动前 `fs.existsSync` 检查 |
+| **负责** | Claude Code（小克） |
+| **依赖** | 无 |
+
+### 4.6 #119 — CJK prompt 测试断言不可靠（P2）
+
+| 项 | 说明 |
+|------|------|
+| **问题** | 测试在 `shell:true` 模式下检查 `spawnargs` 含 CJK，Windows 上 spawnargs 只含 cmd.exe 参数 |
+| **影响** | ST-CX-004 失败，测试断言方式有误（非产品 bug） |
+| **修复** | 改用 stdin 验证或 mock fixture 回写断言 |
+| **负责** | Hermes（小马） |
+| **依赖** | #117, #118 修复后更易验证 |
+
+### 4.7 #121 — mock-claude fixture 缺失 permission_request
+
+| 项 | 说明 |
+|------|------|
+| **问题** | `mock-claude/script.mjs` 在 `permission_mode=permission_required` 时未发 `permission_request` 事件 |
+| **影响** | Claude stream integration permission mode 测试失败 |
+| **修复** | 补充 `permission_required` 分支：发 `control_request` → 等 `control_response` → 继续 |
 | **负责** | Hermes（小马） |
 | **依赖** | 无 |
 
@@ -255,8 +306,8 @@
 
 | 角色 | Slack ID | 迭代 4 职责 |
 |------|----------|-------------|
-| **小克 (Claude Code)** | `<@U0B8VHLHJAX>` | P0 修复（#93 #94 #95）、StreamUpdate 实现、Codex 审批协议研究+实现、Worktree 实现 |
-| **小马 (Hermes)** | `<@U0B91BVKTL2>` | P1 测试基建（#96 #97）、M3 fixture 编写、StreamUpdate 测试、ST 回归 |
+| **小克 (Claude Code)** | `<@U0B8VHLHJAX>` | P0 修复（#93 #94 #95）、Codex Provider Bug（#117 #118 #120）、StreamUpdate 实现、Codex 审批协议研究+实现、Worktree 实现 |
+| **小马 (Hermes)** | `<@U0B91BVKTL2>` | P1 测试基建（#96 #97）、#119 CJK 测试修复、#121 mock-claude fixture、M3 fixture 编写、StreamUpdate 测试、ST 回归 |
 | **小扣 (Codex)** | `<@U0B92RM5AGH>` / `<@U0BAGFVD8VB>` | P2 技能 mirror（#98）、流程协调、文档归档 |
 
 ---
@@ -278,9 +329,13 @@ gantt
     #96 npm test 拆分               :p1a, 2026-06-17, 1d
     #97 MCP server mock             :p1b, after p1a, 1d
 
+    section Codex Provider Bug 修复
+    #117 #118 #120 codex provider 修复  :b1, after p1a, 1d
+    #119 CJK 测试 + #121 fixture        :b2, after b1, 0.5d
+
     section 流式
     StreamUpdate 接口 + Claude M3    :f1, after p0c, 2d
-    Codex 降级流式                   :f2, after f1, 1d
+    Codex 降级流式                   :f2, after f1, after b1, 1d
     Gateway Slack 展示               :f3, after f2, 1d
 
     section 审批
@@ -308,5 +363,5 @@ gantt
 
 ---
 
-*生成日期：2026-06-17*
-*整理：Claude Code（小克）*
+*生成日期：2026-06-17 | 更新：2026-06-18*
+*整理：Claude Code（小克）| 更新：Codex（小扣）*
