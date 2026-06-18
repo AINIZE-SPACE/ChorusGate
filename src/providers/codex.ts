@@ -202,7 +202,7 @@ export const codexProvider: AgentProvider = {
     opts: CreateSessionOptions,
   ): Promise<SessionOutput> {
     let resolvedSessionId = "";
-    const args = ["--json", "exec", "--cd", opts.cwd]; // --json global flag before subcommand; prompt via stdin
+    const args = ["exec", "--json", "--cd", opts.cwd]; // prompt via stdin; --cd sets workspace
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
@@ -227,7 +227,7 @@ export const codexProvider: AgentProvider = {
     sessionId: string,
     opts: ResumeSessionOptions,
   ): Promise<SessionOutput> {
-    const args = ["--json", "exec", "resume", sessionId]; // --json global flag before subcommand; prompt via stdin
+    const args = ["exec", "--json", "resume", sessionId]; // prompt via stdin; --cd not supported on resume
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
