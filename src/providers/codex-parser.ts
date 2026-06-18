@@ -15,7 +15,7 @@
 //       [#86](https://github.com/AINIZE-SPACE/chorusgate/issues/86) — StreamUpdate
 // ============================================================
 
-import type { EventParser } from "./types.js";
+import type { EventParser, StreamUpdate } from "./types.js";
 import { toolLabel } from "./types.js";
 
 /** Codex usage metrics from turn.completed. */
@@ -37,6 +37,8 @@ export class CodexEventParser implements EventParser {
   onText?: CodexTextCallback;
   /** Metrics callback on turn.completed (#86). */
   onMetrics?: (metrics: CodexMetrics) => void;
+  /** M3 unified StreamUpdate callback — Codex coarse-grained (#86). */
+  onStreamUpdate?: (update: StreamUpdate) => void;
 
   feed(line: string): void {
     const t = line.trim();
@@ -57,12 +59,16 @@ export class CodexEventParser implements EventParser {
           (evt.thread_id as string) ||
           ((evt.thread as Record<string, unknown> | undefined)
             ?.id as string);
-        if (tid) this.onSessionId?.(tid);
+        if (tid) {
+          this.onSessionId?.(tid);
+          this.onStreamUpdate?.({ kind: "session_id", payload: tid, providerId: "codex" });
+        }
         break;
       }
 
       case "turn.started":
         this.onProgress?.("🤔 Codex 思考中…");
+        this.onStreamUpdate?.({ kind: "progress", payload: "🤔 Codex 思考中…", providerId: "codex" });
         break;
 
       case "item.completed": {
@@ -73,13 +79,16 @@ export class CodexEventParser implements EventParser {
           const text = item.text as string;
           this.resultText += text;
           this.onText?.(text); // #86: push to gateway for real-time Slack update
+          this.onStreamUpdate?.({ kind: "text", payload: text, providerId: "codex" });
         }
 
         if (
           (item.type as string) === "tool_use" &&
           typeof item.name === "string"
         ) {
-          this.onProgress?.(toolLabel(item.name as string));
+          const label = toolLabel(item.name as string);
+          this.onProgress?.(label);
+          this.onStreamUpdate?.({ kind: "tool_call", payload: { name: item.name, label }, providerId: "codex" });
         }
 
         const content = item.content as unknown[] | undefined;
@@ -90,7 +99,9 @@ export class CodexEventParser implements EventParser {
               this.resultText += b.text as string;
             }
             if (b.type === "tool_use" && typeof b.name === "string") {
-              this.onProgress?.(toolLabel(b.name as string));
+              const label = toolLabel(b.name as string);
+              this.onProgress?.(label);
+              this.onStreamUpdate?.({ kind: "tool_call", payload: { name: b.name, label }, providerId: "codex" });
             }
           }
         }
@@ -100,12 +111,14 @@ export class CodexEventParser implements EventParser {
       case "turn.completed": {
         const usage = evt.usage as Record<string, unknown> | undefined;
         if (usage) {
-          this.onMetrics?.({
+          const metrics: CodexMetrics = {
             inputTokens: (usage.input_tokens as number) || 0,
             outputTokens: (usage.output_tokens as number) || 0,
             cachedInputTokens: (usage.cached_input_tokens as number) || 0,
             reasoningOutputTokens: (usage.reasoning_output_tokens as number) || 0,
-          });
+          };
+          this.onMetrics?.(metrics);
+          this.onStreamUpdate?.({ kind: "metrics", payload: metrics, providerId: "codex" });
         }
         break;
       }

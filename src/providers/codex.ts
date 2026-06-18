@@ -51,6 +51,7 @@ function spawnCodex(
   timeoutMs: number,
   parser: CodexEventParser,
   onSpawn?: (child: import("node:child_process").ChildProcess) => void,
+  onStreamUpdate?: (update: import("./types.js").StreamUpdate) => void,
 ): Promise<SessionOutput> {
   return new Promise<SessionOutput>((resolve) => {
     const codexBin = process.env.CODEX_BIN || "codex";
@@ -95,6 +96,9 @@ function spawnCodex(
       shell: win,
       windowsHide: true,
     });
+
+    // #86: bind StreamUpdate callback to parser
+    if (onStreamUpdate) parser.onStreamUpdate = onStreamUpdate;
 
     child.on("spawn", () => {
       onSpawn?.(child);
@@ -145,6 +149,9 @@ function spawnCodex(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+
+      // #86: emit stream done before final resolve
+      onStreamUpdate?.({ kind: "done", payload: null, providerId: "codex" });
 
       if (stdoutBuf) parser.feed(stdoutBuf);
 
@@ -224,6 +231,7 @@ export const codexProvider: AgentProvider = {
       opts.timeoutMs,
       parser,
       opts.onSpawn,
+      opts.onStreamUpdate, // #86: unified streaming
     );
     return { ...result, sessionId: resolvedSessionId };
   },
@@ -245,6 +253,7 @@ export const codexProvider: AgentProvider = {
       opts.timeoutMs,
       parser,
       opts.onSpawn,
+      opts.onStreamUpdate, // #86: unified streaming
     ).then((r) => ({
       ...r,
       sessionId,

@@ -301,12 +301,25 @@ export function createStreamSession(
   if (opts.onPlanUpdate) {
     parser.onPlanUpdate = opts.onPlanUpdate;
   }
-  // M3: 流式增量回调 (#85)
+  // M3: 流式增量回调 — raw callbacks + unified StreamUpdate (#85, #86)
   if (opts.onTextDelta) parser.onTextDelta = opts.onTextDelta;
   if (opts.onThinkingDelta) parser.onThinkingDelta = opts.onThinkingDelta;
   if (opts.onBlockStart) parser.onBlockStart = opts.onBlockStart;
   if (opts.onBlockStop) parser.onBlockStop = opts.onBlockStop;
   if (opts.onMetrics) parser.onMetrics = opts.onMetrics;
+  if (opts.onStreamUpdate) {
+    const su = opts.onStreamUpdate;
+    parser.onTextDelta = (t) => { opts.onTextDelta?.(t); su({ kind: "text", payload: t, providerId: "claude-stream" }); };
+    parser.onThinkingDelta = (t) => { opts.onThinkingDelta?.(t); su({ kind: "thinking", payload: t, providerId: "claude-stream" }); };
+    parser.onBlockStart = (b) => { opts.onBlockStart?.(b); su({ kind: "block_start", payload: b, providerId: "claude-stream" }); };
+    parser.onBlockStop = (b) => { opts.onBlockStop?.(b); su({ kind: "block_stop", payload: b, providerId: "claude-stream" }); };
+    parser.onMetrics = (m) => { opts.onMetrics?.(m); su({ kind: "metrics", payload: m, providerId: "claude-stream" }); };
+    if (opts.onProgress) {
+      const orig = opts.onProgress;
+      opts.onProgress = (l) => { orig(l); su({ kind: "progress", payload: l, providerId: "claude-stream" }); };
+      parser.onProgress = opts.onProgress;
+    }
+  }
   // result → close stdin
   parser.onResult = () => {
     if (!sr.settled) {
