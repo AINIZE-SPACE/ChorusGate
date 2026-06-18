@@ -20,7 +20,9 @@
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "test": "node --import tsx --test tests/*.test.ts"
+    "test": "node --import tsx --test --test-timeout=30000 --test-force-exit tests/*.test.ts",
+    "test:fast": "node --import tsx --test --test-timeout=10000 --test-force-exit --test-name-pattern='^(?!.*(ST-)).*' tests/*.test.ts",
+    "test:integration": "node --import tsx --test --test-timeout=60000 --test-force-exit tests/*.test.ts"
   },
   "keywords": [
     "agent",
