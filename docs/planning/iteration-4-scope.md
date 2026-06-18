@@ -15,7 +15,7 @@
 |------|------|--------|
 | P0 技术债务 | 3 (含 1 个拆分子任务) | 第一周必须清零 |
 | P1 测试基建 | 2 | 第一~二周 |
-| P1 Codex Provider Bug | 4 (含 1 个测试断言) | 第一周（#96 后立即） |
+| P1 Codex CLI Provider Bug | 4 (含 1 个测试断言) | 第一周（#96 后立即） |
 | P2 工程质量 | 2 | 中后期 |
 | Feature: 统一流式 (StreamUpdate) | 1 epic (含 Claude M3 + Codex 降级) | 核心功能 |
 | Feature: Codex 统一审批 | 1 (研究 → 实现) | 核心功能 |
@@ -306,7 +306,7 @@
 
 | 角色 | Slack ID | 迭代 4 职责 |
 |------|----------|-------------|
-| **小克 (Claude Code)** | `<@U0B8VHLHJAX>` | P0 修复（#93 #94 #95）、Codex Provider Bug（#117 #118 #120）、StreamUpdate 实现、Codex 审批协议研究+实现、Worktree 实现 |
+| **小克 (Claude Code)** | `<@U0B8VHLHJAX>` | P0 修复（#93 #94 #95）、Codex CLI Provider Bug（#117 #118 #120）、StreamUpdate 实现、Codex 审批协议研究+实现、Worktree 实现 |
 | **小马 (Hermes)** | `<@U0B91BVKTL2>` | P1 测试基建（#96 #97）、#119 CJK 测试修复、#121 mock-claude fixture、M3 fixture 编写、StreamUpdate 测试、ST 回归 |
 | **小扣 (Codex)** | `<@U0B92RM5AGH>` / `<@U0BAGFVD8VB>` | P2 技能 mirror（#98）、流程协调、文档归档 |
 
@@ -329,7 +329,7 @@ gantt
     #96 npm test 拆分               :p1a, 2026-06-17, 1d
     #97 MCP server mock             :p1b, after p1a, 1d
 
-    section Codex Provider Bug 修复
+    section Codex CLI Provider Bug 修复
     #117 #118 #120 codex provider 修复  :b1, after p1a, 1d
     #119 CJK 测试 + #121 fixture        :b2, after b1, 0.5d
 
