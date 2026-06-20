@@ -12,7 +12,7 @@
 // Issue: [#1](https://github.com/AINIZE-SPACE/chorusgate/issues/1)
 // ============================================================
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -114,7 +114,6 @@ export class DurableEventStore {
       rows.push(serializeRow(e));
     }
     try {
-      const { mkdirSync } = require("node:fs");
       mkdirSync(MEMORY_DIR, { recursive: true });
       writeFileSync(EVENTS_MD, rows.join("\n") + "\n");
       this.dirty = false;
