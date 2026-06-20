@@ -52,6 +52,7 @@ function spawnCodex(
   parser: CodexEventParser,
   onSpawn?: (child: import("node:child_process").ChildProcess) => void,
   onStreamUpdate?: (update: import("./types.js").StreamUpdate) => void,
+  model?: string,
 ): Promise<SessionOutput> {
   return new Promise<SessionOutput>((resolve) => {
     const codexBin = process.env.CODEX_BIN || "codex";
@@ -77,6 +78,11 @@ function spawnCodex(
       "-c", `max_iterations=${maxIterations}`,
       ...buildHeadlessFlags(),
     ];
+    // #86: model selection — env override takes precedence over opts.model
+    const effectiveModel = process.env.CODEX_MODEL || model;
+    if (effectiveModel) {
+      execFlags.push("-m", effectiveModel);
+    }
     const allArgs = [...positionalArgs, ...execFlags];
 
     const win = process.platform === "win32";
@@ -150,12 +156,14 @@ function spawnCodex(
       settled = true;
       clearTimeout(timer);
 
-      // #86: emit stream done before final resolve
-      onStreamUpdate?.({ kind: "done", payload: null, providerId: "codex" });
-
+      // Flush trailing buffer first — may contain turn.completed with metrics
       if (stdoutBuf) parser.feed(stdoutBuf);
 
       const text = parser.getResultText();
+
+      // #86: emit stream done AFTER all data is flushed
+      // (metrics from turn.completed must arrive before done)
+      onStreamUpdate?.({ kind: "done", payload: null, providerId: "codex" });
       if (code === 0 && text) {
         resolve({ ok: true, text, sessionId: "" });
       } else if (code === 0 && !text) {
@@ -232,6 +240,7 @@ export const codexProvider: AgentProvider = {
       parser,
       opts.onSpawn,
       opts.onStreamUpdate, // #86: unified streaming
+      opts.model,          // #86: model selection
     );
     return { ...result, sessionId: resolvedSessionId };
   },
@@ -245,6 +254,8 @@ export const codexProvider: AgentProvider = {
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
+    // #86 suggestion #9: bind onSessionId so the callback fires on resume too
+    parser.onSessionId = opts.onSessionId;
 
     return spawnCodex(
       args,
@@ -254,6 +265,7 @@ export const codexProvider: AgentProvider = {
       parser,
       opts.onSpawn,
       opts.onStreamUpdate, // #86: unified streaming
+      opts.model,          // #86: model selection
     ).then((r) => ({
       ...r,
       sessionId,

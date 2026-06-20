@@ -54,10 +54,16 @@ export class ClaudeStreamParser extends ClaudeEventParser {
   onBlockStart?: (blockType: string) => void;
   /** content block 结束 */
   onBlockStop?: (blockType: string) => void;
-  /** 工具调用开始 */
-  onToolCall?: (name: string) => void;
+  // onToolCall is inherited from ClaudeEventParser (name, input) → void
+
+  /** 工具参数片段 (input_json_delta) */
+  onToolParam?: (json: string) => void;
+  /** Hook 生命周期事件 */
+  onHook?: (hook: Record<string, unknown>) => void;
   /** result 指标 */
   onMetrics?: (m: { costUsd?: number; inputTokens?: number; outputTokens?: number }) => void;
+  /** 流结束 (result 事件后触发) */
+  onDone?: () => void;
 
   private _init: StreamInit | null = null;
   private _permissionRequests: PermissionRequest[] = [];
@@ -108,6 +114,11 @@ export class ClaudeStreamParser extends ClaudeEventParser {
       return;
     }
 
+    if (type === "hook_event") {
+      this.onHook?.(evt);
+      return;
+    }
+
     if (type === "system") {
       this._handleSystem(evt);
     } else if (type === "user") {
@@ -126,6 +137,7 @@ export class ClaudeStreamParser extends ClaudeEventParser {
             outputTokens: (u?.output_tokens as number) || undefined,
           });
         }
+        this.onDone?.();  // #86: signal stream completion before stdin close
         this.onResult?.();
       }
     }
@@ -143,6 +155,8 @@ export class ClaudeStreamParser extends ClaudeEventParser {
       this.onTextDelta?.(delta.text);
     } else if (deltaType === "thinking_delta" && typeof delta.thinking === "string") {
       this.onThinkingDelta?.(delta.thinking);
+    } else if (deltaType === "input_json_delta" && typeof delta.partial_json === "string") {
+      this.onToolParam?.(delta.partial_json);
     }
   }
 

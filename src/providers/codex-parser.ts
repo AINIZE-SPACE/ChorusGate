@@ -88,7 +88,9 @@ export class CodexEventParser implements EventParser {
         ) {
           const label = toolLabel(item.name as string);
           this.onProgress?.(label);
+          // #86: tool_call + progress (per design doc §4.2, warning #5)
           this.onStreamUpdate?.({ kind: "tool_call", payload: { name: item.name, label }, providerId: "codex" });
+          this.onStreamUpdate?.({ kind: "progress", payload: label, providerId: "codex" });
         }
 
         const content = item.content as unknown[] | undefined;
@@ -101,7 +103,9 @@ export class CodexEventParser implements EventParser {
             if (b.type === "tool_use" && typeof b.name === "string") {
               const label = toolLabel(b.name as string);
               this.onProgress?.(label);
+              // #86: tool_call + progress (per design doc §4.2, warning #5)
               this.onStreamUpdate?.({ kind: "tool_call", payload: { name: b.name, label }, providerId: "codex" });
+              this.onStreamUpdate?.({ kind: "progress", payload: label, providerId: "codex" });
             }
           }
         }

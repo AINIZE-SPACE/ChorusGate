@@ -36,6 +36,8 @@ export class ClaudeEventParser implements EventParser {
   onSessionId?: (sessionId: string) => void;
   /** Fired when Claude emits a todo/task tool_use with a plan list. */
   onPlanUpdate?: (plan: PlanUpdate) => void;
+  /** Fired when Claude emits any tool_use block (name + input). #86 */
+  onToolCall?: (name: string, input: unknown) => void;
 
   feed(line: string): void {
     const t = line.trim();
@@ -57,6 +59,7 @@ export class ClaudeEventParser implements EventParser {
         const b = block as Record<string, unknown>;
         if (b.type === "tool_use" && typeof b.name === "string") {
           this.onProgress?.(toolLabel(b.name));
+          this.onToolCall?.(b.name, b.input);
           // Check for todo/task plan data
           this.tryParsePlan(b.name, b.input);
         } else if (b.type === "text" && typeof b.text === "string") {
