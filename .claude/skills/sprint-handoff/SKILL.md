@@ -56,7 +56,11 @@ Merge → 状态: in_review → done/closed
 ## 通知模板
 
 ```
-<@{TESTER}> <@{REVIEWER}> {PROJECT} — {TYPE} #{N}: {标题} 开发完成，请验收。
+<@{TESTER}> {PROJECT} — {TYPE} #{N}: {标题} 开发完成。
+
+*需要你做两件事：*
+1. 代码评审 (Code Review) — review diff + 逻辑正确性
+2. 系统集成测试 (SIT) — npm run test:integration 全量跑
 
 *变更*
 • {要点1}
@@ -68,6 +72,9 @@ Merge → 状态: in_review → done/closed
 
 Refs: #{N}
 ```
+
+**:zap: 通知必须同时提到「代码评审」和「系统集成测试(SIT)」，缺一不可。**
+小马默认只做 code review，不主动跑 SIT——通知不写清楚他就以为只需看代码。
 
 ## 变量参考
 
@@ -85,6 +92,7 @@ Refs: #{N}
 - `<@USER_ID>` 格式，放消息首行
 - `chat.postMessage`: `link_names: true`
 - mention 在顶层 `text`，不在 blocks
+- **必须同时提到「代码评审」和「系统集成测试(SIT)」** — 小马默认只做 code review，不写清楚他不会跑 SIT
 
 ## Bug 修复强制流程
 
@@ -118,8 +126,8 @@ Refs: #{N}
 - [ ] CC 路径审查通过（改动不影响 Claude Code）
 - [ ] `git push` 到远程
 - [ ] Issue **未关闭**——已添加 comment 附修复摘要 + commit hash
-- [ ] Slack 频道通知（`@{TESTER}` `@{REVIEWER}`，mention 置首行）
-- [ ] 等待评审通过后 → `gh issue close {N}`
+- [ ] Slack 频道通知（`@{TESTER}`，mention 置首行，**必须写清「代码评审 + 系统集成测试(SIT)」两件事**）
+- [ ] 等待小马代码评审 + SIT 通过后 → `gh issue close {N}`
 
 
 ## 测试员 (M / 小马) 视角流程
