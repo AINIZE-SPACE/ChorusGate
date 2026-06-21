@@ -150,6 +150,8 @@ export async function generateReplyStream(
     onBlockStart?: (blockType: string) => void;
     onBlockStop?: (blockType: string) => void;
     onMetrics?: (m: { costUsd?: number; inputTokens?: number; outputTokens?: number }) => void;
+    /** M3 统一 StreamUpdate 回调 (#86) */
+    onStreamUpdate?: (update: import("./providers/types.js").StreamUpdate) => void;
   } = {}
 ): Promise<ReplyResult> {
   const { createStreamSession } = await import(
@@ -178,6 +180,7 @@ export async function generateReplyStream(
       onBlockStart: opts.onBlockStart,
       onBlockStop: opts.onBlockStop,
       onMetrics: opts.onMetrics,
+      onStreamUpdate: opts.onStreamUpdate, // #86: unified streaming
       onPermissionRequest: opts.onPermission
         ? async (req) => {
             try {

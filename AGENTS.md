@@ -29,3 +29,11 @@
 - `.Codex/skills/` — 项目技能定义
 - `docs/` — 架构文档和规划
 - `docs/gotchas.md` — 踩坑记录
+- `memory/project-team-channels.md` — 团队频道登记表（chorusgate_v4 等）
+
+## 沟通渠道
+
+- 日常协调: `<#C0BAB3Y7LLC>`（主协作频道）
+- 迭代四专用: `chorusgate_v4` = `<#C0BB035G3DK>`（小克 / 小马 / 小扣 / 小查 同体）
+- 结果广播: `<#C0AHL7U33EE>` = `#所有-ainize`
+- 提成员用 Slack `<@USERID>` 格式；缺 ID 时用名字占位（不可被 @ 触达）

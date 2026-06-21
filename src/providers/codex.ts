@@ -1,10 +1,10 @@
 // ============================================================
-// CodexProvider — spawn `codex --json exec`, parse JSONL
+// CodexProvider — spawn `codex exec --json`, parse JSONL
 //
 // 基于 M0 实测 + CLI --help（Codex CLI v0.139.0+）:
-//   - codex --json exec --cd <dir> ... -  (prompt via stdin)
-//   - codex --json exec resume ... <tid> -  (resume + stdin prompt)
-//   - --json 是全局 flag，必须在子命令 exec/resume 之前
+//   - codex exec --json --cd <dir> ... -  (prompt via stdin)
+//   - codex exec --json resume ... <tid> -  (resume + stdin prompt)
+//   - --json 是 exec 子命令的 flag，不是全局 flag，必须放在 exec 之后
 //   - thread_id 是 UUID 格式顶层字段
 //   - --ask-for-approval 在 headless 用 --dangerously-bypass-approvals-and-sandbox
 //
@@ -35,11 +35,27 @@ import type {
  * Gateway INTERACTIVE_PERMISSIONS is for Claude stream-json only — Codex
  * doesn't support stdin/stdout interactive approval (see #84 for v4 plan).
  */
+/**
+ * Shared flags for headless, non-interactive Codex execution.
+ *
+ * VERIFIED against codex 0.139.0 via scripts/verify-codex-cli.mjs.
+ * Add new flags ONLY after testing with: node scripts/verify-codex-cli.mjs
+ *
+ * Approval: Codex CLI does NOT support interactive approval (Spike #99).
+ * --ask-for-approval does not exist in v0.139.0+.
+ * We use sandbox mode (-s workspace-write) as a safety baseline.
+ * Set GATEWAY_CODEX_APPROVAL_MODE=bypass for the legacy dangerous behavior.
+ */
 function buildHeadlessFlags(): string[] {
-  return [
-    "--skip-git-repo-check",
-    "--dangerously-bypass-approvals-and-sandbox",
-  ];
+  const flags = ["--skip-git-repo-check"];
+  const mode = process.env.GATEWAY_CODEX_APPROVAL_MODE || "sandbox";
+  if (mode === "bypass") {
+    flags.push("--dangerously-bypass-approvals-and-sandbox");
+  } else {
+    // "sandbox" (default): safer — limits filesystem access to workspace
+    flags.push("-s", "workspace-write");
+  }
+  return flags;
 }
 
 // ---- spawn helper ------------------------------------------------------------
@@ -51,6 +67,8 @@ function spawnCodex(
   timeoutMs: number,
   parser: CodexEventParser,
   onSpawn?: (child: import("node:child_process").ChildProcess) => void,
+  onStreamUpdate?: (update: import("./types.js").StreamUpdate) => void,
+  model?: string,
 ): Promise<SessionOutput> {
   return new Promise<SessionOutput>((resolve) => {
     const codexBin = process.env.CODEX_BIN || "codex";
@@ -64,10 +82,11 @@ function spawnCodex(
       timeout: 3000, stdio: "ignore", windowsHide: true,
     });
     if (whichCheck.status !== 0) {
-      return Promise.resolve({
+      resolve({
         ok: false, text: "", sessionId: "",
         error: `failed to spawn codex: ENOENT — ${codexBin} not found`,
       });
+      return;
     }
 
     // Exec flags (--cd only for new sessions, not resume)
@@ -75,11 +94,21 @@ function spawnCodex(
       "-c", `max_iterations=${maxIterations}`,
       ...buildHeadlessFlags(),
     ];
+    // #86: model selection — env override takes precedence over opts.model
+    const effectiveModel = process.env.CODEX_MODEL || model;
+    if (effectiveModel) {
+      execFlags.push("-m", effectiveModel);
+    }
     const allArgs = [...positionalArgs, ...execFlags];
 
     const win = process.platform === "win32";
     const cmd = win
-      ? `"${codexBin}" ${allArgs.map((a) => (a.includes(" ") ? `"${a}"` : a)).join(" ")}`
+      ? `"${codexBin}" ${allArgs.map((a) => {
+          if (a.includes(" ") || a.includes(`"`)) {
+            return `"${a.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+          }
+          return a;
+        }).join(" ")}`
       : codexBin;
     const spawnArgs = win ? [] : allArgs;
 
@@ -89,6 +118,9 @@ function spawnCodex(
       shell: win,
       windowsHide: true,
     });
+
+    // #86: bind StreamUpdate callback to parser
+    if (onStreamUpdate) parser.onStreamUpdate = onStreamUpdate;
 
     child.on("spawn", () => {
       onSpawn?.(child);
@@ -140,9 +172,14 @@ function spawnCodex(
       settled = true;
       clearTimeout(timer);
 
+      // Flush trailing buffer first — may contain turn.completed with metrics
       if (stdoutBuf) parser.feed(stdoutBuf);
 
       const text = parser.getResultText();
+
+      // #86: emit stream done AFTER all data is flushed
+      // (metrics from turn.completed must arrive before done)
+      onStreamUpdate?.({ kind: "done", payload: null, providerId: "codex" });
       if (code === 0 && text) {
         resolve({ ok: true, text, sessionId: "" });
       } else if (code === 0 && !text) {
@@ -202,7 +239,7 @@ export const codexProvider: AgentProvider = {
     opts: CreateSessionOptions,
   ): Promise<SessionOutput> {
     let resolvedSessionId = "";
-    const args = ["--json", "exec", "--cd", opts.cwd]; // --json global flag before subcommand; prompt via stdin
+    const args = ["exec", "--json", "--cd", opts.cwd]; // prompt via stdin; --cd sets workspace
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
@@ -218,6 +255,8 @@ export const codexProvider: AgentProvider = {
       opts.timeoutMs,
       parser,
       opts.onSpawn,
+      opts.onStreamUpdate, // #86: unified streaming
+      opts.model,          // #86: model selection
     );
     return { ...result, sessionId: resolvedSessionId };
   },
@@ -227,10 +266,12 @@ export const codexProvider: AgentProvider = {
     sessionId: string,
     opts: ResumeSessionOptions,
   ): Promise<SessionOutput> {
-    const args = ["--json", "exec", "resume", sessionId]; // --json global flag before subcommand; prompt via stdin
+    const args = ["exec", "--json", "resume", sessionId, "-"]; // `-` tells codex to read prompt from stdin (required for resume)
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
+    // #86 suggestion #9: bind onSessionId so the callback fires on resume too
+    parser.onSessionId = opts.onSessionId;
 
     return spawnCodex(
       args,
@@ -239,6 +280,8 @@ export const codexProvider: AgentProvider = {
       opts.timeoutMs,
       parser,
       opts.onSpawn,
+      opts.onStreamUpdate, // #86: unified streaming
+      opts.model,          // #86: model selection
     ).then((r) => ({
       ...r,
       sessionId,

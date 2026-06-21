@@ -20,8 +20,10 @@ import { dirname, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// ---- ST-CX-001: --json flag is before positional args in createSession ----
-test("ST-CX-001: codex createSession --json before positional args", async () => {
+// ---- ST-CX-001: --json flag is after exec subcommand in createSession ----
+// Verified against real codex CLI: tip says 'exec --json' exists.
+// --json is an exec subcommand flag, not a global flag.
+test("ST-CX-001: codex createSession exec --json (after subcommand)", async () => {
   const { codexProvider } = await import("../src/providers/codex.js");
 
   let capturedArgs: string[] = [];
@@ -48,16 +50,17 @@ test("ST-CX-001: codex createSession --json before positional args", async () =>
 
   const argsStr = capturedArgs.join(" ");
   // Verify format: codex exec --json --cd <dir> ...
-  // NOT: codex exec <prompt> --json --cd <dir>  (wrong)
   assert.match(argsStr, /--json/, "Must include --json flag");
-  // --json must come BEFORE the positional "exec" args
+  // --json must come AFTER exec (verified: real CLI says 'exec --json' exists)
   const jsonIdx = argsStr.indexOf("--json");
   const execIdx = argsStr.indexOf("exec");
-  assert.ok(jsonIdx < execIdx, "--json must come before 'exec' subcommand");
+  assert.ok(execIdx >= 0, "exec subcommand must be present");
+  assert.ok(jsonIdx >= 0, "--json flag must be present");
+  assert.ok(execIdx < jsonIdx, `--json must come after exec: ${argsStr}`);
 });
 
-// ---- ST-CX-002: --json flag is before positional args in resumeSession ----
-test("ST-CX-002: codex resumeSession --json before positional args", async () => {
+// ---- ST-CX-002: --json flag is after exec subcommand in resumeSession ----
+test("ST-CX-002: codex resumeSession exec --json resume (after subcommand)", async () => {
   const { codexProvider } = await import("../src/providers/codex.js");
 
   let capturedArgs: string[] = [];
@@ -77,57 +80,58 @@ test("ST-CX-002: codex resumeSession --json before positional args", async () =>
   }
 
   const argsStr = capturedArgs.join(" ");
-  // Correct: codex exec resume --json <thread_id> <prompt>
-  // Wrong:   codex exec resume <thread_id> <prompt> --json
+  // Correct: codex exec --json resume <thread_id>
+  // Verified: real CLI says 'exec --json' exists
   assert.match(argsStr, /--json/, "Must include --json flag");
   const jsonIdx = argsStr.indexOf("--json");
+  const execIdx = argsStr.indexOf("exec");
   const resumeIdx = argsStr.indexOf("resume");
-  assert.ok(jsonIdx < resumeIdx + 10, "--json must come before resume positional args");
-  assert.ok(argsStr.includes("resume"), "Must include resume subcommand");
+  assert.ok(execIdx >= 0, "exec subcommand must be present");
+  assert.ok(jsonIdx >= 0, "--json flag must be present");
+  assert.ok(resumeIdx >= 0, "resume subcommand must be present");
+  assert.ok(execIdx < jsonIdx, `--json must come after exec: ${argsStr}`);
+  assert.ok(jsonIdx < resumeIdx, `--json must come before resume: ${argsStr}`);
 });
 
-// ---- ST-CX-003: Windows cmd.exe escaping for prompts with quotes ----
-test("ST-CX-003: prompt with double-quotes on Windows: correct escaping", () => {
-  // This is a pure argument construction test.
-  // We verify that prompts containing double-quotes are properly escaped
-  // in the Windows spawn command construction.
+// ---- ST-CX-003: Windows cmd.exe quoting for args with spaces ----
+// Note: prompt is sent via stdin (not in args), so prompt quoting is irrelevant.
+// This test verifies that args with spaces (e.g. --cd path) are properly quoted.
+test("ST-CX-003: args with spaces are quoted; prompt not in args (goes via stdin)", () => {
   const isWin = process.platform === "win32";
+  if (!isWin) return;
 
-  if (!isWin) {
-    // On non-Windows, this escaping is not applied
-    return;
-  }
-
-  // Replicate the spawnCodex logic
-  const prompt = 'say "hello" and "goodbye"';
-  const args = ["exec", "--json", "--cd", __dirname, prompt];
+  // Replicate current spawnCodex logic — prompt goes via stdin, NOT in args
+  const args = ["exec", "--json", "--cd", "C:\\Program Files\\test dir"];
   const CODEX_BIN = "codex";
 
   const cmd = `"${CODEX_BIN}" ${args
     .map((a) => {
-      if (a.includes(" ") || a.includes('"')) {
-        return `"${a.replace(/"/g, '\"')}"`;
+      if (a.includes(" ")) {
+        return `"${a}"`;
       }
       return a;
     })
     .join(" ")}`;
 
-  // The escaped prompt should be: \"hello\" not ""hello""
+  // Verify path with spaces is properly quoted
+  assert.ok(
+    cmd.includes('"C:\\Program Files\\test dir"'),
+    `Path with spaces should be quoted: ${cmd}`,
+  );
+  // Verify no empty double-quote pairs
   assert.ok(
     !cmd.includes('""'),
     `No empty double-quote pairs allowed: ${cmd}`,
   );
-  assert.ok(
-    cmd.includes('\\"'),
-    `Double-quotes must be escaped with backslash: ${cmd}`,
-  );
 });
 
-// ---- ST-CX-004: prompt with CJK + spaces survives Windows cmdline ----
-test("ST-CX-004: CJK prompt with spaces on Windows spawns correctly", async () => {
+// ---- ST-CX-004: CJK prompt via stdin doesn't crash spawn ----
+// Prompt is sent via stdin (not in spawnargs), so we verify spawn was attempted
+// without crashing rather than checking spawnargs for CJK content.
+test("ST-CX-004: CJK prompt via stdin doesn't crash spawn", async () => {
   const { codexProvider } = await import("../src/providers/codex.js");
 
-  let capturedArgs: string[] = [];
+  let spawnCalled = false;
   const cjkPrompt = "你好世界 Hello World 这是测试";
 
   try {
@@ -136,20 +140,16 @@ test("ST-CX-004: CJK prompt with spaces on Windows spawns correctly", async () =
       timeoutMs: 3000,
       mcpConfigPath: "",
       permissionMode: "bypassPermissions",
-      onSpawn(child: ChildProcess) {
-        capturedArgs = child.spawnargs ?? [];
+      onSpawn(_child: ChildProcess) {
+        spawnCalled = true;
       },
     });
   } catch {
-    // Expected; verify args only
+    // Expected — codex may not be installed in test env
   }
 
-  // Args should contain the CJK prompt as a separate argument
-  const argsStr = capturedArgs.join(" ");
-  assert.ok(
-    argsStr.includes("你好") && argsStr.includes("Hello"),
-    `CJK prompt should be present in args: ${argsStr}`,
-  );
+  // Key assertion: spawn was attempted (no crash on CJK input to stdin)
+  assert.ok(spawnCalled, "Spawn should be attempted with CJK prompt (via stdin)");
 });
 
 // ---- ST-CX-005: MAX_ITERATIONS env cap is applied ----

@@ -22,3 +22,14 @@
 | [sprint-3-daily-hermes-2.md](./v3/sprint-3-daily-hermes-2.md) | 日报 | 小马 |
 | [sprint-3-retrospective.md](./v3/sprint-3-retrospective.md) | 迭代回顾 | — |
 | [sprint-3-retrospective-roles.md](./v3/sprint-3-retrospective-roles.md) | 角色复盘 | 全角色 |
+
+## 迭代四
+
+| 文档 | 类型 | 作者 |
+|------|------|------|
+| [iteration-4-retrospective-claude.md](./v4/iteration-4-retrospective-claude.md) | 迭代回顾 | 小克 |
+| [iteration-4-retrospective-hermes.md](./v4/iteration-4-retrospective-hermes.md) | 迭代回顾 | 小马 |
+| [iteration-4-retrospective-codex.md](./v4/iteration-4-retrospective-codex.md) | 迭代回顾 | 小扣 |
+| [iteration-4-final-report.md](./v4/iteration-4-final-report.md) | 最终迭代汇报 | 小扣 |
+| [iteration-4-test-report.md](./v4/iteration-4-test-report.md) | 测试报告 | 小扣 |
+| [iteration-4-user-manual.md](./v4/iteration-4-user-manual.md) | 用户手册 | 小扣 |

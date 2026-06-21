@@ -14,7 +14,8 @@
 // readline has platform-specific quirks with piped stdin.
 // Use raw process.stdin events (stream-json is line-delimited JSON).
 
-const mode = process.env.MOCK_CLAUDE_MODE || process.argv[2] || "simple";
+const modeRaw = process.env.MOCK_CLAUDE_MODE || process.argv[2] || "simple";
+const mode = modeRaw === "permission_required" ? "permission" : modeRaw;
 const SESSION_ID = process.env.MOCK_SESSION_ID || "mock-session-001";
 const REQUEST_ID = "mock_req_001";
 

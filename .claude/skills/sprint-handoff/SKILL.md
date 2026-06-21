@@ -15,9 +15,11 @@ Issue (epic/feature/story/task/bug)
   │  backlog / open
   │  gh issue create / view {N}
   ▼
-研究规划 (Spike → SPEC → 评审)
+研究规划 (Spike → SPEC → M 评审)
   │  状态: in_progress
   │  gh issue comment {N} --body "开始开发"
+  │  M 评审必须抓第一性原因, 用公开资源体现/佐证
+  │  判断与产品定位、目标用户、现有技术框架适配度
   ▼
 开发 (分支 → 代码 → 测试)
   │  状态: in_progress
@@ -54,7 +56,11 @@ Merge → 状态: in_review → done/closed
 ## 通知模板
 
 ```
-<@{TESTER}> <@{REVIEWER}> {PROJECT} — {TYPE} #{N}: {标题} 开发完成，请验收。
+<@{TESTER}> {PROJECT} — {TYPE} #{N}: {标题} 开发完成。
+
+*需要你做两件事：*
+1. 代码评审 (Code Review) — review diff + 逻辑正确性
+2. 系统集成测试 (SIT) — npm run test:integration 全量跑
 
 *变更*
 • {要点1}
@@ -66,6 +72,9 @@ Merge → 状态: in_review → done/closed
 
 Refs: #{N}
 ```
+
+**:zap: 通知必须同时提到「代码评审」和「系统集成测试(SIT)」，缺一不可。**
+小马默认只做 code review，不主动跑 SIT——通知不写清楚他就以为只需看代码。
 
 ## 变量参考
 
@@ -83,6 +92,7 @@ Refs: #{N}
 - `<@USER_ID>` 格式，放消息首行
 - `chat.postMessage`: `link_names: true`
 - mention 在顶层 `text`，不在 blocks
+- **必须同时提到「代码评审」和「系统集成测试(SIT)」** — 小马默认只做 code review，不写清楚他不会跑 SIT
 
 ## Bug 修复强制流程
 
@@ -93,8 +103,15 @@ Refs: #{N}
 3. **自测**: `npm test` + 涉及 CLI 的跑 `node scripts/verify-codex-cli.mjs`
 4. **CC 影响审查**: 检查 Claude Code 路径是否受影响
 5. **提交**: `git add -A && git commit && git push`
-6. **通知**: `slack_send_message` → `{CHANNEL_ID}` → `@{TESTER}` `@{REVIEWER}`
-7. **Issue 关闭**: `gh issue close {N}`
+6. **更新 Issue**: `gh issue comment {N}` — 附修复摘要和 commit hash，**不要关**，状态标记为 `in_review` 等待评审
+7. **通知**: `slack_send_message` → `{CHANNEL_ID}` → `@{TESTER}` `@{REVIEWER}`
+8. **等待评审**: 小马评审 + ST 验收通过后在频道回复
+9. **Issue 关闭**: 评审通过后 `gh issue close {N} --reason completed`
+
+**:zap: 关键纪律——Issue 不要提前关**:
+- 步骤 6 时 issue 保持 OPEN，comment 附 `Status: in_review — pending @小马 ST`
+- 步骤 9 **只在评审通过后执行**——提前关会切断状态流，评审反馈无迹可寻
+- 每个 bug 走完完整 9 步闭环再领下一个
 
 **:zap: 自测硬规则（Sprint 3 血泪教训）**:
 - **改完代码必须先 `npm test` 再提交**——代码写完不是终点
@@ -108,8 +125,93 @@ Refs: #{N}
 - [ ] CLI 实测通过 (`node scripts/verify-codex-cli.mjs`，如涉及)
 - [ ] CC 路径审查通过（改动不影响 Claude Code）
 - [ ] `git push` 到远程
-- [ ] Slack 频道通知（`@{TESTER}` `@{REVIEWER}`，mention 置首行）
-- [ ] GitHub Issue 已关闭
+- [ ] Issue **未关闭**——已添加 comment 附修复摘要 + commit hash
+- [ ] Slack 频道通知（`@{TESTER}`，mention 置首行，**必须写清「代码评审 + 系统集成测试(SIT)」两件事**）
+- [ ] 等待小马代码评审 + SIT 通过后 → `gh issue close {N}`
+
+
+## 测试员 (M / 小马) 视角流程
+
+**所有测试工作必须走 sprint-handoff** —— 测试不是终点, 是流程节点.
+
+### 0. 开发转单验收清单 (SIT 交付件)
+
+**开发说"完成"时，小马作为 tester 验收的不是零散测试，而是整套 SIT 交付件。缺少任一项就打回。**
+
+| # | 交付件 | 检查点 | 缺项处置 |
+|---|--------|--------|---------|
+| 1 | **方案策略** | 测试策略文档存在（范围/方法/环境/准入标准） | 打回 |
+| 2 | **用例脚本** | 测试用例列表 + 可执行脚本（`npm test`/自定义 `.test.ts` / `scripts/*.mjs`） | 打回 |
+| 3 | **执行记录** | 实际运行的命令 + 完整 stdout/stderr 日志（截图/文本均可） | 打回 |
+| 4 | **测试报告** | 结果汇总：通过/失败计数、关键日志、判定结论 | 打回 |
+| 5 | **交付存档** | 报告文件已在 `docs/tests/cases/` 存档，含日期和 slug | 可补，勿跳过 |
+
+> **注意**：代码写完 ≠ 功能交付完整。K 必须同时提交上述 5 项，小马才进入测试验证环。
+
+### 1. 测试发现 (新测试)
+- 跑 `npm test` / `npm run test:fast` / `npm run test:integration`
+- 全过 → §4 收尾; 有失败 → §2
+
+### 2. 失败 → 提单给 K
+每个失败用例:
+1. `gh issue create` (REST: `POST /repos/AINIZE-SPACE/ChorusGate/issues`) — 现象/复现命令/推测根因
+2. 通知小克 `<@U0B8VHLHJAX>` 到 `<#C0BB035G3DK>` (chorusgate_v4), mention 置首行
+3. **期间 issue 保持 OPEN** (不能关 —— §1 关键纪律)
+
+### 3. 测试回归 (K 修完触发)
+K push 修复后:
+- `git pull` 拉最新 dev 或 feature 分支
+- 重跑相关测试套件 + 全套
+- 全过 → §4 收尾; 仍失败 → §5 黑事件
+
+### 4. 回归通过 → 4 步收尾
+1. **关单** `gh issue close {N} --reason completed` + comment 附 commit SHA
+2. **出报告** `docs/tests/cases/{YYYY-MM-DD}-{slug}-xiaoma.md` (含: 命令/结果/边界)
+3. **提交** 任何代码改动 `git add` + `commit` + `push`
+4. **通知小扣** `<@U0BAGFVD8VB>` 到 `<#C0BB035G3DK>`
+
+### 5. 回归不通过 → 黑事件
+- **打回** @小克 重修 + @小扣 同步状态
+- **记录** `docs/black-incidents/{YYYY-MM-DD}-{slug}.md` (失败 SHA/现象/根因/方向)
+- **issue 重开** `gh issue reopen {N}` (不能关!)
+- **入回顾** 列入 `docs/reports/v{N}-retro.md` 的 `## 黑事件` 段
+
+### 6. 通知模板
+
+测试发现 (M → K):
+```
+<@{K}> 测试发现 #{N}, 请修复.
+*失败*: {用例名}: {现象}
+*复现*: `npm test -- --test-name-pattern='...'`
+*日志*: {关键 stack/console}
+Refs: #{N}
+```
+
+回归通过 (M → C):
+```
+<@{C}> #{N} 回归通过, 已关单.
+*套件*: {test/test:fast/test:integration}
+*结果*: pass/fail = {N}/{N}
+*报告*: docs/tests/cases/{slug}.md
+*commit*: {SHORT_SHA} ({branch})
+```
+
+黑事件 (M → C, 同步):
+```
+<@{C}> #{N} 回归失败, 已打回 @{K} 重修 (黑事件).
+*失败 SHA*: {SHORT_SHA}
+*现象*: {一句话}
+*入档*: docs/black-incidents/{slug}.md
+*回顾*: docs/reports/v{N}-retro.md#黑事件
+```
+
+### 7. 黑事件 (Black Incident) 定义
+
+任何 **回归失败** 或 **未走完整 sprint-handoff 流程** 导致的返工/事故, 都算黑事件.
+- 写 `docs/black-incidents/{YYYY-MM-DD}-{slug}.md`
+- 入 `docs/reports/v{N}-retro.md` 的 `## 黑事件` 段
+- 跨迭代累计, 作下一轮流程改进的输入
+- **黑事件不消音** —— 入档 + 公开, 不掩盖
 
 ## Sprint 3 实战教训
 

@@ -5,6 +5,7 @@
 import type { SendMessageInput, SendMessageOutput } from "../types.js";
 import { getWebClient } from "../slack-clients.js";
 import { slackApiError } from "../tool-errors.js";
+import { postSlackMessageChunks } from "../slack-message.js";
 
 export const sendMessageTool = {
   name: "slack_send_message",
@@ -37,15 +38,15 @@ export const sendMessageTool = {
   async handler(input: SendMessageInput): Promise<SendMessageOutput> {
     const web = getWebClient();
 
-    const result = await web.chat.postMessage({
+    const results = await postSlackMessageChunks(web, {
       channel: input.channel,
       text: input.text,
       thread_ts: input.thread_ts,
-      link_names: true,
     });
+    const result = results[0];
 
-    if (!result.ok) {
-      throw slackApiError("Failed to send message", result.error);
+    if (!result?.ok) {
+      throw slackApiError("Failed to send message", result?.error);
     }
 
     return {

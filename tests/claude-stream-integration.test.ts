@@ -97,6 +97,16 @@ test("claude-stream-integration: permission mode — request then response", asy
 
   const child = spawn("node", [MOCK_CLAUDE, "permission"], {
     stdio: ["pipe", "pipe", "pipe"],
+    env: { ...process.env, MOCK_CLAUDE_MODE: "permission" },
+  });
+
+  // Wait for mock to signal ready on stderr before sending stdin
+  await new Promise<void>((resolve) => {
+    child.stderr!.on("data", (chunk: Buffer) => {
+      if (chunk.toString().includes("[mock-claude] ready")) resolve();
+    });
+    // Safety timeout — proceed after 500ms even if no ready signal
+    setTimeout(resolve, 500);
   });
 
   let stdoutBuf = "";
@@ -129,8 +139,11 @@ test("claude-stream-integration: permission mode — request then response", asy
     }) + "\n"
   );
 
-  // Wait for stdout to emit permission_request
-  await new Promise((r) => setTimeout(r, 200));
+  // Wait for stdout to emit permission_request (poll with timeout)
+  const start = Date.now();
+  while (permRequests.length === 0 && Date.now() - start < 2000) {
+    await new Promise((r) => setTimeout(r, 50));
+  }
 
   assert.ok(permRequests.length >= 1, "should receive permission_request");
   assert.equal(permRequests[0].toolName, "Write");

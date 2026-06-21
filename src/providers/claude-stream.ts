@@ -39,10 +39,12 @@ import type {
   CreateSessionOptions,
   ResumeSessionOptions,
   SessionOutput,
+  StreamUpdate,
 } from "./types.js";
+import { toolLabel } from "./types.js";
 
 /** Build shared args for claude -p stream-json mode. */
-function buildStreamArgs(sessionFlag: "--session-id" | "--resume", sessionId: string): string[] {
+function buildStreamArgs(sessionFlag: "--session-id" | "--resume", sessionId: string, model?: string): string[] {
   const args = [
     "-p",
     "--input-format", "stream-json",
@@ -56,7 +58,108 @@ function buildStreamArgs(sessionFlag: "--session-id" | "--resume", sessionId: st
   if (process.env.CLAUDE_STREAM_PARTIAL === "true") {
     args.splice(args.indexOf("--verbose") + 1, 0, "--include-partial-messages");
   }
+  // #86: model selection — env override takes precedence over opts.model
+  const effectiveModel = process.env.CLAUDE_MODEL || model;
+  if (effectiveModel) {
+    args.push("--model", effectiveModel);
+  }
   return args;
+}
+
+// ---- StreamUpdate binding helper (#86) ---------------------------------------
+
+/**
+ * Wrap parser callbacks to emit unified StreamUpdate events.
+ * Works for both one-shot (claudeStreamProvider) and bidirectional
+ * (createStreamSession) paths.
+ *
+ * Callbacks that depend on --include-partial-messages (text, thinking,
+ * block_start/stop, tool_param) are wrapped unconditionally — they simply
+ * won't fire if partial messages are disabled.
+ */
+function bindStreamUpdate(
+  parser: ClaudeStreamParser,
+  onStreamUpdate: (update: StreamUpdate) => void,
+): void {
+  const su = onStreamUpdate;
+
+  // session_id — always fires (system/init)
+  const origSid = parser.onSessionId;
+  parser.onSessionId = (sid) => {
+    origSid?.(sid);
+    su({ kind: "session_id", payload: sid, providerId: "claude-stream" });
+  };
+
+  // progress — always fires (via onProgress)
+  // Always wrap, even if orig is undefined (#86 warning #4 fix)
+  const origProgress = parser.onProgress;
+  parser.onProgress = (l) => {
+    origProgress?.(l);
+    su({ kind: "progress", payload: l, providerId: "claude-stream" });
+  };
+
+  // tool_call + progress — fires from assistant tool_use blocks
+  // (inherited from ClaudeEventParser.onToolCall, which fires for ALL tool_use,
+  //  not just those wrapped by stream_event)
+  parser.onToolCall = (name, _input) => {
+    const label = toolLabel(name);
+    su({ kind: "tool_call", payload: { name, label }, providerId: "claude-stream" });
+    su({ kind: "progress", payload: label, providerId: "claude-stream" });
+  };
+
+  // done — fires when result event arrives
+  parser.onDone = () => {
+    su({ kind: "done", payload: null, providerId: "claude-stream" });
+  };
+
+  // The following only fire when --include-partial-messages is active.
+  // We wrap them unconditionally so they "just work" when the flag is on.
+
+  const origText = parser.onTextDelta;
+  parser.onTextDelta = (t) => {
+    origText?.(t);
+    su({ kind: "text", payload: t, providerId: "claude-stream" });
+  };
+
+  const origThinking = parser.onThinkingDelta;
+  parser.onThinkingDelta = (t) => {
+    origThinking?.(t);
+    su({ kind: "thinking", payload: t, providerId: "claude-stream" });
+  };
+
+  const origBlockStart = parser.onBlockStart;
+  parser.onBlockStart = (b) => {
+    origBlockStart?.(b);
+    su({ kind: "block_start", payload: b, providerId: "claude-stream" });
+    // #86 warning #6: thinking block → also emit progress
+    if (b === "thinking") {
+      su({ kind: "progress", payload: "🧠 Extended Thinking…", providerId: "claude-stream" });
+    }
+  };
+
+  const origBlockStop = parser.onBlockStop;
+  parser.onBlockStop = (b) => {
+    origBlockStop?.(b);
+    su({ kind: "block_stop", payload: b, providerId: "claude-stream" });
+  };
+
+  const origMetrics = parser.onMetrics;
+  parser.onMetrics = (m) => {
+    origMetrics?.(m);
+    su({ kind: "metrics", payload: m, providerId: "claude-stream" });
+  };
+
+  const origToolParam = parser.onToolParam;
+  parser.onToolParam = (j) => {
+    origToolParam?.(j);
+    su({ kind: "tool_param", payload: j, providerId: "claude-stream" });
+  };
+
+  const origHook = parser.onHook;
+  parser.onHook = (h) => {
+    origHook?.(h);
+    su({ kind: "hook", payload: h, providerId: "claude-stream" });
+  };
 }
 
 // ---- spawn helper ------------------------------------------------------------
@@ -174,10 +277,12 @@ export const claudeStreamProvider: AgentProvider = {
     // Even if opts.sessionId is truthy (from sessionStore), use --session-id.
     const sessionId = opts.sessionId || crypto.randomUUID();
     const env = buildSpawnEnv(opts);
-    const args = buildStreamArgs("--session-id", sessionId);
+    const args = buildStreamArgs("--session-id", sessionId, opts.model);
     const parser = new ClaudeStreamParser();
     parser.onProgress = opts.onProgress;
     parser.onSessionId = opts.onSessionId;
+    // #86: unified streaming
+    if (opts.onStreamUpdate) bindStreamUpdate(parser, opts.onStreamUpdate);
     const sr = spawnStream(args, opts.cwd, parser, env, opts.onSpawn);
     parser.onResult = () => { if (!sr.settled) sr.child.stdin?.end(); };
 
@@ -204,9 +309,11 @@ export const claudeStreamProvider: AgentProvider = {
     opts: ResumeSessionOptions,
   ): Promise<SessionOutput> {
     const env = buildSpawnEnv(opts);
-    const args = buildStreamArgs("--resume", sessionId);
+    const args = buildStreamArgs("--resume", sessionId, opts.model);
     const parser = new ClaudeStreamParser();
     parser.onProgress = opts.onProgress;
+    // #86: unified streaming
+    if (opts.onStreamUpdate) bindStreamUpdate(parser, opts.onStreamUpdate);
     const sr = spawnStream(args, opts.cwd, parser, env, opts.onSpawn);
     parser.onResult = () => { if (!sr.settled) sr.child.stdin?.end(); };
 
@@ -289,7 +396,7 @@ export function createStreamSession(
   const isResume = !!opts.resume;
   const env = buildSpawnEnv(opts);
   const args = buildStreamArgs(
-    isResume ? "--resume" : "--session-id", sessionId,
+    isResume ? "--resume" : "--session-id", sessionId, opts.model,
   );
 
   const parser = new ClaudeStreamParser();
@@ -301,12 +408,13 @@ export function createStreamSession(
   if (opts.onPlanUpdate) {
     parser.onPlanUpdate = opts.onPlanUpdate;
   }
-  // M3: 流式增量回调 (#85)
+  // M3: 流式增量回调 — raw callbacks + unified StreamUpdate (#85, #86)
   if (opts.onTextDelta) parser.onTextDelta = opts.onTextDelta;
   if (opts.onThinkingDelta) parser.onThinkingDelta = opts.onThinkingDelta;
   if (opts.onBlockStart) parser.onBlockStart = opts.onBlockStart;
   if (opts.onBlockStop) parser.onBlockStop = opts.onBlockStop;
   if (opts.onMetrics) parser.onMetrics = opts.onMetrics;
+  if (opts.onStreamUpdate) bindStreamUpdate(parser, opts.onStreamUpdate);
   // result → close stdin
   parser.onResult = () => {
     if (!sr.settled) {
