@@ -46,6 +46,7 @@ import {
 } from "./gateway-paths.js";
 import { writeFileSync, rmSync } from "node:fs";
 import type { StoredEvent } from "./types.js";
+import { splitSlackMessage } from "./slack-message.js";
 
 // ---- multi-profile routing ---------------------------------------------------
 // Build a lookup map from profile id → ProfileConfig for O(1) routing.
@@ -672,19 +673,30 @@ async function processEvent(
       `displayLen=${displayText.length}`,
     );
 
+    const replyChunks = splitSlackMessage(displayText);
     if (placeholderTs) {
       await web.chat.update({
         channel: event.channel,
         ts: placeholderTs,
-        text: displayText,
+        text: replyChunks[0],
       });
+      for (const chunk of replyChunks.slice(1)) {
+        await web.chat.postMessage({
+          channel: event.channel,
+          thread_ts: replyThreadTs,
+          text: chunk,
+          link_names: true,
+        });
+      }
     } else {
-      await web.chat.postMessage({
-        channel: event.channel,
-        thread_ts: replyThreadTs,
-        text,
-        link_names: true,
-      });
+      for (const chunk of replyChunks) {
+        await web.chat.postMessage({
+          channel: event.channel,
+          thread_ts: replyThreadTs,
+          text: chunk,
+          link_names: true,
+        });
+      }
     }
 
     // #1: mark as successfully replied
