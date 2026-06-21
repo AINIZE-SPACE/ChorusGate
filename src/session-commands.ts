@@ -15,6 +15,7 @@
 
 import { getWebClient } from "./slack-clients.js";
 import { sessionStore, type SessionIdentity, formatIdentityKey } from "./session-store.js";
+import { interruptManager } from "./interrupt.js";
 
 /** Normalize a command prefix for use in command names. */
 export function normalizePrefix(raw: string): string {
@@ -56,6 +57,7 @@ export type Command =
   | { kind: "resume"; arg: string; projectDir?: string }
   | { kind: "new"; projectDir?: string }
   | { kind: "current" }
+  | { kind: "stop" }
   | { kind: "help" };
 
 /** Parse --project <dir> from command args. Returns the dir or undefined. */
@@ -98,6 +100,11 @@ export function detectCommand(text: string, prefix?: string): Command | null {
     case "current":
     case "whoami":
       return { kind: "current" };
+    case commandName("stop", prefix):
+    case "stop":
+    case "cancel":
+    case "kill":
+      return { kind: "stop" };
     case commandName("help", prefix):
     case "help":
       return { kind: "help" };
@@ -144,6 +151,7 @@ export async function handleCommand(
           `\`${slashCommand("sessions", prefix)}\` - list known sessions`,
           `\`${slashCommand("resume", prefix)} N\` or \`${slashCommand("resume", prefix)} <uuid>\` - bind this scope to a known session`,
           `\`${slashCommand("new", prefix)}\` - reset this scope so the next message starts fresh`,
+          `\`${slashCommand("stop", prefix)}\` - kill the running agent process for this scope`,
           `\`${slashCommand("current", prefix)}\` - show the session currently bound to this scope`,
           `\`${slashHelpCommand(prefix)}\` - show this help`,
         ].join("\n"),
@@ -204,6 +212,18 @@ export async function handleCommand(
           lines.join("\n") +
           `\n\nUse \`${slashCommand("resume", prefix)} N\` to switch to one of them.`,
       );
+      return;
+    }
+
+    case "stop": {
+      const running = interruptManager.isRunning(scopeKey);
+      if (!running) {
+        await post("No running agent process found for this scope. Nothing to stop.");
+        return;
+      }
+      // Fire-and-forget: interrupt kills the process + posts busy-ack
+      void interruptManager.interrupt(scopeKey, ctx.channel, ctx.threadTs);
+      await post("⏳ Stopping agent process…");
       return;
     }
 
