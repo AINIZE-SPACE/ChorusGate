@@ -266,7 +266,7 @@ export const codexProvider: AgentProvider = {
     sessionId: string,
     opts: ResumeSessionOptions,
   ): Promise<SessionOutput> {
-    const args = ["exec", "--json", "resume", sessionId]; // prompt via stdin; --cd not supported on resume
+    const args = ["exec", "--json", "resume", sessionId, "-"]; // `-` tells codex to read prompt from stdin (required for resume)
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
