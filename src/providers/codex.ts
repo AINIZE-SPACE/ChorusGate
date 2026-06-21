@@ -35,11 +35,27 @@ import type {
  * Gateway INTERACTIVE_PERMISSIONS is for Claude stream-json only — Codex
  * doesn't support stdin/stdout interactive approval (see #84 for v4 plan).
  */
+/**
+ * Shared flags for headless, non-interactive Codex execution.
+ *
+ * VERIFIED against codex 0.139.0 via scripts/verify-codex-cli.mjs.
+ * Add new flags ONLY after testing with: node scripts/verify-codex-cli.mjs
+ *
+ * Approval: Codex CLI does NOT support interactive approval (Spike #99).
+ * --ask-for-approval does not exist in v0.139.0+.
+ * We use sandbox mode (-s workspace-write) as a safety baseline.
+ * Set GATEWAY_CODEX_APPROVAL_MODE=bypass for the legacy dangerous behavior.
+ */
 function buildHeadlessFlags(): string[] {
-  return [
-    "--skip-git-repo-check",
-    "--dangerously-bypass-approvals-and-sandbox",
-  ];
+  const flags = ["--skip-git-repo-check"];
+  const mode = process.env.GATEWAY_CODEX_APPROVAL_MODE || "sandbox";
+  if (mode === "bypass") {
+    flags.push("--dangerously-bypass-approvals-and-sandbox");
+  } else {
+    // "sandbox" (default): safer — limits filesystem access to workspace
+    flags.push("-s", "workspace-write");
+  }
+  return flags;
 }
 
 // ---- spawn helper ------------------------------------------------------------

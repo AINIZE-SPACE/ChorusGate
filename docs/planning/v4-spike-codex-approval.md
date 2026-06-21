@@ -1,6 +1,7 @@
 # Codex 统一审批 — Spike 研究 + 方案设计
 
-> 状态: 🟡 设计评审中 | Issue: #84, #99
+> 状态: 🟢 设计评审通过 → 开发中 | Issue: #84, #99
+> 评审人: 小马 (2026-06-21) — 方案B可行，补充沙箱边界，保持测试兼容
 > 目标: 让 Codex 审批与 Claude 共享同一套 4-Button Approval UI
 > 方法: Spike 实测 → 协议可行性 → 方案选择 → 设计输出
 > 日期: 2026-06-21
@@ -101,7 +102,24 @@ function buildHeadlessFlags(): string[] {
 }
 ```
 
-新增环境变量:
+### 4.2.1 沙箱边界说明
+
+`-s workspace-write` 在 Codex CLI 中的限制：
+
+| 操作 | workspace-write | bypass (旧) |
+|------|----------------|-------------|
+| 读/写项目目录 (cwd) | ✅ 允许 | ✅ 允许 |
+| 读用户 home 目录 | ❌ 阻止 | ✅ 允许 |
+| 写 `/etc` `/system` `/Windows` | ❌ 阻止 | ✅ 允许 |
+| `rm -rf /` | ❌ 沙箱阻止 | ❌ 允许（危险）|
+| 网络请求 (curl/fetch) | ✅ 允许 | ✅ 允许 |
+| 写入 `/tmp` | ✅ 允许 | ✅ 允许 |
+| 读非项目路径（如 `~/.ssh`） | ❌ 阻止 | ✅ 允许 |
+| Git 操作 (push/pull) | ✅ 允许 (workspace内) | ✅ 允许 |
+
+> Codex sandbox 基于文件系统路径白名单，workspace = cwd。工具调用超出 workspace 时 Codex 内核拒绝执行，不会到达 OS 层。
+
+### 4.2.2 环境变量
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
