@@ -6,6 +6,7 @@ import type { ReplyInput, ReplyOutput } from "../types.js";
 import { getWebClient } from "../slack-clients.js";
 import { eventStore } from "../event-store.js";
 import { slackApiError } from "../tool-errors.js";
+import { postSlackMessageChunks } from "../slack-message.js";
 
 export const replyTool = {
   name: "slack_reply",
@@ -39,15 +40,15 @@ export const replyTool = {
   async handler(input: ReplyInput): Promise<ReplyOutput> {
     const web = getWebClient();
 
-    const result = await web.chat.postMessage({
+    const results = await postSlackMessageChunks(web, {
       channel: input.channel,
       thread_ts: input.thread_ts,
       text: input.text,
-      link_names: true,
     });
+    const result = results[0];
 
-    if (!result.ok) {
-      throw slackApiError("Failed to send reply", result.error);
+    if (!result?.ok) {
+      throw slackApiError("Failed to send reply", result?.error);
     }
 
     // Mark the corresponding event(s) as handled. We match on channel +

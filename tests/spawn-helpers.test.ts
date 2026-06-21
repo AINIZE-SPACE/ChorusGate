@@ -54,17 +54,21 @@ test("buildSpawnOptions — passes through env when provided", () => {
 
 // ---- buildSpawnEnv ----------------------------------------------------------
 
+function hasPathVariable(env: Record<string, string | undefined>): boolean {
+  return Object.keys(env).some((key) => key.toLowerCase() === "path");
+}
+
 test("buildSpawnEnv — injects Slack tokens into process env", () => {
   const env = buildSpawnEnv({ botToken: "xoxb-mybot", appToken: "xapp-myapp" });
   assert.equal(env.SLACK_BOT_TOKEN, "xoxb-mybot");
   assert.equal(env.SLACK_APP_TOKEN, "xapp-myapp");
   // Should still have existing env vars
-  assert.ok("PATH" in env, "should preserve existing env vars");
+  assert.ok(hasPathVariable(env), "should preserve existing env vars");
 });
 
 test("buildSpawnEnv — no tokens passed, still returns process env copy", () => {
   const env = buildSpawnEnv({});
-  assert.ok("PATH" in env, "should preserve existing env vars");
+  assert.ok(hasPathVariable(env), "should preserve existing env vars");
   assert.equal(env.SLACK_BOT_TOKEN, process.env.SLACK_BOT_TOKEN);
 });
 

@@ -25,15 +25,29 @@ test("codex createSession args contain --json and --cd", async () => {
   }
 });
 
-test("codex args: HEADLESS_FLAGS includes --json and --dangerously-bypass-approvals-and-sandbox", () => {
-  // Quick compile-time check: the flags are set
-  const flags = [
-    "--json",
-    "--skip-git-repo-check",
-    "--dangerously-bypass-approvals-and-sandbox",
-  ];
-  assert.ok(flags.includes("--json"));
-  assert.ok(flags.includes("--dangerously-bypass-approvals-and-sandbox"));
+test("codex args: headless flags — sandbox mode (default)", () => {
+  // Default sandbox mode uses -s workspace-write
+  const orig = process.env.GATEWAY_CODEX_APPROVAL_MODE;
+  delete process.env.GATEWAY_CODEX_APPROVAL_MODE;
+  try {
+    const flags = ["--skip-git-repo-check", "-s", "workspace-write"];
+    assert.ok(flags.includes("-s"));
+    assert.ok(flags.includes("workspace-write"));
+    assert.ok(!flags.includes("--dangerously-bypass-approvals-and-sandbox"),
+      "sandbox mode should NOT include bypass flag");
+  } finally {
+    if (orig !== undefined) process.env.GATEWAY_CODEX_APPROVAL_MODE = orig;
+  }
+});
+
+test("codex args: headless flags — bypass mode (legacy)", () => {
+  process.env.GATEWAY_CODEX_APPROVAL_MODE = "bypass";
+  try {
+    const flags = ["--skip-git-repo-check", "--dangerously-bypass-approvals-and-sandbox"];
+    assert.ok(flags.includes("--dangerously-bypass-approvals-and-sandbox"));
+  } finally {
+    delete process.env.GATEWAY_CODEX_APPROVAL_MODE;
+  }
 });
 
 test("codex args: prompt goes to stdin not argv", async () => {

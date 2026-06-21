@@ -27,6 +27,7 @@ import {
   type BlockAction,
 } from "./socket-manager.js";
 import { eventStore } from "./event-store.js";
+import { durableEventStore } from "./durable-event-store.js";
 import { generateReply, generateReplyStream } from "./reply-engine.js";
 import { sessionStore } from "./session-store.js";
 import {
@@ -45,6 +46,7 @@ import {
 } from "./gateway-paths.js";
 import { writeFileSync, rmSync } from "node:fs";
 import type { StoredEvent } from "./types.js";
+import { splitSlackMessage } from "./slack-message.js";
 
 // ---- multi-profile routing ---------------------------------------------------
 // Build a lookup map from profile id → ProfileConfig for O(1) routing.
@@ -334,6 +336,27 @@ function onEvent(event: StoredEvent, profileId: string): void {
   }
   inFlight.add(dedupKey);
 
+  // #1: durable dedup — skip if this event.ts was already replied in a
+  // previous gateway run (survives restarts)
+  if (durableEventStore.isDedup(event.ts)) {
+    console.error(
+      `[gateway] durable dedup: skipping already-replied event ${event.ts}`,
+    );
+    eventStore.markHandled(event.id);
+    inFlight.delete(dedupKey);
+    return;
+  }
+
+  // #1: record event as pending before processing
+  durableEventStore.markPending({
+    ts: event.ts,
+    channel: event.channel,
+    user: event.user,
+    user_name: event.user_name,
+    type: event.type,
+    text: event.text,
+  });
+
   const channelType = (event.raw as Record<string, unknown> | undefined)
     ?.channel_type as string | undefined;
   // DM: reply directly, not in thread. Channel: reply in thread.
@@ -396,6 +419,9 @@ async function processEvent(
   replyThreadTs: string | undefined,
   profileId: string,
 ): Promise<void> {
+  // #1: mark event as being processed
+  durableEventStore.markProcessing(event.ts);
+
   // ---- busy interrupt check ----
   // If this session already has a running claude -p, interrupt or queue.
   // interrupt() kills the current process (interrupt mode) or awaits its
@@ -647,20 +673,34 @@ async function processEvent(
       `displayLen=${displayText.length}`,
     );
 
+    const replyChunks = splitSlackMessage(displayText);
     if (placeholderTs) {
       await web.chat.update({
         channel: event.channel,
         ts: placeholderTs,
-        text: displayText,
+        text: replyChunks[0],
       });
+      for (const chunk of replyChunks.slice(1)) {
+        await web.chat.postMessage({
+          channel: event.channel,
+          thread_ts: replyThreadTs,
+          text: chunk,
+          link_names: true,
+        });
+      }
     } else {
-      await web.chat.postMessage({
-        channel: event.channel,
-        thread_ts: replyThreadTs,
-        text,
-        link_names: true,
-      });
+      for (const chunk of replyChunks) {
+        await web.chat.postMessage({
+          channel: event.channel,
+          thread_ts: replyThreadTs,
+          text: chunk,
+          link_names: true,
+        });
+      }
     }
+
+    // #1: mark as successfully replied
+    durableEventStore.markReplied(event.ts);
 
     console.error(
       `[gateway] ${result.ok ? "replied" : "posted error notice"} to ` +
@@ -668,6 +708,8 @@ async function processEvent(
     );
   } catch (err) {
     console.error("[gateway] reply failed:", (err as Error).message);
+    // #1: record failure for diagnostics/retry
+    durableEventStore.markFailed(event.ts, (err as Error).message);
     // Drain the progress queue first so the placeholder is in a stable state,
     // then overwrite it with the error (rather than leaving it stuck on the
     // last tool label forever).
@@ -761,6 +803,31 @@ async function main(): Promise<void> {
   }, 30 * 60 * 1000);
   // Don't keep the process alive just for the eviction timer.
   evictTimer.unref?.();
+
+  // #1: log durable event store stats on startup
+  {
+    const counts = durableEventStore.countByState();
+    console.error(
+      `[gateway] durable-event-store: ${durableEventStore.size()} events — ` +
+      `pending=${counts.pending} processing=${counts.processing} ` +
+      `replied=${counts.replied} failed=${counts.failed}`,
+    );
+    // Evict old replied entries to bound file size
+    const removed = durableEventStore.evictReplied();
+    if (removed > 0) {
+      console.error(
+        `[gateway] durable-event-store: evicted ${removed} old replied entries`,
+      );
+    }
+    // Log any replayable events (they'll be re-processed via Slack redelivery)
+    const replayable = durableEventStore.getReplayable();
+    if (replayable.length > 0) {
+      console.error(
+        `[gateway] durable-event-store: ${replayable.length} replayable events ` +
+        `(will replay via Slack redelivery) — ts: ${replayable.map(e => e.ts.slice(0, 10)).join(", ")}`,
+      );
+    }
+  }
 
   const socketManager = getSocketManager();
   socketManager.setEventCallback((event, profileId) => {

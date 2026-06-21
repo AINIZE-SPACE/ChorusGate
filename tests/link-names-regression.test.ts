@@ -88,11 +88,19 @@ test("all chat.postMessage call sites include link_names:true (P0 #60 regression
     "src/gateway.ts",
     "src/interrupt.ts",
     "src/session-commands.ts",
-    "src/tools/reply.ts",
-    "src/tools/send-message.ts",
+    "src/slack-message.ts",
   ];
   for (const kf of knownFiles) {
     const found = callSites.some((cs) => cs.file.replace(/\\/g, "/").endsWith(kf));
     assert.ok(found, `expected chat.postMessage in ${kf}`);
+  }
+
+  for (const toolFile of ["reply.ts", "send-message.ts"]) {
+    const content = readFileSync(resolve(srcDir, "tools", toolFile), "utf8");
+    assert.match(
+      content,
+      /postSlackMessageChunks/,
+      `expected src/tools/${toolFile} to use the shared Slack chunk sender`,
+    );
   }
 });

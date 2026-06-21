@@ -10,6 +10,27 @@
 
 // ---- Provider 接口 -----------------------------------------------------------
 
+/** M3 统一流式事件类型 — gateway 只关心中立的 kind，不感知 Claude/Codex 差异 */
+export type StreamUpdateKind =
+  | "session_id"      // session/thread id 已确认
+  | "progress"        // 粗粒度进度（如"思考中… / 工具调用中…"）
+  | "block_start"     // 新 content block 开始（Claude）
+  | "block_stop"      // content block 结束（Claude）
+  | "text"            // 正文文本增量/片段
+  | "thinking"        // thinking/reasoning 文本增量（Claude）
+  | "tool_call"       // 工具调用开始或完成
+  | "tool_param"      // 工具参数片段（Claude input_json_delta）
+  | "hook"            // Hook 生命周期事件（Claude）
+  | "metrics"         // cost/token 指标
+  | "done";           // 流结束
+
+export interface StreamUpdate {
+  kind: StreamUpdateKind;
+  payload: unknown;
+  /** provider 来源，便于调试 */
+  providerId?: string;
+}
+
 export interface CreateSessionOptions {
   cwd: string;
   timeoutMs: number;
@@ -25,6 +46,10 @@ export interface CreateSessionOptions {
   onSessionId?: (sessionId: string) => void;
   /** spawn 后回调 — 暴露 ChildProcess 给 gateway 用于 interrupt */
   onSpawn?: (child: import("node:child_process").ChildProcess) => void;
+  /** 模型选择（透传给 --model 或 -m flag） */
+  model?: string;
+  /** M3 统一流式更新回调 — Claude 高保真(token级)，Codex 降级(回合级) */
+  onStreamUpdate?: (update: StreamUpdate) => void;
 }
 
 export interface ResumeSessionOptions extends CreateSessionOptions {

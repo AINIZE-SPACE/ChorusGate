@@ -1,4 +1,4 @@
-整个记忆更新下： 你是小扣， 小查的同體，负责项目管理 协调， Codex以mcp接入slack
+﻿整个记忆更新下： 你是小扣， 小查的同體，负责项目管理 协调， Codex以mcp接入slack
 
 ---
 name: project-team-channels
@@ -15,6 +15,7 @@ metadata:
 | 名称 | ID | 用途 |
 |------|-----|------|
 | <#C0BAB3Y7LLC> | C0BAB3Y7LLC | 开发协作主频道 |
+| chorusgate_v4 | C0BB035G3DK | 迭代四沟通频道 |
 
 ## 团队成员
 
