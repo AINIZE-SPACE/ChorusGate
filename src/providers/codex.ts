@@ -46,33 +46,50 @@ import type {
  * We use sandbox mode (-s workspace-write) as a safety baseline.
  * Set GATEWAY_CODEX_APPROVAL_MODE=bypass for the legacy dangerous behavior.
  */
-function buildHeadlessFlags(): string[] {
+function buildHeadlessFlags(opts: { includeSandbox: boolean }): string[] {
   const flags = ["--skip-git-repo-check"];
   const mode = process.env.GATEWAY_CODEX_APPROVAL_MODE || "sandbox";
   if (mode === "bypass") {
     flags.push("--dangerously-bypass-approvals-and-sandbox");
-  } else {
+  } else if (opts.includeSandbox) {
     // "sandbox" (default): safer — limits filesystem access to workspace
     flags.push("-s", "workspace-write");
   }
   return flags;
 }
 
+export function buildCodexExecArgs(opts: {
+  commandArgs: string[];
+  includeSandbox: boolean;
+  model?: string;
+}): string[] {
+  const maxIterations = process.env.CODEX_MAX_ITERATIONS || "10";
+  const execFlags = [
+    "-c", `max_iterations=${maxIterations}`,
+    ...buildHeadlessFlags({ includeSandbox: opts.includeSandbox }),
+  ];
+  const effectiveModel = process.env.CODEX_MODEL || opts.model;
+  if (effectiveModel) {
+    execFlags.push("-m", effectiveModel);
+  }
+  return ["exec", "--json", ...execFlags, ...opts.commandArgs];
+}
+
 // ---- spawn helper ------------------------------------------------------------
 
 function spawnCodex(
-  positionalArgs: string[],
+  commandArgs: string[],
   prompt: string,
   cwd: string,
   timeoutMs: number,
   parser: CodexEventParser,
+  includeSandbox: boolean,
   onSpawn?: (child: import("node:child_process").ChildProcess) => void,
   onStreamUpdate?: (update: import("./types.js").StreamUpdate) => void,
   model?: string,
 ): Promise<SessionOutput> {
   return new Promise<SessionOutput>((resolve) => {
     const codexBin = process.env.CODEX_BIN || "codex";
-    const maxIterations = process.env.CODEX_MAX_ITERATIONS || "10";
 
     // Pre-check binary existence — avoids shell-mode ambiguity on Windows
     // (shell:true spawns cmd.exe which always succeeds, even when the
@@ -89,17 +106,9 @@ function spawnCodex(
       return;
     }
 
-    // Exec flags (--cd only for new sessions, not resume)
-    const execFlags = [
-      "-c", `max_iterations=${maxIterations}`,
-      ...buildHeadlessFlags(),
-    ];
-    // #86: model selection — env override takes precedence over opts.model
-    const effectiveModel = process.env.CODEX_MODEL || model;
-    if (effectiveModel) {
-      execFlags.push("-m", effectiveModel);
-    }
-    const allArgs = [...positionalArgs, ...execFlags];
+    // Exec-level flags must come before create/resume command args.
+    const execFlags = buildCodexExecArgs({ commandArgs, includeSandbox, model });
+    const allArgs = execFlags;
 
     const win = process.platform === "win32";
     const cmd = win
@@ -239,7 +248,7 @@ export const codexProvider: AgentProvider = {
     opts: CreateSessionOptions,
   ): Promise<SessionOutput> {
     let resolvedSessionId = "";
-    const args = ["exec", "--json", "--cd", opts.cwd]; // prompt via stdin; --cd sets workspace
+    const args = ["--cd", opts.cwd]; // prompt via stdin; --cd sets workspace
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
@@ -254,6 +263,7 @@ export const codexProvider: AgentProvider = {
       opts.cwd,
       opts.timeoutMs,
       parser,
+      true,
       opts.onSpawn,
       opts.onStreamUpdate, // #86: unified streaming
       opts.model,          // #86: model selection
@@ -266,7 +276,7 @@ export const codexProvider: AgentProvider = {
     sessionId: string,
     opts: ResumeSessionOptions,
   ): Promise<SessionOutput> {
-    const args = ["exec", "--json", "resume", sessionId, "-"]; // `-` tells codex to read prompt from stdin (required for resume)
+    const args = ["resume", sessionId, "-"]; // `-` tells codex to read prompt from stdin (required for resume)
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
@@ -279,6 +289,7 @@ export const codexProvider: AgentProvider = {
       opts.cwd,
       opts.timeoutMs,
       parser,
+      false,
       opts.onSpawn,
       opts.onStreamUpdate, // #86: unified streaming
       opts.model,          // #86: model selection

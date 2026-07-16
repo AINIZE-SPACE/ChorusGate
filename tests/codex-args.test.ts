@@ -4,7 +4,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { buildCodexExecArgs } from "../src/providers/codex.js";
 
 // Save original and use fake binary
 const origBin = process.env.CODEX_BIN;
@@ -60,5 +60,47 @@ test("codex args: prompt goes to stdin not argv", async () => {
   } finally {
     if (origBin) process.env.CODEX_BIN = origBin;
     else delete process.env.CODEX_BIN;
+  }
+});
+
+test("codex args: create includes sandbox before command args", () => {
+  const orig = process.env.GATEWAY_CODEX_APPROVAL_MODE;
+  delete process.env.GATEWAY_CODEX_APPROVAL_MODE;
+  try {
+    const args = buildCodexExecArgs({
+      commandArgs: ["--cd", "C:\\repo"],
+      includeSandbox: true,
+    });
+
+    assert.deepEqual(args.slice(0, 2), ["exec", "--json"]);
+    assert.ok(args.includes("-s"), `create args should include sandbox: ${args.join(" ")}`);
+    assert.ok(args.includes("workspace-write"));
+    assert.ok(
+      args.indexOf("-s") < args.indexOf("--cd"),
+      `sandbox flag must appear before create command args: ${args.join(" ")}`,
+    );
+  } finally {
+    if (orig !== undefined) process.env.GATEWAY_CODEX_APPROVAL_MODE = orig;
+  }
+});
+
+test("codex args: resume omits unsupported sandbox flag", () => {
+  const orig = process.env.GATEWAY_CODEX_APPROVAL_MODE;
+  delete process.env.GATEWAY_CODEX_APPROVAL_MODE;
+  try {
+    const args = buildCodexExecArgs({
+      commandArgs: ["resume", "test-thread-id", "-"],
+      includeSandbox: false,
+    });
+
+    assert.deepEqual(args.slice(0, 2), ["exec", "--json"]);
+    assert.ok(!args.includes("-s"), `resume args must not include unsupported -s: ${args.join(" ")}`);
+    assert.ok(!args.includes("workspace-write"));
+    assert.ok(
+      args.indexOf("--skip-git-repo-check") < args.indexOf("resume"),
+      `resume flags must appear before resume positional args: ${args.join(" ")}`,
+    );
+  } finally {
+    if (orig !== undefined) process.env.GATEWAY_CODEX_APPROVAL_MODE = orig;
   }
 });
