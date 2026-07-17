@@ -1,4 +1,4 @@
-﻿---
+---
 name: chorusgate-env-vars
 description: ChorusGate environment variable safety rules for TypeScript/ESM code. Use when editing or reviewing src files that read process.env/import.meta.env, fixing config/env bugs, reviewing PRs involving bootstrap/loadEnv/profile config, or adding regression tests for env late binding.
 ---

@@ -1,4 +1,4 @@
-﻿---
+---
 name: sprint-handoff
 description: Sprint 开发完成交接 — Issue 驱动 → commit → 频道通知 → 评审 → 测试 → done
 ---
