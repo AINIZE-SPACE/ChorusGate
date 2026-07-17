@@ -46,7 +46,7 @@ import {
 } from "./gateway-paths.js";
 import { writeFileSync, rmSync } from "node:fs";
 import type { StoredEvent } from "./types.js";
-import { splitSlackMessage } from "./slack-message.js";
+import { sanitizeForSlack, splitSlackMessage } from "./slack-message.js";
 
 // ---- multi-profile routing ---------------------------------------------------
 // Build a lookup map from profile id → ProfileConfig for O(1) routing.
@@ -663,10 +663,12 @@ async function processEvent(
       ? result.text
       : `:warning: 抱歉，我暂时无法生成回复（${result.error}）。`;
 
-    const displayText = (text && text.trim().length > 10) ? text
+    const displayText = sanitizeForSlack(
+      (text && text.trim().length > 10) ? text
       : planTracker.getPlanMessageTs(`${event.channel}:${replyThreadTs}`)
         ? "👆 以上为任务进度，最终回复见上方的消息。"
-        : (text || "✅ 完成");
+        : (text || "✅ 完成")
+    );
 
     console.error(
       `[gateway] posting reply: placeholderTs=${placeholderTs} ` +
@@ -675,11 +677,35 @@ async function processEvent(
 
     const replyChunks = splitSlackMessage(displayText);
     if (placeholderTs) {
-      await web.chat.update({
-        channel: event.channel,
-        ts: placeholderTs,
-        text: replyChunks[0],
-      });
+      // #131: chat.update may fail with msg_too_long even for text under limit.
+      // Fall back to postMessage (new message) instead of losing the reply.
+      try {
+        await web.chat.update({
+          channel: event.channel,
+          ts: placeholderTs,
+          text: replyChunks[0],
+        });
+      } catch (updateErr) {
+        console.error(
+          `[gateway] chat.update failed (${(updateErr as Error).message}), ` +
+          `falling back to postMessage`,
+        );
+        // Fallback: post as new message instead of updating placeholder
+        await web.chat.postMessage({
+          channel: event.channel,
+          thread_ts: replyThreadTs,
+          text: replyChunks[0],
+          link_names: true,
+        });
+        // Try to mark the placeholder as done with a minimal text
+        try {
+          await web.chat.update({
+            channel: event.channel,
+            ts: placeholderTs,
+            text: "✅",
+          });
+        } catch { /* ignore — placeholder cleanup is best-effort */ }
+      }
       for (const chunk of replyChunks.slice(1)) {
         await web.chat.postMessage({
           channel: event.channel,

@@ -87,6 +87,7 @@ function spawnCodex(
   onSpawn?: (child: import("node:child_process").ChildProcess) => void,
   onStreamUpdate?: (update: import("./types.js").StreamUpdate) => void,
   model?: string,
+  isResume = false,
 ): Promise<SessionOutput> {
   return new Promise<SessionOutput>((resolve) => {
     const codexBin = process.env.CODEX_BIN || "codex";
@@ -107,8 +108,11 @@ function spawnCodex(
     }
 
     // Exec-level flags must come before create/resume command args.
-    const execFlags = buildCodexExecArgs({ commandArgs, includeSandbox, model });
-    const allArgs = execFlags;
+    // #127: resume subcommand does NOT accept exec-level flags
+    // (-c, --skip-git-repo-check, -s, etc.). Only pass --json for resume.
+    const allArgs = isResume
+      ? ["exec", "--json", ...commandArgs]
+      : buildCodexExecArgs({ commandArgs, includeSandbox, model });
 
     const win = process.platform === "win32";
     const cmd = win
@@ -143,33 +147,62 @@ function spawnCodex(
     let stderr = "";
     let settled = false;
 
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      child.kill("SIGKILL");
-      resolve({
-        ok: false,
-        text: "",
-        sessionId: "",
-        error: `codex exec timed out after ${timeoutMs}ms`,
-      });
-    }, timeoutMs);
+    // #130: activity-based idle timeout — resets on every stdout/stderr chunk.
+    // Hard deadline prevents infinite reset loops (3x the idle timeout).
+    const HARD_DEADLINE_MULT = 3;
+    const hardDeadline = Date.now() + timeoutMs * HARD_DEADLINE_MULT;
+    let timer: NodeJS.Timeout;
+
+    const clearTimer = () => {
+      if (timer) clearTimeout(timer);
+    };
+
+    const resetTimer = () => {
+      clearTimer();
+      if (Date.now() >= hardDeadline) {
+        if (settled) return;
+        settled = true;
+        child.kill("SIGKILL");
+        resolve({
+          ok: false,
+          text: "",
+          sessionId: "",
+          error: `codex exec hard deadline exceeded (${timeoutMs * HARD_DEADLINE_MULT}ms total)`,
+        });
+        return;
+      }
+      timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        child.kill("SIGKILL");
+        resolve({
+          ok: false,
+          text: "",
+          sessionId: "",
+          error: `codex exec timed out (idle ${timeoutMs}ms with no output)`,
+        });
+      }, timeoutMs);
+    };
+
+    resetTimer(); // initial timer
 
     child.stdout!.on("data", (chunk) => {
       stdoutBuf += chunk.toString();
       const lines = stdoutBuf.split("\n");
       stdoutBuf = lines.pop() ?? "";
       for (const line of lines) parser.feed(line);
+      resetTimer(); // #130: activity resets idle timeout
     });
 
     child.stderr!.on("data", (chunk) => {
       stderr += chunk.toString();
+      resetTimer(); // #130: stderr activity also resets
     });
 
     child.on("error", (err) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      clearTimer();
       resolve({
         ok: false, text: "", sessionId: "",
         error: `failed to spawn codex: ${err.message}`,
@@ -179,7 +212,7 @@ function spawnCodex(
     child.on("close", (code) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      clearTimer();
 
       // Flush trailing buffer first — may contain turn.completed with metrics
       if (stdoutBuf) parser.feed(stdoutBuf);
@@ -293,6 +326,7 @@ export const codexProvider: AgentProvider = {
       opts.onSpawn,
       opts.onStreamUpdate, // #86: unified streaming
       opts.model,          // #86: model selection
+      true,                // #127: isResume — skip exec-level flags
     ).then((r) => ({
       ...r,
       sessionId,
