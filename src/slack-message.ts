@@ -1,6 +1,27 @@
 import type { WebClient } from "@slack/web-api";
 
-export const SLACK_MESSAGE_CHUNK_LIMIT = 3500;
+// #131: lowered from 3500 to 2900 to leave headroom for mrkdwn expansion
+// (link_names, formatting, CJK UTF-8 byte overhead). Slack API text limit
+// is 40000 chars, but chat.update has been observed to fail with msg_too_long
+// at ~3500 chars in some edge cases.
+export const SLACK_MESSAGE_CHUNK_LIMIT = 2900;
+
+/**
+ * Sanitize text for safe Slack delivery.
+ * Removes problematic control chars, limits consecutive newlines,
+ * and hard-truncates as a safety net.
+ */
+export function sanitizeForSlack(text: string, maxLen = 39000): string {
+  // 1. Strip null bytes and control chars (except common whitespace)
+  let out = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+  // 2. Limit consecutive blank lines
+  out = out.replace(/\n{4,}/g, "\n\n\n");
+  // 3. Hard truncation safety net
+  if (out.length > maxLen) {
+    out = out.slice(0, maxLen) + "\n\n…(truncated)";
+  }
+  return out;
+}
 
 export function splitSlackMessage(
   text: string,
