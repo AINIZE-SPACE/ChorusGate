@@ -179,7 +179,6 @@ Control sessions directly from Slack:
 | `GATEWAY_THREAD_SMART_REPLY` | `1` | Smart thread reply (#128): set to `0` to disable multi-level judgment for non-mention messages in threads |
 | `GATEWAY_LLM_REPLY_JUDGE` | unset | Enable LLM pre-judgment (#128 Level 4): set to `1` to call `claude -p` for lightweight yes/no reply decisions on thread messages |
 | `GATEWAY_PROFILE_TRIGGERS_<ID>` | unset | Per-profile trigger words for name-based reply detection (#128 Level 3). Format: `displayName,alias1,alias2`. Example: `GATEWAY_PROFILE_TRIGGERS_CC=小克,CC,claude` |
-| `GATEWAY_HOME_CHANNEL_ID` | inferred | Home channel ID for session context injection and async reply routing (#132). Falls back to the first connected channel if unset. |
 | `GATEWAY_CLAUDE_CWD` | project root | Working directory for spawned claude processes |
 | `CLAUDE_BIN` | `claude` | Path to the Claude CLI binary |
 | `CLAUDE_PERMISSION_MODE` | `bypassPermissions` | Permission mode for headless claude |
