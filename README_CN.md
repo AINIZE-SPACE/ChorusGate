@@ -163,6 +163,12 @@ chorusgate list     # 列出 channel→session 映射
 | `GATEWAY_SESSION_SCOPE` | `channel` | `channel`（频道共享）或 `thread`（每条线程独立）|
 | `GATEWAY_SESSION_IDLE_MS` | `86400000` | session 映射 idle 多久后清理（ms）|
 | `GATEWAY_PROGRESS` | `1` | 设为 `0` 关闭进度提示消息 |
+| `GATEWAY_PROGRESS_MODE` | `hybrid` | 进度模式 (#129): `hybrid`（edit 占位 + append 工具调用结果为新消息）, `append`（全部进度作为新消息）, `edit`（旧行为，全部 `chat.update`）|
+| `GATEWAY_PROGRESS_MAX_MESSAGES` | `5` | 中间结果消息最大条数，超过后不再 append (#129) |
+| `GATEWAY_THREAD_SMART_REPLY` | `1` | 智能线程回复 (#128): 设为 `0` 关闭对 thread 中未 mention 消息的多级判断 |
+| `GATEWAY_LLM_REPLY_JUDGE` | 不设 | LLM 预判开关 (#128 Level 4): 设为 `1` 时调用 `claude -p` 做轻量 yes/no 判断 |
+| `GATEWAY_PROFILE_TRIGGERS_<ID>` | 不设 | Per-profile 触发词 (#128 Level 3 名称匹配)。格式 `displayName,alias1,alias2`。例: `GATEWAY_PROFILE_TRIGGERS_CC=小克,CC,claude` |
+| `GATEWAY_HOME_CHANNEL_ID` | 推断 | Home channel ID (#132): 用于 session context 注入 + 异步回写路由。不设时从已连接频道列表推断 |
 | `GATEWAY_CLAUDE_CWD` | 项目根 | spawned runtime 的工作目录 |
 | `GATEWAY_CLAUDE_MODE` | `legacy` | Claude 模式: `legacy` (单向) 或 `stream` (双向 stream-json) |
 | `GATEWAY_BUSY_MODE` | `interrupt` | 用户连续发消息时的处理: `interrupt` (打断) 或 `queue` (排队) |
