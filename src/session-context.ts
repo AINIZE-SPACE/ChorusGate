@@ -25,8 +25,6 @@ export interface SessionContextInfo {
   userName: string;
   /** Connected profile ids (for multi-profile awareness) */
   connectedProfiles: string[];
-  /** Home / notification channel ID (from env) */
-  homeChannel?: { id: string; name: string };
 }
 
 export interface RoutingContext {
@@ -60,10 +58,6 @@ export function buildSessionContextPrompt(
     lines.push(`- **Connected profiles**: ${ctx.connectedProfiles.join(", ")}`);
   }
 
-  if (ctx.homeChannel && ctx.homeChannel.name !== ctx.channelName) {
-    lines.push(`- **Home channel**: ${ctx.homeChannel.name} (${ctx.homeChannel.id})`);
-  }
-
   return lines.join("\n");
 }
 
@@ -71,6 +65,12 @@ export function buildSessionContextPrompt(
  * Build the async reply routing block for the system prompt.
  * Gives the agent the channel/thread IDs needed to send messages
  * asynchronously via MCP tools.
+ *
+ * Reply routing rule:
+ * - Default: reply in the current thread (thread_ts from event).
+ * - Exception: when sending a message to someone NOT mentioned in the
+ *   thread's parent message, post as a new top-level channel message
+ *   (no thread_ts) to avoid hijacking the current thread.
  */
 export function buildRoutingContextPrompt(
   routing: RoutingContext,
@@ -85,16 +85,23 @@ export function buildRoutingContextPrompt(
 
   if (routing.threadTs) {
     lines.push(`- **Thread TS**: \`${routing.threadTs}\``);
+    lines.push(``);
+    lines.push(`**Reply routing rule:**`);
+    lines.push(`- Default: reply **in this thread** (use the Thread TS above).`);
+    lines.push(`- Exception: if you need to notify someone who is NOT already ` +
+      `mentioned in this thread's parent message, post a **new top-level ` +
+      `channel message** (omit thread_ts) instead of hijacking this thread.`);
   } else {
-    lines.push(`- **Thread TS**: (none — reply at channel top level)`);
+    lines.push(`- **Thread TS**: (none - reply at channel top level)`);
+    lines.push(``);
+    lines.push(`**Reply routing rule:** No active thread - reply at channel ` +
+      `top level. If a thread develops, continue replying in that thread.`);
   }
 
   lines.push(
-    `- **Profile**: \`${routing.profileId}\``,
-    `- **Channel name**: ${routing.channelName}`,
     ``,
     `Use \`slack_send_message\` with \`channel="${routing.channelId}"\` ` +
-      `and \`thread_ts="${routing.threadTs || ""}"\` to post.`,
+      `and \`thread_ts="${routing.threadTs || ""}"\` to post in this thread.`,
   );
 
   return lines.join("\n");
@@ -147,20 +154,12 @@ export function buildSessionContext(
     ? "thread"
     : channelDirectory.lookupChannelType(profileId, event.channel) ?? "channel";
 
-  const homeChannelId = process.env.GATEWAY_HOME_CHANNEL_ID;
-  const homeChannelName = homeChannelId
-    ? resolveChannelName(profileId, homeChannelId)
-    : undefined;
-
   return {
     identity,
     channelName,
     channelType,
     userName: event.user_name || event.user || "unknown",
     connectedProfiles,
-    homeChannel: homeChannelId && homeChannelName
-      ? { id: homeChannelId, name: homeChannelName }
-      : undefined,
   };
 }
 
