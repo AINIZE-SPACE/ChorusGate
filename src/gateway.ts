@@ -14,7 +14,8 @@
 // ============================================================
 
 import { bootstrap } from "./bootstrap.js";
-import type { ProfileConfig } from "./profile-config.js";
+import type { ProfileConfig, ProfileTriggers } from "./profile-config.js";
+import { parseProfileTriggers } from "./profile-config.js";
 
 const profiles = bootstrap();
 
@@ -38,6 +39,8 @@ import { PlanTracker } from "./plan-tracker.js";
 import { interruptManager } from "./interrupt.js";
 import { detectCommand, handleCommand } from "./session-commands.js";
 import { type SessionIdentity, formatIdentityKey } from "./session-store.js";
+import { buildSessionContext, buildRoutingContext, buildFullContextPrompt } from "./session-context.js";
+import { channelDirectory } from "./channel-directory.js";
 import {
   ensureGatewayDir,
   getPidFile,
@@ -120,28 +123,176 @@ const BOT_USER_IDS = new Set([
   "U0BAGFVD8VB",  // 小扣 (CX)
 ]);
 
-/** Decide whether a stored event warrants an auto-reply. */
-function shouldReply(event: StoredEvent): boolean {
-  // Skip system events: edits, deletions, message_changed, etc.
+/** Decide whether a stored event warrants an auto-reply.
+ *
+ * #128: Multi-level decision pipeline:
+ *   Level 1 — hard filters (subtype, bot, empty)
+ *   Level 2 — app_mention + DM (existing)
+ *   Level 3 — Thread context (name match, parent-is-bot)
+ *   Level 4 — LLM judgment (optional, env-gated)
+ */
+async function shouldReply(
+  event: StoredEvent,
+  profileId: string,
+): Promise<boolean> {
+  // Level 1: Hard filters
   if (event.subtype) return false;
-  // Skip bot-authored messages to prevent self-reply loops.
-  // Bot progress messages have empty user; bot replies have bot user ID.
   if (!event.user || BOT_USER_IDS.has(event.user)) return false;
-  // Skip empty messages
   if (!cleanText(event.text || "")) return false;
 
-  // Always reply to explicit @mentions (any channel)
+  // Level 2: Explicit mentions + DM
   if (event.type === "app_mention") return true;
-
-  // Reply to direct messages (DMs).
   if (event.type === "message") {
     const channelType = (event.raw as Record<string, unknown> | undefined)
       ?.channel_type as string | undefined;
     if (channelType === "im") return true;
   }
 
-  // Ignore plain channel chatter and reactions.
+  // Level 3: Thread context smart reply
+  if (process.env.GATEWAY_THREAD_SMART_REPLY !== "0") {
+    const profile = profileMap.get(profileId);
+    if (!profile) return false;
+
+    const triggers = parseProfileTriggers(profileId, "unknown");
+    const text = event.text || "";
+
+    // 3A: Name match — user mentioned our display name or aliases
+    if (mentionsMyName(text, triggers)) return true;
+
+    // 3B: Thread parent is our own message (user replied to us)
+    const threadTs = event.thread_ts;
+    if (threadTs && threadTs !== event.ts) {
+      if (await isThreadParentBot(threadTs, event.channel, profileId)) {
+        return true;
+      }
+
+      // 3C: No other bot was mentioned in this message, and it's in a
+      //     thread we're participating in → likely relevant
+      if (!mentionsOtherBot(text, profileId)) {
+        // Check if this thread has one of our sessions (meaning we're active in it)
+        if (isActiveInThread(event.channel, threadTs, profileId)) {
+          return true;
+        }
+      }
+    }
+
+    // Level 4: LLM judgment (optional, expensive — default off)
+    if (process.env.GATEWAY_LLM_REPLY_JUDGE === "1") {
+      return await llmShouldReply(event, triggers);
+    }
+  }
+
   return false;
+}
+
+/** Check if text contains the bot's display name or aliases. */
+function mentionsMyName(text: string, triggers: ProfileTriggers): boolean {
+  const lower = text.toLowerCase();
+  // Explicit Slack mention
+  if (triggers.botUserId !== "unknown" && lower.includes(`<@${triggers.botUserId}>`)) {
+    return true;
+  }
+  // Name / alias match
+  for (const word of [triggers.displayName, ...triggers.aliases]) {
+    if (word && lower.includes(word.toLowerCase())) return true;
+  }
+  return false;
+}
+
+/** Check if text mentions any *other* bot (not our profile). */
+function mentionsOtherBot(text: string, myProfileId: string): boolean {
+  // Find bot user IDs that aren't ours
+  for (const botId of BOT_USER_IDS) {
+    if (text.includes(`<@${botId}>`)) {
+      // Check if this is our own bot ID — if so, not "other"
+      // (We can't determine exact mapping without profile triggers,
+      //  so we're conservative: if it mentions ANY bot ID, skip.)
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Cache for thread parent checks (ttl 30s). */
+const threadParentCache = new Map<string, { user: string; ts: number }>();
+
+/** Check if the thread's parent message was authored by this bot. */
+async function isThreadParentBot(
+  threadTs: string,
+  channel: string,
+  profileId: string,
+): Promise<boolean> {
+  const cacheKey = `${channel}:${threadTs}`;
+  const cached = threadParentCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < 30_000) {
+    return cached.user !== "unknown";
+  }
+
+  try {
+    const web = getWebClient();
+    const res = await web.conversations.replies({
+      channel,
+      ts: threadTs,
+      limit: 1,
+    });
+    const parent = res.messages?.[0] as { user?: string } | undefined;
+    const user = parent?.user || "unknown";
+    threadParentCache.set(cacheKey, { user, ts: Date.now() });
+    // Check if parent is either of our bot user IDs
+    return BOT_USER_IDS.has(user);
+  } catch {
+    threadParentCache.set(cacheKey, { user: "unknown", ts: Date.now() });
+    return false;
+  }
+}
+
+/** Check if we're actively participating in this thread. */
+function isActiveInThread(
+  channel: string,
+  threadTs: string,
+  profileId: string,
+): boolean {
+  const providerId = profileMap.get(profileId)?.providerId || "claude";
+  const id = sessionStore.threadIdentity(
+    profileId, providerId, channel, threadTs,
+  );
+  // Check existing entries without creating a new session
+  const entries = sessionStore.entries();
+  return entries.some(
+    (e) =>
+      e.identity.scopeTarget === id.scopeTarget &&
+      e.identity.threadTs === id.threadTs &&
+      e.identity.profileId === id.profileId &&
+      e.started,
+  );
+}
+
+/**
+ * LLM judgment for message relevance (Level 4, optional).
+ * Uses a lightweight prompt to ask if the message is directed at us.
+ */
+async function llmShouldReply(
+  event: StoredEvent,
+  triggers: ProfileTriggers,
+): Promise<boolean> {
+  try {
+    const result = await generateReply(
+      `You are ${triggers.displayName}. A user posted this Slack message ` +
+      `in a channel or thread. Reply ONLY with the single word "YES" or "NO": ` +
+      `is this message directed at you or requiring your attention?\n\n` +
+      `Message: "${event.text}"`,
+      {
+        timeoutMs: 10_000,
+        cwd: profileCwd(Array.from(profileMap.keys())[0] || "default"),
+        providerId: "claude",
+        sessionId: undefined,
+        resume: false,
+      },
+    );
+    return result.ok && result.text.trim().toUpperCase().startsWith("YES");
+  } catch {
+    return false;
+  }
 }
 
 // ============================================================
@@ -159,21 +310,40 @@ function cleanText(text: string): string {
  * When `resume` is true the Claude session already holds this thread's
  * history, so we send just the new message (lean). On a fresh session we
  * include light thread context + a persona/format preamble.
+ *
+ * #132: session context + routing info injected for async reply awareness.
  */
 async function buildPrompt(
   event: StoredEvent,
-  resume: boolean
+  resume: boolean,
+  profileId: string,
+  replyThreadTs?: string,
 ): Promise<string> {
   const userMsg = cleanText(event.text || "");
   const who = event.user_name || event.user || "a user";
 
+  // #132: build session context info for injection
+  const connectedProfiles = Array.from(profileMap.keys());
+  const ctx = buildSessionContext(
+    { profileId, providerId: profileProvider(profileId), scopeType: "channel", scopeTarget: event.channel },
+    event, profileId, connectedProfiles,
+  );
+  const routing = buildRoutingContext(event, profileId, replyThreadTs);
+
   // Resuming: the model remembers the thread; just relay the new turn.
   if (resume) {
-    return `(channel ${event.channel}) ${who} wrote: "${userMsg}"`;
+    return [
+      buildFullContextPrompt(ctx, routing),
+      ``,
+      `(channel ${event.channel}) ${who} wrote: "${userMsg}"`,
+    ].join("\n");
   }
 
   const web = getWebClient();
   const where = event.channel_name ? `#${event.channel_name}` : "a DM";
+
+  // #132: session context prefix
+  const sessionCtx = buildFullContextPrompt(ctx, routing);
 
   let context = "";
   // First turn in a thread that already has prior messages: seed context.
@@ -202,7 +372,7 @@ async function buildPrompt(
 
   return [
     `You are ChorusGate, an AI assistant replying in Slack (${where}).`,
-    `Current channel ID: ${event.channel}.`,
+    sessionCtx,
     `${who} wrote: "${userMsg}"`,
     context,
     "",
@@ -322,8 +492,8 @@ function onSlash(slashCmd: SlashCommand): void {
 }
 
 /** Entry point: enqueue an event onto its scope's serial chain. */
-function onEvent(event: StoredEvent, profileId: string): void {
-  if (!shouldReply(event)) {
+async function onEvent(event: StoredEvent, profileId: string): Promise<void> {
+  if (!(await shouldReply(event, profileId))) {
     eventStore.markHandled(event.id);
     return;
   }
@@ -466,12 +636,38 @@ async function processEvent(
         `${event.channel_name || event.channel}`
     );
 
-    const prompt = await buildPrompt(event, resume);
+    const prompt = await buildPrompt(event, resume, profileId, replyThreadTs);
 
     // --- live progress: post a placeholder, then edit it in place ---
     let lastUpdate = 0;
     let lastLabel = "";
     let lastToolAt = 0;
+
+    // #129: intermediate progress messages — append mode avoids "(edited)" label
+    const progressMode =
+      process.env.GATEWAY_PROGRESS_MODE || "hybrid"; // "edit" | "hybrid" | "append"
+    const progressMessages: string[] = [];
+    const maxProgressMsgs = Number(process.env.GATEWAY_PROGRESS_MAX_MESSAGES || 5);
+
+    async function appendProgressResult(
+      label: string,
+      content: string,
+    ): Promise<void> {
+      if (progressDone) return;
+      if (progressMessages.length >= maxProgressMsgs) return;
+      // Dedup: skip if this label was already posted
+      if (progressMessages.includes(label)) return;
+      progressMessages.push(label);
+      const text = `*${label}*\n${content.slice(0, 1000)}`;
+      try {
+        await web.chat.postMessage({
+          channel: event.channel,
+          thread_ts: replyThreadTs,
+          text,
+          link_names: true,
+        });
+      } catch { /* ignore — progress is best-effort */ }
+    }
 
     if (process.env.GATEWAY_PROGRESS !== "0") {
       try {
@@ -520,7 +716,54 @@ async function processEvent(
       onProgress: (label: string) => {
         lastLabel = label;
         lastToolAt = Date.now();
-        updatePlaceholder(label, true);
+        // #129: in hybrid/append mode, only update placeholder for brief labels
+        if (progressMode === "edit") {
+          updatePlaceholder(label, true);
+        } else {
+          // hybrid/append: keep placeholder minimal, append tool info as new msg
+          updatePlaceholder(`⏳ ${label}`, true);
+          appendProgressResult("🔧 执行中", label);
+        }
+      },
+      // #129: StreamUpdate handler — append intermediate results
+      onStreamUpdate: (update: import("./providers/types.js").StreamUpdate) => {
+        if (progressMode === "edit") return; // old behavior
+        switch (update.kind) {
+          case "tool_call": {
+            const tc = update.payload as { name: string; label: string };
+            if (tc.label && tc.label !== lastLabel) {
+              lastLabel = tc.label;
+              updatePlaceholder(`⏳ ${tc.label}`, true);
+              appendProgressResult("🔧 执行工具", tc.label);
+            }
+            break;
+          }
+          case "metrics": {
+            const m = update.payload as {
+              inputTokens?: number;
+              outputTokens?: number;
+              costUsd?: number;
+            };
+            const parts: string[] = [];
+            if (m.inputTokens) parts.push(`输入 ${m.inputTokens.toLocaleString()} tokens`);
+            if (m.outputTokens) parts.push(`输出 ${m.outputTokens.toLocaleString()} tokens`);
+            if (m.costUsd) parts.push(`$${m.costUsd.toFixed(4)}`);
+            if (parts.length > 0) {
+              updatePlaceholder(`📊 ${parts.join(" / ")}`, true);
+            }
+            break;
+          }
+          case "block_start": {
+            const bs = update.payload as string;
+            if (bs === "thinking") {
+              updatePlaceholder("🧠 思考中…", true);
+            }
+            break;
+          }
+          case "done":
+            // Final update is handled by the reply posting logic
+            break;
+        }
       },
     };
 

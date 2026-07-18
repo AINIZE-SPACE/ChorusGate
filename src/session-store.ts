@@ -47,6 +47,10 @@ const SESSIONS_MD = resolve(MEMORY_DIR, "sessions.md");
  *   cc:claude:channel:C01
  *   cc:claude:thread:C01:1234.5678
  *   codex:codex:channel:C01
+ *
+ * #132: extended with platform, chatName, chatType, userId, userName.
+ * These are NOT serialised in the key (they're metadata), but are
+ * persisted in the JSON format for context injection and async routing.
  */
 export interface SessionIdentity {
   profileId: string;
@@ -55,6 +59,14 @@ export interface SessionIdentity {
   scopeTarget: string; // channel id
   threadTs?: string;
   projectDir?: string;
+  // #132: extended metadata (not part of key, persists in JSON)
+  platform?: string;       // "slack" (reserved for multi-platform)
+  chatName?: string;       // "#chorusgate_v4"
+  chatType?: string;       // "channel" | "dm" | "group"
+  userId?: string;         // triggering user Slack ID
+  userName?: string;       // triggering user display name
+  parentChannelId?: string;// parent channel (for threads)
+  messageId?: string;      // triggering message ts
 }
 
 /** Serialize a SessionIdentity to a stable string key. */
@@ -100,6 +112,21 @@ gateway 用 \`claude -p --resume <uuid>\` 或 \`codex exec resume <tid>\` 续接
 | Profile | Provider | Scope Key | Session UUID | Project Dir | Started | Last Used |
 |---------|----------|-----------|-------------|-------------|---------|-----------|
 `;
+
+// #132: JSON persistence alongside markdown
+const SESSIONS_JSON = resolve(MEMORY_DIR, "sessions.json");
+
+interface SessionStoreJson {
+  version: 1;
+  updatedAt: string;
+  sessions: Array<{
+    key: string;
+    sessionId: string;
+    identity: SessionIdentity;
+    started: boolean;
+    lastUsed: string; // ISO timestamp
+  }>;
+}
 
 export interface ThreadSession {
   /** Stable session UUID (CC: pre-generated UUID; Codex: codex-generated UUID). */
@@ -295,8 +322,51 @@ export class SessionStore {
 
   // ---- persistence (markdown) ---------------------------------------------
 
-  /** Load the mapping from memory/sessions.md (best effort). */
+  /** Load the mapping from memory/sessions.json (preferred) or memory/sessions.md. */
   load(): void {
+    // #132: try JSON first (only for default path — custom paths use markdown only)
+    if (this.sessionsFile === SESSIONS_MD && this.loadJson()) return;
+
+    // Fall back to markdown
+    this.loadMarkdown();
+  }
+
+  /** Load from JSON format. Returns true on success. */
+  private loadJson(): boolean {
+    let raw: string;
+    try {
+      raw = readFileSync(SESSIONS_JSON, "utf8");
+    } catch {
+      return false; // no JSON file yet
+    }
+    try {
+      const data: SessionStoreJson = JSON.parse(raw);
+      if (!data.sessions || !Array.isArray(data.sessions)) return false;
+      for (const s of data.sessions) {
+        if (!s.key || !s.sessionId) continue;
+        const lastUsedMs = Date.parse(s.lastUsed);
+        this.sessions.set(s.key, {
+          sessionId: s.sessionId,
+          identity: s.identity,
+          started: s.started,
+          lastUsed: Number.isNaN(lastUsedMs) ? Date.now() : lastUsedMs,
+        });
+      }
+      console.error(
+        `[session-store] loaded ${this.sessions.size} sessions from sessions.json`,
+      );
+      return true;
+    } catch (err) {
+      console.error(
+        "[session-store] WARNING: failed to parse sessions.json:",
+        (err as Error).message,
+      );
+      return false;
+    }
+  }
+
+  /** Load from legacy markdown format. */
+  private loadMarkdown(): void {
     let text: string;
     try {
       text = readFileSync(this.sessionsFile, "utf8");
@@ -407,6 +477,41 @@ export class SessionStore {
 
   /** Render the in-memory map to memory/sessions.md as a markdown table. */
   persist(): void {
+    // #132: write JSON only for the default sessions file (not custom test paths)
+    if (this.sessionsFile === SESSIONS_MD) {
+      this.persistJson();
+    }
+    this.persistMarkdown();
+  }
+
+  /** Write JSON format (primary persistence). */
+  private persistJson(): void {
+    try {
+      mkdirSync(this.memoryDir, { recursive: true });
+      const data: SessionStoreJson = {
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        sessions: Array.from(this.sessions.entries())
+          .sort((a, b) => b[1].lastUsed - a[1].lastUsed)
+          .map(([key, s]) => ({
+            key,
+            sessionId: s.sessionId,
+            identity: s.identity,
+            started: s.started,
+            lastUsed: new Date(s.lastUsed).toISOString(),
+          })),
+      };
+      writeFileSync(SESSIONS_JSON, JSON.stringify(data, null, 2) + "\n");
+    } catch (err) {
+      console.error(
+        "[session-store] WARNING: failed to write sessions.json:",
+        (err as Error).message,
+      );
+    }
+  }
+
+  /** Write legacy markdown format. */
+  private persistMarkdown(): void {
     try {
       mkdirSync(this.memoryDir, { recursive: true });
       const rows = Array.from(this.sessions.entries())

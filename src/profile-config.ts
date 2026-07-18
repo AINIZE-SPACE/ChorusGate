@@ -171,3 +171,48 @@ export function profilesMap(
   }
   return m;
 }
+
+// ---- Profile triggers (for smart thread reply, #128) ----------------------
+
+/**
+ * Per-profile trigger words for name-based reply detection.
+ *
+ * Configured via GATEWAY_PROFILE_TRIGGERS_<ID>=displayName,alias1,alias2
+ * e.g. GATEWAY_PROFILE_TRIGGERS_CC=小克,CC,claude
+ */
+export interface ProfileTriggers {
+  botUserId: string;
+  displayName: string;
+  aliases: string[];
+}
+
+/**
+ * Parse trigger words for a profile from env vars.
+ *
+ * Format: GATEWAY_PROFILE_TRIGGERS_<ID>=displayName,alias1,alias2
+ * The first token is the display name; the rest are aliases.
+ * Falls back to profile.id + "bot" if not configured.
+ */
+export function parseProfileTriggers(
+  profileId: string,
+  botUserId: string,
+): ProfileTriggers {
+  const s = profileId.toUpperCase();
+  const raw = process.env[`GATEWAY_PROFILE_TRIGGERS_${s}`];
+  if (raw) {
+    const parts = raw.split(",").map((t) => t.trim()).filter(Boolean);
+    if (parts.length > 0) {
+      return {
+        botUserId,
+        displayName: parts[0],
+        aliases: parts.slice(1),
+      };
+    }
+  }
+  // Fallback: use profile id as display name
+  return {
+    botUserId,
+    displayName: profileId,
+    aliases: [],
+  };
+}

@@ -10,5 +10,8 @@ config/*.generated.toml
 tmp/
 memory/sessions.md
 .claude/settings.local.json
+# #132: runtime-generated JSON persistence (not version-controlled)
+memory/sessions.json
+memory/channel-directory.json
 # NOTE: memory/ is intentionally NOT ignored — memory/sessions.md (the
 # channel/thread → session routing map) is git-tracked for versioning.
