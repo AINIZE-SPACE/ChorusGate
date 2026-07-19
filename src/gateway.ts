@@ -624,6 +624,44 @@ async function processEvent(
     await progressChain;
   };
 
+  // #129: intermediate progress messages — append mode avoids "(edited)" label
+  const progressMode =
+    process.env.GATEWAY_PROGRESS_MODE || "hybrid"; // "edit" | "hybrid" | "append"
+  const progressMessages: string[] = [];
+  const maxProgressMsgs = Number(process.env.GATEWAY_PROGRESS_MAX_MESSAGES || 5);
+  /** Track ts of appended progress messages for cleanup on error. */
+  const appendedMsgTs: string[] = [];
+
+  async function appendProgressResult(
+    label: string,
+    content: string,
+  ): Promise<void> {
+    if (progressDone) return;
+    if (progressMessages.length >= maxProgressMsgs) return;
+    if (progressMessages.includes(label)) return;
+    progressMessages.push(label);
+    const text = `*${label}*\n${content.slice(0, 1000)}`;
+    try {
+      const msg = await web.chat.postMessage({
+        channel: event.channel,
+        thread_ts: replyThreadTs,
+        text,
+        link_names: true,
+      });
+      if (msg.ts) appendedMsgTs.push(msg.ts as string);
+    } catch { /* ignore */ }
+  }
+
+  /** Clean up appended progress messages (e.g. on error). */
+  async function cleanupProgressMessages(): Promise<void> {
+    for (const ts of appendedMsgTs) {
+      try {
+        await web.chat.update({ channel: event.channel, ts, text: "…" });
+      } catch { /* best-effort */ }
+    }
+    appendedMsgTs.length = 0;
+  }
+
   try {
     await enrichEvent(event); // resolve user_name / channel_name (best effort)
 
@@ -642,32 +680,6 @@ async function processEvent(
     let lastUpdate = 0;
     let lastLabel = "";
     let lastToolAt = 0;
-
-    // #129: intermediate progress messages — append mode avoids "(edited)" label
-    const progressMode =
-      process.env.GATEWAY_PROGRESS_MODE || "hybrid"; // "edit" | "hybrid" | "append"
-    const progressMessages: string[] = [];
-    const maxProgressMsgs = Number(process.env.GATEWAY_PROGRESS_MAX_MESSAGES || 5);
-
-    async function appendProgressResult(
-      label: string,
-      content: string,
-    ): Promise<void> {
-      if (progressDone) return;
-      if (progressMessages.length >= maxProgressMsgs) return;
-      // Dedup: skip if this label was already posted
-      if (progressMessages.includes(label)) return;
-      progressMessages.push(label);
-      const text = `*${label}*\n${content.slice(0, 1000)}`;
-      try {
-        await web.chat.postMessage({
-          channel: event.channel,
-          thread_ts: replyThreadTs,
-          text,
-          link_names: true,
-        });
-      } catch { /* ignore — progress is best-effort */ }
-    }
 
     if (process.env.GATEWAY_PROGRESS !== "0") {
       try {
@@ -716,13 +728,12 @@ async function processEvent(
       onProgress: (label: string) => {
         lastLabel = label;
         lastToolAt = Date.now();
-        // #129: in hybrid/append mode, only update placeholder for brief labels
+        // #129: edit mode shows label directly; hybrid/append update placeholder
+        // (no appended message — placeholder alone is enough for progress labels)
         if (progressMode === "edit") {
           updatePlaceholder(label, true);
         } else {
-          // hybrid/append: keep placeholder minimal, append tool info as new msg
           updatePlaceholder(`⏳ ${label}`, true);
-          appendProgressResult("🔧 执行中", label);
         }
       },
       // #129: StreamUpdate handler — append intermediate results
@@ -968,6 +979,9 @@ async function processEvent(
       }
     }
 
+    // Clean up appended progress messages now that final reply is posted
+    await cleanupProgressMessages();
+
     // #1: mark as successfully replied
     durableEventStore.markReplied(event.ts);
 
@@ -983,6 +997,7 @@ async function processEvent(
     // then overwrite it with the error (rather than leaving it stuck on the
     // last tool label forever).
     await stopProgress();
+    await cleanupProgressMessages();
     try {
       const errText = `:warning: 回复时出错：${(err as Error).message}`;
       if (placeholderTs) {
