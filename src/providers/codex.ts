@@ -281,7 +281,7 @@ export const codexProvider: AgentProvider = {
     opts: CreateSessionOptions,
   ): Promise<SessionOutput> {
     let resolvedSessionId = "";
-    const args = ["--cd", opts.cwd]; // prompt via stdin; --cd sets workspace
+    const args = ["--cd", opts.cwd, "-"]; // prompt via stdin; --cd sets workspace; `-` explicitly tells codex to read prompt from stdin
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
