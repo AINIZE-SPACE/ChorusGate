@@ -10,6 +10,16 @@ description: Sprint 开发完成交接 — Issue 驱动 → commit → 频道通
 
 ## 统一流程
 
+### Ready 阶段门（Sprint 5 起强制）
+
+- 前序节点未标记 `Ready`，后序 Owner 不开工。
+- 开工前验证输入：Issue/spec、目标分支、依赖 commit、验收标准和所需交付件必须真实可见且基线一致。
+- 完工前检查输出：产物、测试证据、风险和遗漏决策完整；任何仓库变更必须 commit 并 push 后才可声明完成。
+- 交接通知必须包含 `Owner / Scope / Inputs / Deliverable / Acceptance / Authority boundary / Next owner`，并明确下游的下一验收条件。
+- SIT 缺陷必须建 GitHub Issue 并回给开发 Owner；缺陷清零或形成书面遗漏决策后，才可转产品验收/发布 PR。
+
+标准状态：`Spec Ready → Dev Ready → SIT Ready → Acceptance Ready → Done`。
+
 > 基于 [REPORT-v3-2026-06-16-executive.md §10.2](../../../docs/reports/REPORT-v3-2026-06-16-executive.md) 流程图。
 
 ```mermaid
