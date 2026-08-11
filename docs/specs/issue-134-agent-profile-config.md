@@ -6,8 +6,9 @@
 > **Product owner / acceptance**: 小扣
 > **Development**: 小克
 > **Test design and SIT**: 小马
-> **Status**: Ready for development
-> **Date**: 2026-08-05
+> **Status**: Dev Ready (Story A+B implemented; Story C+D pending)
+> **Dev commit**: `89225e3`
+> **Date**: 2026-08-05 (spec) / 2026-08-12 (dev)
 
 ## 1. 决策摘要
 
