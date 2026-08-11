@@ -5,8 +5,8 @@
 > **Branch**: `v5/issue-134-agent-profile-config`
 > **Commit tested**: `89225e3` (feat) + `7330373` (Dev Ready)
 > **Test Owner**: 小马
-> **Date**: 2026-08-12
-> **Verdict**: ❌ NOT PASSED - 5 defects found, need fix + re-SIT
+> **Date**: 2026-08-12 (initial SIT) + 2026-08-12 (re-SIT after fixes)
+> **Verdict**: ⚠️ CONDITIONAL PASS - 4/5 defects fixed, 1 design decision pending (缺陷 1)
 
 ---
 
@@ -145,16 +145,45 @@ Result: 10 tests, 2 pass, 8 fail
 
 ## 9. 结论与下一步
 
-### SIT 结论: ❌ NOT PASSED
+### Initial SIT 结论: ❌ NOT PASSED (2026-08-12)
 
-小克的实现完成了 #134 的核心骨架（CLI 参数解析、agent profile 路径、向后兼容），但有 3 个 P0 和 2 个 P1 缺陷需要修复，才能满足 spec 验收标准。
+5 个缺陷，3 P0 + 2 P1。
+
+### Re-SIT 结论: ⚠️ CONDITIONAL PASS (2026-08-12, after fix commits f7fd0f5 + e15a54d)
+
+小克修复了缺陷 2-5，re-SIT 验证通过：
+
+| 缺陷 | 修复状态 | Re-SIT 验证 |
+|------|----------|-------------|
+| #2 agent-id 校验 | ✅ 已修复 (f7fd0f5) | ST-CG134-006 PASS |
+| #3 --env-file 绝对路径 | ✅ 已修复 (e15a54d) | ST-CG134-003 PASS |
+| #4 互斥校验 | ✅ 已修复 (e15a54d) | cli-args.test.ts 27 cases pass |
+| #5 错误含文件路径 | ✅ 已修复 (f7fd0f5) | ST-CG134-026 PASS |
+| #1 无参数加载 default | ❌ 未修复 | ST-CG134-001 FAIL - 需乐老板判断 |
+
+### Re-SIT 测试结果
+
+| 层级 | 结果 |
+|------|------|
+| L0 (tsc) | ✅ PASS (zero errors) |
+| L1 (unit) | ✅ 87/87 PASS |
+| L3 (CLI smoke) | ✅ 8/9 PASS |
+
+### 缺陷 1 - 设计决策待乐老板判断
+
+`chorusgate run` 无参数时走 legacy 模式（加载 ~/.gateway/.env + project .env），不加载 ~/.chorusgate/default/.env。
+
+- **Spec AC1 + §2.1.5** 要求：无参数 ≡ `--agent default`
+- **小克实现**：向后兼容，无参数走 legacy
+- **选项 A**: 改为默认加载 `~/.chorusgate/default/.env`（符合 spec，破坏向后兼容）
+- **选项 B**: 保留 legacy 模式（向后兼容，但违反 AC1）
 
 ### 下一步
 
-1. 小克修复 Issue #135 中的 5 个缺陷
-2. 小克 push 修复后通知小马
-3. 小马执行 re-SIT（聚焦 L3 烟测，验证修复）
-4. re-SIT 通过后通知小扣验收
+1. 乐老板决定缺陷 1 的处理方式
+2. 若选 A：小克修复后 re-SIT 验证 ST-CG134-001
+3. 若选 B：更新 spec AC1 措辞，豁免此条
+4. 缺陷清零后通知小扣验收
 
 ### 未覆盖项（需后续补充）
 
