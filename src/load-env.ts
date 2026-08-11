@@ -138,18 +138,48 @@ export function loadEnv(opts: LoadEnvOptions = {}): Record<string, string> {
       }
       console.error(`[load-env] loaded ${label}: ${path}`);
     } catch {
-      // file is optional
+      // file is optional in legacy mode
     }
+  };
+
+  /** Like loadFile but throws with a clear message when the file is missing.
+   *  Used for explicitly-specified config paths (--agent / --env-file). */
+  const loadRequired = (path: string, label: string): void => {
+    let content: string;
+    try {
+      content = readFileSync(path, "utf-8");
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") {
+        throw new Error(
+          `Config file not found: ${path}\n` +
+          `  Source: ${label}\n` +
+          `  Create this file with your ChorusGate config, or check the --agent / --env-file value.`,
+        );
+      }
+      throw new Error(
+        `Cannot read config file: ${path}\n` +
+        `  Source: ${label}\n` +
+        `  Error: ${(err as Error).message}`,
+      );
+    }
+    const parsed = parseDotEnv(content);
+    Object.assign(merged, parsed);
+    for (const [key, value] of Object.entries(parsed)) {
+      if (!shellKeys.has(key)) process.env[key] = value;
+    }
+    console.error(`[load-env] loaded ${label}: ${path}`);
   };
 
   // ---- Agent profile mode (#134) -------------------------------------------
   if (agentId || envFile) {
     if (agentId) {
       const profilePath = agentProfileEnvPath(agentId);
-      loadFile(profilePath, `agent profile "${agentId}"`);
+      loadRequired(profilePath, `agent profile "${agentId}"`);
     }
     if (envFile) {
-      loadFile(resolve(envFile), `explicit env-file`);
+      const resolved = resolve(envFile);
+      loadRequired(resolved, `explicit env-file`);
     }
     return merged;
   }
