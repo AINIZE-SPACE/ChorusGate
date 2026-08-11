@@ -4,7 +4,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseCliArgs, validateAgentId } from "../src/cli-args.js";
+import { parseCliArgs, validateAgentId, validateEnvFilePath } from "../src/cli-args.js";
 
 describe("parseCliArgs", () => {
   it("returns undefined for both when no flags present", () => {
@@ -23,24 +23,25 @@ describe("parseCliArgs", () => {
     assert.equal(result.agentId, "codex");
   });
 
-  it("parses --env-file with space separator", () => {
+  it("parses --env-file with space separator (absolute path)", () => {
     const result = parseCliArgs(["node", "chorusgate", "run", "--env-file", "/tmp/test.env"]);
     assert.equal(result.envFile, "/tmp/test.env");
   });
 
-  it("parses --env-file with equals separator", () => {
+  it("parses --env-file with equals separator (absolute path)", () => {
     const result = parseCliArgs(["node", "chorusgate", "run", "--env-file=/tmp/test.env"]);
     assert.equal(result.envFile, "/tmp/test.env");
   });
 
-  it("parses both --agent and --env-file together", () => {
-    const result = parseCliArgs([
-      "node", "chorusgate", "start",
-      "--agent", "claude",
-      "--env-file", "/tmp/override.env",
-    ]);
-    assert.equal(result.agentId, "claude");
-    assert.equal(result.envFile, "/tmp/override.env");
+  it("throws when --agent and --env-file are both specified (mutual exclusion)", () => {
+    assert.throws(
+      () => parseCliArgs([
+        "node", "chorusgate", "start",
+        "--agent", "claude",
+        "--env-file", "/tmp/override.env",
+      ]),
+      /mutually exclusive/,
+    );
   });
 
   it("parses flags before the command (e.g. chorusgate --agent claude run)", () => {
@@ -51,6 +52,28 @@ describe("parseCliArgs", () => {
   it("ignores unknown flags", () => {
     const result = parseCliArgs(["node", "chorusgate", "run", "--verbose", "--agent", "claude"]);
     assert.equal(result.agentId, "claude");
+  });
+
+  it("rejects relative --env-file paths", () => {
+    assert.throws(
+      () => parseCliArgs(["node", "chorusgate", "run", "--env-file", "./.env"]),
+      /relative path/,
+    );
+  });
+
+  it("rejects relative --env-file with equals form", () => {
+    assert.throws(
+      () => parseCliArgs(["node", "chorusgate", "run", "--env-file=chorusgate.env"]),
+      /relative path/,
+    );
+  });
+
+  it("accepts Windows absolute paths for --env-file", () => {
+    // isAbsolute on POSIX: "C:\\tmp\\.env" is relative (it's not a /-prefixed path)
+    // but on Windows it's absolute. We test with a /-prefixed path which is
+    // absolute on both platforms.
+    const result = parseCliArgs(["node", "chorusgate", "run", "--env-file", "/home/user/.env"]);
+    assert.equal(result.envFile, "/home/user/.env");
   });
 });
 
@@ -106,6 +129,24 @@ describe("validateAgentId", () => {
   });
 });
 
+describe("validateEnvFilePath", () => {
+  it("accepts absolute POSIX paths", () => {
+    assert.doesNotThrow(() => validateEnvFilePath("/home/user/.env"));
+    assert.doesNotThrow(() => validateEnvFilePath("/tmp/chorusgate.env"));
+  });
+
+  it("rejects relative paths", () => {
+    assert.throws(() => validateEnvFilePath(".env"), /relative path/);
+    assert.throws(() => validateEnvFilePath("./.env"), /relative path/);
+    assert.throws(() => validateEnvFilePath("../config.env"), /relative path/);
+    assert.throws(() => validateEnvFilePath("chorusgate.env"), /relative path/);
+  });
+
+  it("rejects empty paths", () => {
+    assert.throws(() => validateEnvFilePath(""), /relative path/);
+  });
+});
+
 describe("parseCliArgs validation integration", () => {
   it("throws on invalid agent-id via --agent flag", () => {
     assert.throws(
@@ -118,6 +159,20 @@ describe("parseCliArgs validation integration", () => {
     assert.throws(
       () => parseCliArgs(["node", "chorusgate", "run", "--agent", "../../../etc/passwd"]),
       /path traversal/,
+    );
+  });
+
+  it("throws on relative --env-file", () => {
+    assert.throws(
+      () => parseCliArgs(["node", "chorusgate", "run", "--env-file", ".env"]),
+      /relative path/,
+    );
+  });
+
+  it("throws on mutual exclusion", () => {
+    assert.throws(
+      () => parseCliArgs(["node", "chorusgate", "run", "--agent", "claude", "--env-file", "/tmp/x.env"]),
+      /mutually exclusive/,
     );
   });
 });

@@ -6,10 +6,14 @@
 //   chorusgate run --env-file <path>      → load explicit .env path
 //   chorusgate run                        → legacy (project .env)
 //
-// These args are parsed here and passed through to bootstrap.
 // Validation happens here so invalid args fail early before any
 // side effects (network, file writes, etc.).
+//
+// --agent and --env-file are mutually exclusive per spec §4.1.
+// --env-file must be an absolute path per spec §4.2.
 // ============================================================
+
+import { isAbsolute } from "node:path";
 
 /** Regex for valid agent-id: lowercase alphanumeric + dash/underscore, 1-64 chars.
  *  Blocks path traversal and shell injection characters. */
@@ -22,8 +26,8 @@ export interface CliArgs {
   /** Agent profile id, e.g. "claude" | "codex" | "hermes" | "openclaw".
    *  When set, loads ~/.chorusgate/<agentId>/.env instead of project .env. */
   agentId: string | undefined;
-  /** Explicit .env file path (absolute or relative).
-   *  When set, loads this file directly. Takes precedence over --agent. */
+  /** Explicit .env file path (absolute only).
+   *  When set, loads this file directly. Mutually exclusive with --agent. */
   envFile: string | undefined;
 }
 
@@ -63,18 +67,34 @@ export function validateAgentId(id: string): void {
 }
 
 /**
+ * Validate an --env-file path.
+ * Must be an absolute path. Relative paths are rejected per spec §4.2.
+ */
+export function validateEnvFilePath(filePath: string): void {
+  if (!isAbsolute(filePath)) {
+    throw new Error(
+      `Invalid --env-file value: "${filePath}" is a relative path. ` +
+      `--env-file requires an absolute path (e.g. "/home/user/.env" or "C:\\secure\\.env"). ` +
+      `Use --agent <id> instead to load from ~/.chorusgate/<id>/.env.`,
+    );
+  }
+}
+
+/**
  * Parse --agent and --env-file from process.argv.
  *
  * Handles both forms:
  *   --agent claude
  *   --agent=claude
- *   --env-file /path/to/.env
- *   --env-file=/path/to/.env
+ *   --env-file /absolute/path/.env
+ *   --env-file=/absolute/path/.env
  *
- * Validates agent-id format. Throws on invalid input.
- * Stops at the first positional argument (e.g. "run", "start", "stop").
+ * Rules (spec §4.1-4.2):
+ * - agent-id must match ^[a-z0-9][a-z0-9_-]{0,63}$, no path traversal
+ * - --env-file must be an absolute path
+ * - --agent and --env-file are mutually exclusive
  *
- * Call process.exit(1) on error from the caller.
+ * Throws on invalid input. Caller should catch and exit(1).
  */
 export function parseCliArgs(argv: string[] = process.argv): CliArgs {
   let agentId: string | undefined;
@@ -97,9 +117,23 @@ export function parseCliArgs(argv: string[] = process.argv): CliArgs {
     }
   }
 
-  // Validate agent-id if provided (fail early, before any side effects)
+  // ---- Mutual exclusion (spec §4.1) ---------------------------------------
+  if (agentId !== undefined && envFile !== undefined) {
+    throw new Error(
+      `--agent and --env-file are mutually exclusive. ` +
+      `Use one or the other, not both.\n` +
+      `  --agent: load from ~/.chorusgate/<id>/.env\n` +
+      `  --env-file: load from an explicit absolute path`,
+    );
+  }
+
+  // ---- Validation ---------------------------------------------------------
   if (agentId !== undefined) {
     validateAgentId(agentId);
+  }
+
+  if (envFile !== undefined) {
+    validateEnvFilePath(envFile);
   }
 
   return { agentId, envFile };
