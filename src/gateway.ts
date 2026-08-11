@@ -16,8 +16,10 @@
 import { bootstrap } from "./bootstrap.js";
 import type { ProfileConfig, ProfileTriggers } from "./profile-config.js";
 import { parseProfileTriggers } from "./profile-config.js";
+import { parseCliArgs } from "./cli-args.js";
 
-const profiles = bootstrap();
+const cliArgs = parseCliArgs();
+const profiles = bootstrap({ agentId: cliArgs.agentId, envFile: cliArgs.envFile });
 
 import { getWebClient } from "./slack-clients.js";
 import {

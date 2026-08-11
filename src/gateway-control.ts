@@ -16,6 +16,7 @@ import {
   BIN_FILE,
   type GatewayStatus,
 } from "./gateway-paths.js";
+import { parseCliArgs } from "./cli-args.js";
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -92,7 +93,14 @@ export async function start(): Promise<void> {
   ensureGatewayDir();
   const logFile = getLogFile();
   const out = openSync(logFile, "a");
-  const child = spawn(process.execPath, [BIN_FILE, "run"], {
+
+  // Forward --agent and --env-file to the daemon process (#134)
+  const cliArgs = parseCliArgs();
+  const forwardArgs: string[] = [];
+  if (cliArgs.agentId) forwardArgs.push("--agent", cliArgs.agentId);
+  if (cliArgs.envFile) forwardArgs.push("--env-file", cliArgs.envFile);
+
+  const child = spawn(process.execPath, [BIN_FILE, "run", ...forwardArgs], {
     detached: true,
     stdio: ["ignore", out, out],
     windowsHide: true,
@@ -227,14 +235,19 @@ export async function list(): Promise<void> {
 export function help(): void {
   console.error(
     [
-      "Usage: chorusgate <command>",
+      "Usage: chorusgate <command> [options]",
       "",
+      "Commands:",
       "  run       run the gateway in the foreground (blocks)",
       "  start     start the gateway as a background daemon",
       "  stop      stop the running daemon",
       "  restart   restart the daemon",
       "  status    show whether the daemon is running + runtime info",
       "  list      list active thread→session mappings",
+      "",
+      "Options:",
+      "  --agent <id>     load config from ~/.chorusgate/<id>/.env (default: legacy project .env)",
+      "  --env-file <path> load explicit .env file (takes precedence over --agent)",
     ].join("\n")
   );
 }
