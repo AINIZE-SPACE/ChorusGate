@@ -3,16 +3,17 @@
 > **Issue**: [#134](https://github.com/AINIZE-SPACE/ChorusGate/issues/134)
 > **Defects Issue**: [#135](https://github.com/AINIZE-SPACE/ChorusGate/issues/135)
 > **Branch**: `v5/issue-134-agent-profile-config`
-> **Commit tested**: `89225e3` (feat) + `7330373` (Dev Ready)
+> **Commit tested (initial SIT)**: `89225e3` (feat) + `7330373` (Dev Ready)
+> **Commit tested (re-SIT)**: `e15a54d` (single HEAD after fixes)
 > **Test Owner**: 小马
 > **Date**: 2026-08-12 (initial SIT) + 2026-08-12 (re-SIT after fixes)
-> **Verdict**: ⚠️ CONDITIONAL PASS - 4/5 defects fixed, 1 design decision pending (缺陷 1)
+> **Verdict**: SIT BLOCKED - 8/9 PASS, ST-CG134-001 FAIL (Defect 1)
 
 ---
 
 ## 1. 执行环境
 
-- **Machine**: zederer-mbe (Ubuntu 26.04, IP 192.168.1.147)
+- **Machine**: zederer-mbe (Ubuntu 26.04)
 - **Node**: v22.22.1
 - **Repo**: `/opt/ainize/ChorusGate`, branch `v5/issue-134-agent-profile-config`
 - **Note**: `codex` and `claude` CLI binaries are NOT installed on this machine
@@ -133,13 +134,13 @@ Result: 10 tests, 2 pass, 8 fail
 
 详见 GitHub Issue [#135](https://github.com/AINIZE-SPACE/ChorusGate/issues/135)
 
-| # | 优先级 | 缺陷 | Spec 违反 |
-|---|--------|------|-----------|
-| 1 | P0 | `chorusgate run` 无参数时不加载 `~/.chorusgate/default/.env` | AC1, §2.1.5 |
-| 2 | P0 | 缺少 agent-id 格式校验 | §4.2 |
-| 3 | P0 | `--env-file` 接受相对路径 | §4.2 |
-| 4 | P1 | `--agent` 与 `--env-file` 不互斥 | §4.1 |
-| 5 | P1 | 必需变量缺失错误不含文件路径 | §4.2 |
+| # | 优先级 | 缺陷 | Spec 违反 | 状态 |
+|---|--------|------|-----------|------|
+| 1 | P0 | `chorusgate run` 无参数时不加载 `~/.chorusgate/default/.env` | AC1, §2.1.5 | 裁定选A，待小克修复 |
+| 2 | P0 | 缺少 agent-id 格式校验 | §4.2 | ✅ 已修复 (f7fd0f5) |
+| 3 | P0 | `--env-file` 接受相对路径 | §4.2 | ✅ 已修复 (e15a54d) |
+| 4 | P1 | `--agent` 与 `--env-file` 不互斥 | §4.1 | ✅ 已修复 (e15a54d) |
+| 5 | P1 | 必需变量缺失错误不含文件路径 | §4.2 | ✅ 已修复 (f7fd0f5) |
 
 ---
 
@@ -149,17 +150,17 @@ Result: 10 tests, 2 pass, 8 fail
 
 5 个缺陷，3 P0 + 2 P1。
 
-### Re-SIT 结论: ⚠️ CONDITIONAL PASS (2026-08-12, after fix commits f7fd0f5 + e15a54d)
+### Re-SIT 结论: SIT BLOCKED (2026-08-12, after fix commits f7fd0f5 + e15a54d)
 
-小克修复了缺陷 2-5，re-SIT 验证通过：
+小克修复了 Defect 2-5，re-SIT 验证通过。Defect 1 仍未修复，ST-CG134-001 FAIL。
 
 | 缺陷 | 修复状态 | Re-SIT 验证 |
 |------|----------|-------------|
-| #2 agent-id 校验 | ✅ 已修复 (f7fd0f5) | ST-CG134-006 PASS |
-| #3 --env-file 绝对路径 | ✅ 已修复 (e15a54d) | ST-CG134-003 PASS |
-| #4 互斥校验 | ✅ 已修复 (e15a54d) | cli-args.test.ts 27 cases pass |
-| #5 错误含文件路径 | ✅ 已修复 (f7fd0f5) | ST-CG134-026 PASS |
-| #1 无参数加载 default | ❌ 未修复 | ST-CG134-001 FAIL - 需乐老板判断 |
+| Defect 2 agent-id 校验 | ✅ 已修复 (f7fd0f5) | ST-CG134-006 PASS |
+| Defect 3 --env-file 绝对路径 | ✅ 已修复 (e15a54d) | ST-CG134-003 PASS |
+| Defect 4 互斥校验 | ✅ 已修复 (e15a54d) | cli-args.test.ts 27 cases pass |
+| Defect 5 错误含文件路径 | ✅ 已修复 (f7fd0f5) | ST-CG134-026 PASS |
+| Defect 1 无参数加载 default | ❌ 未修复 | ST-CG134-001 FAIL - SIT BLOCKED |
 
 ### Re-SIT 测试结果
 
@@ -169,21 +170,21 @@ Result: 10 tests, 2 pass, 8 fail
 | L1 (unit) | ✅ 87/87 PASS |
 | L3 (CLI smoke) | ✅ 8/9 PASS |
 
-### 缺陷 1 - 设计决策待乐老板判断
+### 缺陷 1 - 乐老板裁定: 选 A (符合 Spec)
 
 `chorusgate run` 无参数时走 legacy 模式（加载 ~/.gateway/.env + project .env），不加载 ~/.chorusgate/default/.env。
 
 - **Spec AC1 + §2.1.5** 要求：无参数 ≡ `--agent default`
-- **小克实现**：向后兼容，无参数走 legacy
-- **选项 A**: 改为默认加载 `~/.chorusgate/default/.env`（符合 spec，破坏向后兼容）
-- **选项 B**: 保留 legacy 模式（向后兼容，但违反 AC1）
+- **裁定 (2026-08-12)**：选 A，改为默认加载 `~/.chorusgate/default/.env`。当前仅内部使用，无外部客户，可接受破坏向后兼容。
+- **附加要求**：需迁移脚本，将当前配置（如 .env）迁移到指定 agent 下（agent 名称 + agent 平台，或通过 env 自动识别）
 
 ### 下一步
 
-1. 乐老板决定缺陷 1 的处理方式
-2. 若选 A：小克修复后 re-SIT 验证 ST-CG134-001
-3. 若选 B：更新 spec AC1 措辞，豁免此条
-4. 缺陷清零后通知小扣验收
+1. ~~乐老板决定缺陷 1 的处理方式~~ → 已裁定：选 A
+2. 小克实现修复：无参数时默认加载 `~/.chorusgate/default/.env`
+3. 小克实现迁移脚本（新 Issue）
+4. re-SIT 验证 ST-CG134-001 通过
+5. 缺陷清零后通知小扣验收
 
 ### 未覆盖项（需后续补充）
 
