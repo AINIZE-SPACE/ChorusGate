@@ -19,7 +19,10 @@ import { parseProfileTriggers } from "./profile-config.js";
 import { parseCliArgs } from "./cli-args.js";
 
 const cliArgs = parseCliArgs();
-const profiles = bootstrap({ agentId: cliArgs.agentId, envFile: cliArgs.envFile });
+// Default to "default" agent profile when neither --agent nor --env-file given
+// (spec AC1: `chorusgate run` ≡ `chorusgate run --agent default`).
+const agentId = cliArgs.agentId ?? (cliArgs.envFile ? undefined : "default");
+const profiles = bootstrap({ agentId, envFile: cliArgs.envFile });
 
 import { getWebClient } from "./slack-clients.js";
 import {
