@@ -122,14 +122,19 @@ export function migrateConfig(opts: MigrateOptions): MigrateResult {
   let agentId = opts.agentId;
   if (!agentId) {
     const detected = detectAgentId(parsed);
-    if (!detected) {
-      throw new Error(
-        `Could not auto-detect agent from source .env. ` +
-        `Specify --agent <id> explicitly (e.g. --agent claude, --agent codex).`,
+    if (detected) {
+      agentId = detected;
+      console.error(`[migrate] Auto-detected agent: ${agentId}`);
+    } else {
+      // No provider marker found → fall back to the "default" agent profile.
+      // This covers plain single-app .env files that predate multi-agent
+      // profiles.  Explicitly pass --agent <id> to override.
+      agentId = "default";
+      console.error(
+        `[migrate] No provider marker found — defaulting to agent "default". ` +
+        `Pass --agent <id> to override (e.g. --agent claude, --agent codex).`,
       );
     }
-    agentId = detected;
-    console.error(`[migrate] Auto-detected agent: ${agentId}`);
   }
 
   validateAgentId(agentId);
