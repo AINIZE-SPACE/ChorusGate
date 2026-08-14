@@ -46,7 +46,42 @@ so agent runtimes can actively read and write channel context when needed.
 
 Agent-scoped configuration is loaded from `~/.chorusgate/<agent-id>/.env`.
 `chorusgate run` uses the `default` profile; shell environment variables retain
-the highest priority.
+the highest priority. Every agent — `default` included — owns its process-level
+files under the same home, so omitting `--agent` anywhere is equivalent to
+`--agent default` (i.e. `~/.chorusgate/default/`).
+
+#### Agent profiles and state ownership
+
+A ChorusGate agent is a cross-project process. Its lifecycle must not depend on
+the shell's current working directory or on a project directory selected by an
+environment variable. Each agent owns an isolated home directory:
+
+```text
+~/.chorusgate/<agent-id>/
+├── .env          # process configuration
+├── gateway.pid   # daemon identity
+├── gateway.log   # process output
+├── status.json   # runtime status
+└── ...           # locks, sessions, and other process-level state
+```
+
+All process-level configuration and output belong under that directory. Control
+commands (`run`, `start`, `stop`, `restart`, `status`, and `list`) must resolve
+the agent first and then read or write only that agent's files. A missing agent
+must be reported as missing or stopped; it must not silently fall back to the
+`default` profile, the current directory, or another running process.
+
+The project-local `.gateway/` directory has a narrower role: it may contain only
+metadata or state for the current project and the relevant agent. It is not the
+home of a cross-project daemon and must not determine or store the daemon PID,
+global status, logs, locks, or other process-level output.
+
+> **Why the split?** In the legacy layout the PID, status snapshot and log lived
+> together in one shared `cwd/.gateway/` for every agent. `status --agent codex`
+> and `status --agent claude` therefore read the same files and printed identical
+> output, and only one agent could run per working directory. Scoping them under
+> the agent home makes each agent a real cross-project process with an
+> independent PID, uptime and session list.
 
 For a first-time setup, initialize from the current project's legacy `.env`:
 
@@ -101,14 +136,17 @@ npm run gateway        # or: chorusgate run
 **Background daemon** (recommended for ongoing use):
 
 ```bash
-chorusgate start    # start in the background
-chorusgate status   # check status (pid, uptime, active sessions)
-chorusgate stop     # stop
-chorusgate restart  # restart
-chorusgate list     # list channel→session mappings
+chorusgate start --agent codex    # start codex in the background
+chorusgate status --agent codex   # show only codex's pid, uptime, and sessions
+chorusgate stop --agent codex     # stop only codex
+chorusgate restart --agent codex  # restart only codex
+chorusgate list --agent codex     # list only codex's channel→session mappings
 ```
 
-`npm run start|stop|restart|status|list` are aliases. Logs go to `.gateway/gateway.log`.
+Omitting `--agent` is equivalent to `--agent default`. Different agents may run
+at the same time and must report independent PIDs and runtime state. The npm
+aliases use the same rules. Logs go to
+`~/.chorusgate/<agent-id>/gateway.log`.
 
 ### 7. Use It in Slack
 
@@ -174,7 +212,8 @@ Control sessions directly from Slack:
 
 ## Environment Variables
 
-> **Where to put them:** Gateway-specific variables go in `.env` (loaded from `~/.gateway/.env` and `./.env`).
+> **Where to put them:** Process-level Gateway variables go in `~/.chorusgate/<agent-id>/.env`.
+> They are not implicitly loaded from `~/.gateway/.env`, the project `.env`, the current working directory, or a project-local `.gateway/.env`.
 > Only `SLACK_BOT_TOKEN` and `SLACK_APP_TOKEN` may also appear in `.claude/mcp.json`'s `env` block (for the MCP server).
 > Shell environment variables always take precedence.
 

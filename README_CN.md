@@ -41,7 +41,38 @@ ChorusGate 是一个 local-first 的协作 channel gateway，用来把 coding ag
 ### 3. 配置 .env
 
 Agent 配置从 `~/.chorusgate/<agent-id>/.env` 加载；`chorusgate run` 使用
-`default` profile，Shell 环境变量仍具有最高优先级。
+`default` profile，Shell 环境变量仍具有最高优先级。每个 agent（包括
+`default`）的进程级文件都归自己的 home 目录，因此任何地方省略 `--agent`
+都等价于 `--agent default`（即 `~/.chorusgate/default/`）。
+
+#### Agent profile 与状态归属
+
+ChorusGate agent 是**跨项目**的进程，生命周期不该依赖 shell 的当前工作目录
+或环境变量选出的项目目录。每个 agent 拥有一个隔离的 home：
+
+```text
+~/.chorusgate/<agent-id>/
+├── .env          # 进程配置
+├── gateway.pid   # 守护进程标识
+├── gateway.log   # 进程输出
+├── status.json   # 运行状态
+└── ...           # 锁、session 等进程级状态
+```
+
+所有进程级配置和输出都只属于该目录。控制命令（`run`/`start`/`stop`/
+`restart`/`status`/`list`）必须先解析出 agent，再只读写该 agent 的文件。
+agent 缺失时如实报「缺失或已停止」，不能静默回退到 `default` profile、
+当前目录或另一个正在运行的进程。
+
+项目本地的 `.gateway/` 目录职责更窄：只放**当前项目 + 对应 agent** 的
+元数据或状态。它不是跨项目守护进程的家，不能决定也不该存放守护进程的
+PID、全局状态、日志、锁或其他进程级输出。
+
+> **为什么这样拆分？** 旧布局里 PID、状态快照和日志混在共享的
+> `cwd/.gateway/`。`status --agent codex` 和 `status --agent claude` 读到
+> 的是同一批文件、输出完全相同，而且同一目录同时只能跑一个 agent。
+> 收归到 agent home 后，每个 agent 才是真正跨项目的进程，拥有独立的
+> PID、运行时长和会话列表。
 
 首次使用可从当前项目旧 `.env` 自动初始化：
 
@@ -94,14 +125,16 @@ npm run gateway        # 或 chorusgate run
 **后台守护进程**（日常使用）：
 
 ```bash
-chorusgate start    # 后台启动
-chorusgate status   # 查看状态（pid、运行时长、活跃 session 数）
-chorusgate stop     # 停止
-chorusgate restart  # 重启
-chorusgate list     # 列出 channel→session 映射
+chorusgate start --agent codex     # 后台启动 codex
+chorusgate status --agent codex    # 只显示 codex 的 pid、运行时长、session
+chorusgate stop --agent codex      # 只停止 codex
+chorusgate restart --agent codex   # 只重启 codex
+chorusgate list --agent codex      # 只列出 codex 的 channel→session 映射
 ```
 
-`npm run start|stop|restart|status|list` 是对应别名。日志写 `.gateway/gateway.log`。
+省略 `--agent` 等价于 `--agent default`。不同 agent 可以同时运行，且必须
+报告各自独立的 PID 和运行状态。`npm run …` 别名规则相同。日志写
+`~/.chorusgate/<agent-id>/gateway.log`。
 
 ### 7. 在 Slack 里使用
 
@@ -161,7 +194,9 @@ chorusgate list     # 列出 channel→session 映射
 
 ## 环境变量
 
-> **放哪里：** Gateway 专有参数放 `.env`（从 `~/.gateway/.env` 和 `./.env` 加载）。
+> **放哪里：** 进程级 Gateway 参数放 `~/.chorusgate/<agent-id>/.env`。
+> 不再隐式从 `~/.gateway/.env`、项目 `.env`、当前工作目录或项目本地
+> `.gateway/.env` 加载。
 > 只有 `SLACK_BOT_TOKEN` 和 `SLACK_APP_TOKEN` 可能也出现在 `.claude/mcp.json` 的 `env` 块中（给 MCP server 用）。
 > Shell 环境变量始终优先。
 
@@ -194,14 +229,16 @@ chorusgate list     # 列出 channel→session 映射
 
 ---
 
-## 多 Gateway 实例并行
+## 多 Agent 并行
 
-可以在不同目录启动多个 Gateway 实例（例如 CC 网关 + Codex 网关）。
+可以在同一台机器同时跑多个 agent（例如 CC 网关 + Codex 网关）。
 
 **关键要求**：
-1. 每个实例独立 Slack App（独立 token）
-2. 每个 Gateway 的 `.gateway/` 在各自项目目录下，互不干扰
-3. `memory/sessions.md` 按目录独立
+1. 每个 agent 独立 Slack App（独立 token）
+2. 每个 agent 的进程级文件（pid/status/log）在各自的
+   `~/.chorusgate/<agent-id>/` 下，互不干扰；`start/status/stop/restart/list`
+   都要带 `--agent`
+3. 项目级状态（`memory/sessions.md`）按项目目录独立
 4. Codex 工作目录由 `GATEWAY_CWD_CODEX` 或 `GATEWAY_CLAUDE_CWD` 决定
 
 **Codex 多 profile 示例** `.env`：
