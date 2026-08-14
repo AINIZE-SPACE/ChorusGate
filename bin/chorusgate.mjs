@@ -16,6 +16,16 @@
 
 import { tsImport } from "tsx/esm/api";
 
+// Windows: ChorusGate must run as administrator (elevated). Enforced for
+// every CLI command up front so failures surface here instead of mid-run.
+// The MCP entry (chorusgate-mcp) is exempt — Claude Code spawns it unelevated.
+if (process.platform === "win32") {
+  const { requireWindowsAdmin } = await tsImport("../src/require-admin.ts", import.meta.url);
+  requireWindowsAdmin({
+    hint: `Command: chorusgate ${process.argv.slice(2).join(" ") || "run"}`,
+  });
+}
+
 const cmd = (process.argv[2] || "run").toLowerCase();
 
 if (cmd === "run") {
