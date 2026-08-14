@@ -17,11 +17,20 @@ import { bootstrap } from "./bootstrap.js";
 import type { ProfileConfig, ProfileTriggers } from "./profile-config.js";
 import { parseProfileTriggers } from "./profile-config.js";
 import { parseCliArgs } from "./cli-args.js";
+import { requireWindowsAdmin } from "./require-admin.js";
+
+// Windows requires an elevated process (see require-admin.ts). Enforced here
+// as defense-in-depth — the CLI dispatcher also guards, but `npm run gateway`
+// (tsx src/gateway.ts) bypasses it.
+requireWindowsAdmin();
 
 const cliArgs = parseCliArgs();
 // Default to "default" agent profile when neither --agent nor --env-file given
 // (spec AC1: `chorusgate run` ≡ `chorusgate run --agent default`).
 const agentId = cliArgs.agentId ?? (cliArgs.envFile ? undefined : "default");
+// Control-plane identity: pid/status/log always live under
+// ~/.chorusgate/<agent>/ — with --env-file and no --agent, use "default".
+const controlAgentId = agentId ?? "default";
 const profiles = bootstrap({ agentId, envFile: cliArgs.envFile });
 
 import { getWebClient } from "./slack-clients.js";
@@ -1047,10 +1056,10 @@ async function main(): Promise<void> {
   }
 
   // Write PID file so the control commands (status/stop/restart) find us.
-  ensureGatewayDir();
+  ensureGatewayDir(controlAgentId);
   const startedAt = Date.now();
   try {
-    writeFileSync(getPidFile(), String(process.pid));
+    writeFileSync(getPidFile(controlAgentId), String(process.pid));
   } catch (err) {
     console.error(
       "[gateway] WARNING: could not write PID file:",
@@ -1069,7 +1078,7 @@ async function main(): Promise<void> {
       sessions: sessionStore.entries(),
     };
     try {
-      writeFileSync(getStatusFile(), JSON.stringify(snapshot, null, 2));
+      writeFileSync(getStatusFile(controlAgentId), JSON.stringify(snapshot, null, 2));
     } catch {
       // best effort
     }
@@ -1185,8 +1194,8 @@ async function shutdown(): Promise<void> {
   await socketManager.stopAll();
   // Clean up control-plane files so `status` reports stopped.
   try {
-    rmSync(getPidFile(), { force: true });
-    rmSync(getStatusFile(), { force: true });
+    rmSync(getPidFile(controlAgentId), { force: true });
+    rmSync(getStatusFile(controlAgentId), { force: true });
   } catch {
     // ignore
   }
