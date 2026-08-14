@@ -13,12 +13,10 @@
 // ============================================================
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
+import { getStateDir } from "./state-paths.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const projectRoot = resolve(__dirname, "..");
-const MEMORY_DIR = resolve(projectRoot, "memory");
+const MEMORY_DIR = getStateDir();
 const EVENTS_MD = resolve(MEMORY_DIR, "events.md");
 
 // ---- Types ------------------------------------------------------------------

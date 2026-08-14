@@ -12,11 +12,9 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { getStateDir } from "./state-paths.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const projectRoot = resolve(__dirname, "..");
-const MEMORY_DIR = resolve(projectRoot, "memory");
+const MEMORY_DIR = getStateDir();
 const CHANNEL_DIR_JSON = resolve(MEMORY_DIR, "channel-directory.json");
 
 // ---- Types -----------------------------------------------------------------

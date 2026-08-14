@@ -7,6 +7,11 @@ import assert from "node:assert/strict";
 import { parseCliArgs, validateAgentId, validateEnvFilePath } from "../src/cli-args.js";
 
 describe("parseCliArgs", () => {
+  it("parses --init for automatic profile initialization", () => {
+    const result = parseCliArgs(["node", "chorusgate", "run", "--agent", "claude", "--init"]);
+    assert.equal(result.agentId, "claude");
+    assert.equal(result.initialize, true);
+  });
   it("returns undefined for both when no flags present", () => {
     const result = parseCliArgs(["node", "chorusgate", "run"]);
     assert.equal(result.agentId, undefined);

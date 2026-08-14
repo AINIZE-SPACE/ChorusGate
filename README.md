@@ -44,14 +44,27 @@ so agent runtimes can actively read and write channel context when needed.
 
 ### 3. Configure .env
 
-`.env` is loaded from two locations (later overrides earlier):
+Agent-scoped configuration is loaded from `~/.chorusgate/<agent-id>/.env`.
+`chorusgate run` uses the `default` profile; shell environment variables retain
+the highest priority.
 
-1. `~/.gateway/.env` — global defaults, shared across projects
-2. `./.env` — project-specific overrides (gitignored)
+For a first-time setup, initialize from the current project's legacy `.env`:
 
-Shell environment variables have the highest priority — they will never be overwritten by `.env` files. Both files are optional; missing ones are silently skipped.
+```powershell
+chorusgate run --agent claude --init
+chorusgate config init --agent codex --from E:\project\.env --cwd E:\project
+```
 
-Create `./.env` in the project root:
+If a profile is missing, ChorusGate lists existing agent names and asks whether
+to initialize it in an interactive terminal. Non-interactive runs print the
+equivalent `--init` command and exit cleanly. When no source `.env` exists,
+initialization creates the directories and a starter config without secrets.
+
+Before connecting to Slack, ChorusGate verifies that the selected `claude` or
+`codex` CLI is installed. If it is missing, install that platform or set
+`CLAUDE_BIN` / `CODEX_BIN` to its executable path.
+
+A profile must contain:
 
 ```env
 SLACK_BOT_TOKEN=xoxb-your-bot-token

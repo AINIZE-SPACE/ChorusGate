@@ -24,12 +24,10 @@
 
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { getStateDir } from "./state-paths.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const projectRoot = resolve(__dirname, "..");
-const MEMORY_DIR = resolve(projectRoot, "memory");
+const MEMORY_DIR = getStateDir();
 const SESSIONS_MD = resolve(MEMORY_DIR, "sessions.md");
 
 // ---- SessionIdentity (structured key, STORY-4) -------------------------------

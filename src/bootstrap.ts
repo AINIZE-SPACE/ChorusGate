@@ -16,6 +16,7 @@
 import { loadEnv, fixMcpPlaceholders, type LoadEnvOptions } from "./load-env.js";
 import { initSlackClients } from "./slack-clients.js";
 import { parseProfiles, type ProfileConfig } from "./profile-config.js";
+import { validateAgentPlatforms } from "./agent-platform.js";
 
 export type { LoadEnvOptions } from "./load-env.js";
 
@@ -57,6 +58,13 @@ export function bootstrap(opts: LoadEnvOptions = {}): ProfileConfig[] {
         "Set SLACK_BOT_TOKEN/SLACK_APP_TOKEN or GATEWAY_PROFILES.",
     );
     process.exit(1);
+  }
+
+  try {
+    validateAgentPlatforms(profiles);
+  } catch (err) {
+    console.error(`[chorusgate] SETUP REQUIRED: ${(err as Error).message}`);
+    process.exit(2);
   }
 
   // Initialize the default singleton from the first profile.

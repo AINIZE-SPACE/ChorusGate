@@ -15,7 +15,7 @@
 // ============================================================
 
 import { parse as parseDotEnv } from "dotenv";
-import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, statSync } from "node:fs";
 import { resolve, dirname, join } from "node:path";
 import { CHORUSGATE_HOME, agentProfileEnvPath } from "./load-env.js";
 import { validateAgentId } from "./cli-args.js";
@@ -62,6 +62,10 @@ export interface MigrateOptions {
   agentId?: string;
   /** Source .env file path (required). */
   from: string;
+  /** Working directory to pin in the migrated agent profile. */
+  cwd?: string;
+  /** Test/embedding override; defaults to ~/.chorusgate. */
+  profileRoot?: string;
   /** Write the target file (default: dry-run preview only). */
   apply?: boolean;
   /** Overwrite existing target file (with backup). */
@@ -151,9 +155,26 @@ export function migrateConfig(opts: MigrateOptions): MigrateResult {
     }
   }
 
+  // A legacy project-local .env implicitly used that project's directory as
+  // the spawned agent cwd. Once the config moves into ~/.chorusgate, that
+  // relationship must be explicit or startup behavior changes with the
+  // caller's current directory.
+  if (opts.cwd) {
+    const cwd = resolve(opts.cwd);
+    if (!existsSync(cwd) || !statSync(cwd).isDirectory()) {
+      throw new Error(`Working directory not found or not a directory: ${cwd}`);
+    }
+    parsed["GATEWAY_CLAUDE_CWD"] = cwd;
+    if (!chorusgateKeys.includes("GATEWAY_CLAUDE_CWD")) {
+      chorusgateKeys.push("GATEWAY_CLAUDE_CWD");
+    }
+  }
+
   // 4. Build target path
-  const targetDir = resolve(CHORUSGATE_HOME, agentId);
-  const targetPath = agentProfileEnvPath(agentId);
+  const targetDir = resolve(opts.profileRoot ?? CHORUSGATE_HOME, agentId);
+  const targetPath = opts.profileRoot
+    ? resolve(targetDir, ".env")
+    : agentProfileEnvPath(agentId);
 
   // 5. Dry-run
   if (!opts.apply) {

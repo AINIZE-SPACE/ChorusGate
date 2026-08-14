@@ -40,14 +40,24 @@ ChorusGate 是一个 local-first 的协作 channel gateway，用来把 coding ag
 
 ### 3. 配置 .env
 
-`.env` 从两个位置加载（后者覆盖前者）：
+Agent 配置从 `~/.chorusgate/<agent-id>/.env` 加载；`chorusgate run` 使用
+`default` profile，Shell 环境变量仍具有最高优先级。
 
-1. `~/.gateway/.env` — 全局默认配置（所有项目共用）
-2. `./.env` — 项目级覆盖（已 gitignore）
+首次使用可从当前项目旧 `.env` 自动初始化：
 
-Shell 环境变量优先级最高，不会被 `.env` 文件覆盖。两个文件都是可选的，不存在也不会报错。
+```powershell
+chorusgate run --agent claude --init
+chorusgate config init --agent codex --from E:\project\.env --cwd E:\project
+```
 
-在项目根目录创建 `./.env`：
+若 profile 不存在，ChorusGate 会列出已有 Agent 供检查拼写；交互终端询问是否初始化，
+非交互环境给出等价的 `--init` 命令并正常退出。没有旧 `.env` 时会自动创建目录和
+不含秘密值的 starter 文件。
+
+连接 Slack 前还会检查对应的 `claude` / `codex` CLI。未安装时会提示安装平台，
+也可通过 `CLAUDE_BIN` / `CODEX_BIN` 指定可执行文件。
+
+profile 至少需要：
 
 ```env
 SLACK_BOT_TOKEN=xoxb-你的-bot-token

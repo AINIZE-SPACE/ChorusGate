@@ -19,7 +19,7 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, posix, resolve } from "node:path";
 
 // ---- Test fixtures ----
 
@@ -159,7 +159,7 @@ describe("ST-CG134-023: POSIX path resolution", () => {
   it("resolves ~/.chorusgate/codex/.env on POSIX", () => {
     // Simulate POSIX home
     const fakeHome = "/tmp/cg-test-home";
-    const expectedPath = join(fakeHome, ".chorusgate", "codex", ".env");
+    const expectedPath = posix.join(fakeHome, ".chorusgate", "codex", ".env");
     assert.equal(
       expectedPath,
       "/tmp/cg-test-home/.chorusgate/codex/.env",
@@ -175,7 +175,7 @@ describe("ST-CG134-023: POSIX path resolution", () => {
     const id = "codex";
 
     // Correct: join()
-    const correct = join(home, ".chorusgate", id, ".env");
+    const correct = posix.join(home, ".chorusgate", id, ".env");
 
     // Wrong: string concatenation (would break on Windows)
     const wrongPosix = `${home}/.chorusgate/${id}/.env`;

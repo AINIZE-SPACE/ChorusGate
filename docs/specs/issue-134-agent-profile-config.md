@@ -87,13 +87,17 @@ chorusgate run --agent default
 # 指定数智员工
 chorusgate run --agent claude
 chorusgate run --agent codex
+chorusgate run --agent claude --init
+
+# 显式初始化
+chorusgate config init --agent codex --from E:\project\.env --cwd E:\project
 
 # 高级场景：指定绝对路径
 chorusgate run --env-file C:\secure\chorusgate-codex.env
 
 # 迁移（默认 dry-run）
-chorusgate config migrate --agent codex --from E:\project\.env
-chorusgate config migrate --agent codex --from E:\project\.env --apply
+chorusgate config migrate --agent codex --from E:\project\.env --cwd E:\project
+chorusgate config migrate --agent codex --from E:\project\.env --cwd E:\project --apply
 ```
 
 ### 4.2 解析与校验
@@ -102,6 +106,9 @@ chorusgate config migrate --agent codex --from E:\project\.env --apply
 - `--env-file` 必须是已存在的文件；相对路径报错，不隐式按 cwd 解析。
 - 显式指定的配置不存在、不可读或缺少启动必需项时，进程失败并给出文件路径与缺失变量；不得静默回退到项目 `.env`。
 - 日志只显示配置来源和变量名，不显示 token/value。
+- Agent profile 不存在时列出已有 Agent；交互模式询问是否初始化，非交互模式给出 `--init` 命令并正常退出。
+- 初始化自动创建缺失目录；没有旧 `.env` 时生成不含秘密值的 starter 文件。
+- 建立 Slack 连接前检查 provider 对应的 Claude/Codex CLI；缺失时提示平台、验证命令及 `*_BIN` 覆盖方式。
 
 ### 4.3 加载优先级
 
@@ -123,7 +130,8 @@ Sprint 5 后，主 `chorusgate run` 不再自动加载仓库根 `.env`、cwd 根
 4. 默认只输出 dry-run；`--apply` 才写入 `~/.chorusgate/<agent-id>/.env`。
 5. 目标已存在时拒绝覆盖，除非显式 `--force`；覆盖前生成时间戳备份。
 6. 永不自动删除或改写源 `.env`。
-7. 输出迁移后启动命令和验证清单。
+7. 可用 `--cwd <project>` 显式保留旧项目本地启动时的工作目录语义。
+8. 输出迁移后启动命令和验证清单。
 
 迁移范围包括当前 ChorusGate、Zederer IP 等项目中历史遗留的 ChorusGate 变量；每个平台/项目逐一执行，不能用一次迁移推断全部机器已完成。
 
@@ -166,6 +174,9 @@ Sprint 5 后，主 `chorusgate run` 不再自动加载仓库根 `.env`、cwd 根
 - [ ] 非 ChorusGate 键不会迁入 `~/.chorusgate`。
 - [ ] `.env.example`、中英文文档、CLI help 与实际行为一致。
 - [ ] 现有 default 单实例用户有清晰迁移路径。
+- [ ] Agent 名拼写错误时显示已有 profile，不输出底层文件系统堆栈。
+- [ ] `--init` 可创建缺失目录并迁移旧 `.env`，或生成安全 starter 文件。
+- [ ] Claude/Codex CLI 未安装时在连接 Slack 前给出可执行提示。
 - [ ] parser/typecheck、单元测试、SIT 分层报告，不以单一绿灯替代端到端验收。
 
 ## 8. 小马测试设计输入

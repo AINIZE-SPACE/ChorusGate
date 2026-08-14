@@ -8,6 +8,7 @@ import { migrateConfig, formatMigrateResult, type MigrateOptions } from "./confi
 function parseMigrateArgs(argv: string[] = process.argv): MigrateOptions {
   let agentId: string | undefined;
   let from: string | undefined;
+  let cwd: string | undefined;
   let apply = false;
   let force = false;
 
@@ -21,6 +22,10 @@ function parseMigrateArgs(argv: string[] = process.argv): MigrateOptions {
       from = argv[++i];
     } else if (arg.startsWith("--from=")) {
       from = arg.slice("--from=".length);
+    } else if (arg === "--cwd" && i + 1 < argv.length) {
+      cwd = argv[++i];
+    } else if (arg.startsWith("--cwd=")) {
+      cwd = arg.slice("--cwd=".length);
     } else if (arg === "--apply") {
       apply = true;
     } else if (arg === "--force") {
@@ -30,11 +35,11 @@ function parseMigrateArgs(argv: string[] = process.argv): MigrateOptions {
 
   if (!from) {
     throw new Error(
-      `--from <path> is required. Usage: chorusgate config migrate --from <source.env> [--agent <id>] [--apply] [--force]`,
+      `--from <path> is required. Usage: chorusgate config migrate --from <source.env> [--agent <id>] [--cwd <project>] [--apply] [--force]`,
     );
   }
 
-  return { agentId, from, apply, force };
+  return { agentId, from, cwd, apply, force };
 }
 
 /** Run the migrate command. Prints result, exits with code. */

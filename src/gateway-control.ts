@@ -17,6 +17,7 @@ import {
   type GatewayStatus,
 } from "./gateway-paths.js";
 import { parseCliArgs } from "./cli-args.js";
+import { prepareRunConfig } from "./config-init.js";
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -80,12 +81,17 @@ const sleep = (ms: number): Promise<void> =>
 // ---- commands --------------------------------------------------------------
 
 /** Start the daemon in the background. */
-export async function start(): Promise<void> {
+export async function start(skipConfigPreflight = false): Promise<void> {
   const existing = livePid();
   if (existing !== null) {
     console.error(
       `gateway already running (pid ${existing}). Use 'restart' to restart.`
     );
+    process.exitCode = 0;
+    return;
+  }
+
+  if (!skipConfigPreflight && !(await prepareRunConfig())) {
     process.exitCode = 0;
     return;
   }
@@ -99,6 +105,7 @@ export async function start(): Promise<void> {
   const forwardArgs: string[] = [];
   if (cliArgs.agentId) forwardArgs.push("--agent", cliArgs.agentId);
   if (cliArgs.envFile) forwardArgs.push("--env-file", cliArgs.envFile);
+  if (cliArgs.initialize) forwardArgs.push("--init");
 
   const child = spawn(process.execPath, [BIN_FILE, "run", ...forwardArgs], {
     detached: true,
@@ -171,11 +178,15 @@ export async function stop(): Promise<void> {
 
 /** Restart: stop if running, then start. */
 export async function restart(): Promise<void> {
+  if (!(await prepareRunConfig())) {
+    process.exitCode = 0;
+    return;
+  }
   if (livePid() !== null) {
     await stop();
     await sleep(500);
   }
-  await start();
+  await start(true);
 }
 
 /** Print whether the daemon is running and its runtime info. */
@@ -245,10 +256,14 @@ export function help(): void {
       "  status          show whether the daemon is running + runtime info",
       "  list            list active thread→session mappings",
       "  config migrate  migrate project .env → ~/.chorusgate/<id>/.env",
+      "  config init     initialize a missing agent profile",
+      "  config init     initialize a missing agent profile",
       "",
       "Options:",
       "  --agent <id>     load config from ~/.chorusgate/<id>/.env (default: default)",
       "  --env-file <path> load explicit .env file (takes precedence over --agent)",
+      "  --init           initialize a missing --agent profile automatically",
+      "  --init           initialize a missing --agent profile automatically",
     ].join("\n")
   );
 }

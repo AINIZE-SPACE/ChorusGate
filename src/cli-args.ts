@@ -29,6 +29,8 @@ export interface CliArgs {
   /** Explicit .env file path (absolute only).
    *  When set, loads this file directly. Mutually exclusive with --agent. */
   envFile: string | undefined;
+  /** Initialize a missing agent profile before running. */
+  initialize: boolean;
 }
 
 /**
@@ -99,6 +101,7 @@ export function validateEnvFilePath(filePath: string): void {
 export function parseCliArgs(argv: string[] = process.argv): CliArgs {
   let agentId: string | undefined;
   let envFile: string | undefined;
+  let initialize = false;
 
   for (let i = 2; i < argv.length; i++) {
     const arg = argv[i];
@@ -114,6 +117,8 @@ export function parseCliArgs(argv: string[] = process.argv): CliArgs {
       envFile = argv[++i];
     } else if (arg.startsWith("--env-file=")) {
       envFile = arg.slice("--env-file=".length);
+    } else if (arg === "--init") {
+      initialize = true;
     }
   }
 
@@ -136,5 +141,5 @@ export function parseCliArgs(argv: string[] = process.argv): CliArgs {
     validateEnvFilePath(envFile);
   }
 
-  return { agentId, envFile };
+  return { agentId, envFile, initialize };
 }
