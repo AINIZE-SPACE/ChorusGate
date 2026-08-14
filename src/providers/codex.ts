@@ -13,10 +13,11 @@
 // 跟踪: [#23](https://github.com/AINIZE-SPACE/chorusgate/issues/23)
 // ============================================================
 
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { CodexEventParser } from "./codex-parser.js";
+import { executableExists } from "../agent-platform.js";
 import type {
   AgentProvider,
   CreateSessionOptions,
@@ -95,11 +96,7 @@ function spawnCodex(
     // Pre-check binary existence — avoids shell-mode ambiguity on Windows
     // (shell:true spawns cmd.exe which always succeeds, even when the
     //  wrapped binary doesn't exist, causing a misleading timeout error)
-    const whichCmd = process.platform === "win32" ? "where" : "which";
-    const whichCheck = spawnSync(whichCmd, [codexBin], {
-      timeout: 3000, stdio: "ignore", windowsHide: true,
-    });
-    if (whichCheck.status !== 0) {
+    if (!executableExists(codexBin)) {
       resolve({
         ok: false, text: "", sessionId: "",
         error: `failed to spawn codex: ENOENT — ${codexBin} not found`,
