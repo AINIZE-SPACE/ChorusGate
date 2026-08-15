@@ -60,8 +60,14 @@ export const CWD_ENV_PATH = resolve(process.cwd(), ".gateway", ".env");
 
 // ---- Agent Profile Paths (#134) -----------------------------------------------
 
-/** Root directory for agent profile configs. */
-export const CHORUSGATE_HOME = resolve(homedir(), ".chorusgate");
+/**
+ * Root directory for agent profile configs.
+ * Overridable via CHORUSGATE_HOME (test/embedding seam — mirrors
+ * CHORUSGATE_STATE_DIR in state-paths.ts). Defaults to ~/.chorusgate.
+ */
+export const CHORUSGATE_HOME = resolve(
+  process.env.CHORUSGATE_HOME || join(homedir(), ".chorusgate"),
+);
 
 /**
  * Get the agent profile .env path.

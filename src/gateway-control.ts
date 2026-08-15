@@ -270,12 +270,10 @@ export function help(): void {
       "  list            list active thread→session mappings",
       "  config migrate  migrate project .env → ~/.chorusgate/<id>/.env",
       "  config init     initialize a missing agent profile",
-      "  config init     initialize a missing agent profile",
       "",
       "Options:",
       "  --agent <id>     load config from ~/.chorusgate/<id>/.env (default: default)",
-      "  --env-file <path> load explicit .env file (takes precedence over --agent)",
-      "  --init           initialize a missing --agent profile automatically",
+      "  --env-file <path> load explicit .env file (mutually exclusive with --agent)",
       "  --init           initialize a missing --agent profile automatically",
     ].join("\n")
   );

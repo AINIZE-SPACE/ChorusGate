@@ -9,6 +9,11 @@
 //   chorusgate config migrate --agent claude --from E:\project\.env --apply --force
 //   chorusgate config migrate --from E:\project\.env          (auto-detect agent)
 //
+// Auto-detect (no --agent): claude / codex / hermes / openclaw via provider
+// markers.  Ambiguous markers (multiple agents) and absent markers both fail
+// closed with an explicit --agent requirement — the migration target is never
+// guessed silently (acceptance review on #135).
+//
 // Default: dry-run (preview only).  --apply writes the file.
 // --force overwrites existing target (with backup).
 // Never deletes the source file.
@@ -40,21 +45,42 @@ const CHORUSGATE_KEY_PREFIXES = [
   "TRELLO_",         // optional Trello MCP
 ];
 
-/** Auto-detect agent-id from env content. */
-function detectAgentId(env: Record<string, string>): string | null {
-  // Check for explicit provider
+/** Agent platforms ChorusGate can auto-detect a migration target for. */
+export const DETECTABLE_AGENTS = ["claude", "codex", "hermes", "openclaw"] as const;
+
+/**
+ * Auto-detect agent-id from env content.
+ *
+ * Returns the detected agent id, or null when no provider marker is present.
+ * Throws when markers for multiple distinct agents are present (ambiguous) —
+ * the caller must require an explicit `--agent` in that case (fail-closed,
+ * per acceptance review on #135).
+ */
+export function detectAgentId(env: Record<string, string>): string | null {
+  const candidates = new Set<string>();
+
+  // Explicit provider marker
   const provider = env["GATEWAY_PROVIDER"]?.toLowerCase();
-  if (provider === "claude" || provider === "claude-stream") return "claude";
-  if (provider === "codex") return "codex";
+  if (provider === "claude" || provider === "claude-stream") candidates.add("claude");
+  else if (provider === "codex") candidates.add("codex");
+  else if (provider === "hermes") candidates.add("hermes");
+  else if (provider === "openclaw") candidates.add("openclaw");
 
-  // Check for binary paths
-  if (env["CLAUDE_BIN"]) return "claude";
-  if (env["CODEX_BIN"]) return "codex";
+  // Binary path markers
+  if (env["CLAUDE_BIN"]) candidates.add("claude");
+  if (env["CODEX_BIN"]) candidates.add("codex");
 
-  // Check for Claude-specific env vars
-  if (env["CLAUDE_PERMISSION_MODE"] || env["CLAUDE_STREAM_PARTIAL"]) return "claude";
+  // Claude-specific env vars
+  if (env["CLAUDE_PERMISSION_MODE"] || env["CLAUDE_STREAM_PARTIAL"]) candidates.add("claude");
 
-  return null;
+  if (candidates.size > 1) {
+    throw new Error(
+      `Ambiguous agent auto-detection: markers for [${[...candidates].sort().join(", ")}] found. ` +
+      `Pass --agent <id> explicitly (e.g. --agent claude, --agent codex).`,
+    );
+  }
+
+  return candidates.size === 1 ? [...candidates][0] : null;
 }
 
 export interface MigrateOptions {
@@ -130,13 +156,11 @@ export function migrateConfig(opts: MigrateOptions): MigrateResult {
       agentId = detected;
       console.error(`[migrate] Auto-detected agent: ${agentId}`);
     } else {
-      // No provider marker found → fall back to the "default" agent profile.
-      // This covers plain single-app .env files that predate multi-agent
-      // profiles.  Explicitly pass --agent <id> to override.
-      agentId = "default";
-      console.error(
-        `[migrate] No provider marker found — defaulting to agent "default". ` +
-        `Pass --agent <id> to override (e.g. --agent claude, --agent codex).`,
+      // No provider marker found → fail-closed per acceptance review (#135):
+      // never guess a target agent silently. Require an explicit --agent.
+      throw new Error(
+        `Cannot auto-detect agent: no ChorusGate provider marker found in ${sourcePath}. ` +
+        `Pass --agent <id> explicitly (e.g. --agent claude, --agent codex, --agent hermes).`,
       );
     }
   }

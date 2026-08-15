@@ -22,8 +22,12 @@ export interface InitAgentResult {
   ready: boolean;
 }
 
+/** Default GATEWAY_PROVIDER for a given agent id (mirrors detectAgentId in config-migrate.ts). */
 function defaultProvider(agentId: string): string {
-  return agentId === "codex" ? "codex" : "claude";
+  return agentId === "codex" ? "codex"
+    : agentId === "hermes" ? "hermes"
+    : agentId === "openclaw" ? "openclaw"
+    : "claude";
 }
 
 export function formatAvailableAgents(agents: string[]): string {

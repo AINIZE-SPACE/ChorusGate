@@ -5,7 +5,7 @@
 import { migrateConfig, formatMigrateResult, type MigrateOptions } from "./config-migrate.js";
 
 /** Parse migrate-specific flags from process.argv. */
-function parseMigrateArgs(argv: string[] = process.argv): MigrateOptions {
+export function parseMigrateArgs(argv: string[] = process.argv): MigrateOptions {
   let agentId: string | undefined;
   let from: string | undefined;
   let cwd: string | undefined;
@@ -36,6 +36,13 @@ function parseMigrateArgs(argv: string[] = process.argv): MigrateOptions {
   if (!from) {
     throw new Error(
       `--from <path> is required. Usage: chorusgate config migrate --from <source.env> [--agent <id>] [--cwd <project>] [--apply] [--force]`,
+    );
+  }
+
+  if (!agentId) {
+    console.error(
+      `[migrate] No --agent given — auto-detecting from source .env (claude / codex / hermes / openclaw). ` +
+      `Ambiguous or absent markers fail closed and require an explicit --agent.`,
     );
   }
 
