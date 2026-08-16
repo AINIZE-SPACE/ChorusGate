@@ -253,11 +253,6 @@ async function llmShouldReply(
 // Prompt construction
 // ============================================================
 
-/** Strip the leading <@BOTID> mention from text for a cleaner prompt. */
-function cleanText(text: string): string {
-  return text.replace(/<@[A-Z0-9]+>/g, "").trim();
-}
-
 /**
  * Build the prompt sent to `claude -p`.
  *
@@ -447,7 +442,7 @@ function onSlash(slashCmd: SlashCommand): void {
 
 /** Entry point: enqueue an event onto its scope's serial chain. */
 async function onEvent(event: StoredEvent, profileId: string): Promise<void> {
-  if (!(await shouldReply(event, profileId))) {
+  if (!(await decideShouldReply(event, buildShouldReplyContext(profileId)))) {
     eventStore.markHandled(event.id);
     return;
   }
