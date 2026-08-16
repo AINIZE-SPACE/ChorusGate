@@ -111,6 +111,9 @@ export class SocketManager {
     try {
       const auth = await clients.web.auth.test();
       botUserId = auth.user_id ?? null;
+      // Share our own identity with the gateway (self-loop guard, not a
+      // hardcoded teammate list).
+      config.botUserId = botUserId ?? undefined;
       console.error(
         `[socket-manager] profile '${config.id}': bot user ID = ${botUserId}`,
       );
@@ -172,18 +175,26 @@ export class SocketManager {
     });
 
     socket.on("message", async ({ event, ack }) => {
-      // Skip messages from our own bot
+      // Skip messages from our own bot (self-reply loop prevention)
       if (botUserId && (event as Record<string, unknown>).user === botUserId) {
         await ack();
         return;
       }
-      // Skip bot_message subtypes from other bots
       const subtype = (event as Record<string, unknown>).subtype as
         | string
         | undefined;
+      // Bot messages from OTHER bots: allow only when they explicitly mention
+      // us (<@ourBotUserId>). Global rule — mirrors Hermes `allow_bots=mentions`
+      // semantics. No per-person/per-channel config: a bot message that names us
+      // is a handoff, everything else from bots is noise and stays dropped.
       if (subtype === "bot_message") {
-        await ack();
-        return;
+        const text = (event as Record<string, unknown>).text as
+          | string
+          | undefined;
+        if (!botUserId || !text || !text.includes(`<@${botUserId}>`)) {
+          await ack();
+          return;
+        }
       }
       await this.handleSlackEvent("message", event, pid, clients, botUserId);
       await ack();
