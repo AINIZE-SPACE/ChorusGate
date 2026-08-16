@@ -36,7 +36,7 @@ const agentId = cliArgs.agentId ?? (cliArgs.envFile ? undefined : "default");
 // Control-plane identity: pid/status/log always live under
 // ~/.chorusgate/<agent>/ — with --env-file and no --agent, use "default".
 const controlAgentId = agentId ?? "default";
-const profiles = bootstrap({ agentId, envFile: cliArgs.envFile });
+const profiles = bootstrap({ agentId, envFile: cliArgs.envFile, agentHome: cliArgs.agentHome });
 
 import { getWebClient } from "./slack-clients.js";
 import {

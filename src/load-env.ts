@@ -4,7 +4,8 @@
 // Issue #134: Agent Profile Config
 //
 // Load order when --agent <id> is specified (later overrides earlier):
-//   1. ~/.chorusgate/<agent-id>/.env   — agent profile config
+//   1. <agent-home>/<id>/.env             — agent profile config (#140 base)
+//      (default base ~/.chorusgate; redirected by --agent-home / AGENT_HOME)
 //   2. --env-file <path>               — explicit override (if specified)
 //   3. Shell environment               — already in process.env, never overwritten
 //
@@ -23,6 +24,7 @@ import { parse as parseDotEnv } from "dotenv";
 import { dirname, resolve, join, parse as parsePath } from "node:path";
 import { homedir } from "node:os";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { resolveAgentHome } from "./agent-home.js";
 
 /**
  * Walk upward from `startDir` until we find a directory containing
@@ -71,10 +73,45 @@ export const CHORUSGATE_HOME = resolve(
 
 /**
  * Get the agent profile .env path.
- *   ~/.chorusgate/<agentId>/.env
+ *   ~/.chorusgate/<agentId>/.env                       (default, #134)
+ *   <resolved agent home>/<agentId>/.env               (--agent-home / AGENT_HOME)
  */
-export function agentProfileEnvPath(agentId: string): string {
-  return resolve(CHORUSGATE_HOME, agentId, ".env");
+export function agentProfileEnvPath(agentId: string, agentHome?: string): string {
+  return resolve(agentProfileBase(agentHome), agentId, ".env");
+}
+
+/**
+ * Whether the user explicitly opted into an agent home: a non-blank
+ * --agent-home CLI value, or (Windows only) a non-blank AGENT_HOME env var.
+ * The default official home is NOT an opt-in — without an explicit override
+ * we keep the legacy ~/.chorusgate base so #134 behavior is unchanged.
+ */
+function hasExplicitAgentHome(
+  cliAgentHome: string | undefined,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (cliAgentHome?.trim()) return true;
+  return platform === "win32" && !!process.env.AGENT_HOME?.trim();
+}
+
+/**
+ * Base directory that holds agent profile configs.
+ *
+ *  - Explicit --agent-home / AGENT_HOME (Windows) → the resolved official or
+ *    custom agent home; relative values resolve against %USERPROFILE%.
+ *  - Otherwise → the legacy ~/.chorusgate base (#134). The two are distinct
+ *    concepts: ~/.chorusgate is ChorusGate's control plane (#134); the
+ *    resolved agent home is where an agent's official config/profile files
+ *    live (.ainize/.config by default, #140).
+ */
+export function agentProfileBase(agentHome?: string): string {
+  if (hasExplicitAgentHome(agentHome)) {
+    return resolveAgentHome({
+      cliAgentHome: agentHome,
+      envAgentHome: process.env.AGENT_HOME,
+    });
+  }
+  return CHORUSGATE_HOME;
 }
 
 /**
@@ -111,13 +148,17 @@ export interface LoadEnvOptions {
   agentId?: string;
   /** Explicit .env file path. Takes precedence over agent profile. */
   envFile?: string;
+  /** Base directory of the official/custom agent home (--agent-home).
+   *  Redirects the agent-profile base away from the legacy ~/.chorusgate. */
+  agentHome?: string;
 }
 
 /**
  * Load .env from configured sources.
  *
  * Agent profile mode (agentId or envFile set):
- *   1. ~/.chorusgate/<agentId>/.env  — if agentId is set and file exists
+ *   1. <agentHome>/<agentId>/.env       — if agentId is set and file exists
+ *      (base = ~/.chorusgate by default; --agent-home / AGENT_HOME redirects)
  *   2. <envFile>                     — if envFile is set and file exists
  *   3. Shell environment             — always wins
  *
@@ -130,7 +171,7 @@ export interface LoadEnvOptions {
  * Returns the merged parsed result so callers can still do placeholder fixup.
  */
 export function loadEnv(opts: LoadEnvOptions = {}): Record<string, string> {
-  const { agentId, envFile } = opts;
+  const { agentId, envFile, agentHome } = opts;
   const shellKeys = new Set(Object.keys(process.env));
   const merged: Record<string, string> = {};
 
@@ -180,7 +221,7 @@ export function loadEnv(opts: LoadEnvOptions = {}): Record<string, string> {
   // ---- Agent profile mode (#134) -------------------------------------------
   if (agentId || envFile) {
     if (agentId) {
-      const profilePath = agentProfileEnvPath(agentId);
+      const profilePath = agentProfileEnvPath(agentId, agentHome);
       loadRequired(profilePath, `agent profile "${agentId}"`);
     }
     if (envFile) {

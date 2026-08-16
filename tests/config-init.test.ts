@@ -61,6 +61,23 @@ describe("agent profile initialization", () => {
     }
   });
 
+  it("writes the profile under the --agent-home base (#140)", () => {
+    const root = mkdtempSync(join(tmpdir(), "chorusgate-init-"));
+    try {
+      const agentHome = join(root, "official-agents");
+      const result = initializeAgentProfile({
+        agentId: "claude",
+        cwd: root,
+        agentHome,
+      });
+      assert.equal(result.ready, false);
+      assert.equal(result.targetPath, join(agentHome, "claude", ".env"));
+      assert.ok(existsSync(result.targetPath));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("formats known agents for spelling guidance", () => {
     assert.equal(formatAvailableAgents(["claude", "codex"]), "claude, codex");
     assert.equal(formatAvailableAgents([]), "(none)");

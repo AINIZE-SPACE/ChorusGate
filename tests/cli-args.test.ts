@@ -38,6 +38,21 @@ describe("parseCliArgs", () => {
     assert.equal(result.envFile, "/tmp/test.env");
   });
 
+  it("parses --agent-home with space separator (#140)", () => {
+    const result = parseCliArgs(["node", "chorusgate", "run", "--agent", "claude", "--agent-home", "C:\\agents\\work"]);
+    assert.equal(result.agentHome, "C:\\agents\\work");
+  });
+
+  it("parses --agent-home with equals separator (#140)", () => {
+    const result = parseCliArgs(["node", "chorusgate", "run", "--agent-home=C:\\agents\\work"]);
+    assert.equal(result.agentHome, "C:\\agents\\work");
+  });
+
+  it("keeps agentHome undefined when the flag is absent (#140)", () => {
+    const result = parseCliArgs(["node", "chorusgate", "run", "--agent", "claude"]);
+    assert.equal(result.agentHome, undefined);
+  });
+
   it("throws when --agent and --env-file are both specified (mutual exclusion)", () => {
     assert.throws(
       () => parseCliArgs([

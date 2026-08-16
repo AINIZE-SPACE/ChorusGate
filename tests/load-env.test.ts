@@ -124,6 +124,82 @@ describe("CHORUSGATE_HOME override & path resolution", () => {
 });
 
 // ============================================================
+// agent-home override (#140) — --agent-home / AGENT_HOME redirect
+// ============================================================
+
+describe("agent-home override (#140)", () => {
+  it("keeps the legacy ~/.chorusgate base when no override is given", () => {
+    delete process.env.AGENT_HOME;
+    assert.equal(
+      agentProfileEnvPath("claude"),
+      resolve(tempHome, "claude", ".env"),
+    );
+  });
+
+  it("redirects the base to an absolute --agent-home", () => {
+    delete process.env.AGENT_HOME;
+    const p = agentProfileEnvPath("claude", "C:\\agents\\work");
+    assert.equal(p, resolve("C:\\agents\\work", "claude", ".env"));
+  });
+
+  it("redirects the base to a relative --agent-home (resolves vs %USERPROFILE%)", () => {
+    delete process.env.AGENT_HOME;
+    const up = "C:\\Users\\tester";
+    const prev = process.env.USERPROFILE;
+    try {
+      process.env.USERPROFILE = up;
+      const p = agentProfileEnvPath("claude", "my-agents\\work");
+      assert.equal(p, resolve(up, "my-agents", "work", "claude", ".env"));
+    } finally {
+      if (prev === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = prev;
+    }
+  });
+
+  it("redirects the base via AGENT_HOME (Windows only)", () => {
+    process.env.AGENT_HOME = "D:\\agents\\env";
+    const p = agentProfileEnvPath("claude");
+    assert.equal(p, resolve("D:\\agents\\env", "claude", ".env"));
+  });
+
+  it("blank --agent-home falls through to the default base", () => {
+    delete process.env.AGENT_HOME;
+    assert.equal(
+      agentProfileEnvPath("claude", "   "),
+      resolve(tempHome, "claude", ".env"),
+    );
+  });
+});
+
+// ============================================================
+// loadEnv — agent-home mode (#140)
+// ============================================================
+
+describe("loadEnv — agent-home mode (#140)", () => {
+  it("loads the agent profile from the --agent-home base", () => {
+    delete process.env.AGENT_HOME;
+    const agentHome = join(tempHome, "official-agents");
+    const dir = join(agentHome, "claude");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, ".env"), "SLACK_BOT_TOKEN=xoxb-agenthome\n", "utf8");
+    const merged = loadEnv({ agentId: "claude", agentHome });
+    assert.equal(process.env.SLACK_BOT_TOKEN, "xoxb-agenthome");
+    assert.equal(merged.SLACK_BOT_TOKEN, "xoxb-agenthome");
+  });
+
+  it("throws a locatable error pointing into the agent-home base when missing", () => {
+    delete process.env.AGENT_HOME;
+    const agentHome = join(tempHome, "ghost-agents");
+    assert.throws(
+      () => loadEnv({ agentId: "ghost", agentHome }),
+      (err: Error) =>
+        /Config file not found/.test(err.message) &&
+        err.message.includes(resolve(agentHome, "ghost", ".env")),
+    );
+  });
+});
+
+// ============================================================
 // Agent profile discovery
 // ============================================================
 

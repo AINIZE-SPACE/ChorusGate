@@ -14,6 +14,9 @@ export interface InitAgentOptions {
   force?: boolean;
   /** Test/embedding override; defaults to ~/.chorusgate. */
   profileRoot?: string;
+  /** Agent-home base (--agent-home / AGENT_HOME). Redirects the default
+   *  ~/.chorusgate profile base. (#140) */
+  agentHome?: string;
 }
 
 export interface InitAgentResult {
@@ -52,7 +55,7 @@ export function initializeAgentProfile(opts: InitAgentOptions): InitAgentResult 
   const sourcePath = resolve(opts.from ?? resolve(cwd, ".env"));
   const targetPath = opts.profileRoot
     ? resolve(opts.profileRoot, opts.agentId, ".env")
-    : agentProfileEnvPath(opts.agentId);
+    : agentProfileEnvPath(opts.agentId, opts.agentHome);
 
   if (existsSync(sourcePath)) {
     migrateConfig({
@@ -100,7 +103,7 @@ export async function prepareRunConfig(argv: string[] = process.argv): Promise<b
   const args = parseCliArgs(argv);
   if (!args.agentId || args.envFile) return true;
 
-  const targetPath = agentProfileEnvPath(args.agentId);
+  const targetPath = agentProfileEnvPath(args.agentId, args.agentHome);
   if (existsSync(targetPath)) {
     const missing = missingProfileKeys(targetPath);
     if (missing.length === 0) return true;
@@ -126,7 +129,7 @@ export async function prepareRunConfig(argv: string[] = process.argv): Promise<b
     return false;
   }
 
-  const result = initializeAgentProfile({ agentId: args.agentId });
+  const result = initializeAgentProfile({ agentId: args.agentId, agentHome: args.agentHome });
   if (result.sourcePath) {
     console.error(`[chorusgate] Initialized "${args.agentId}" from ${result.sourcePath}.`);
   } else {
@@ -156,7 +159,13 @@ export async function runInit(argv: string[] = process.argv): Promise<void> {
     else if (arg === "--force") force = true;
   }
 
-  const result = initializeAgentProfile({ agentId: args.agentId, from, cwd, force });
+  const result = initializeAgentProfile({
+    agentId: args.agentId,
+    from,
+    cwd,
+    force,
+    agentHome: args.agentHome,
+  });
   console.error(`[chorusgate] Agent "${args.agentId}" initialized at ${result.targetPath}.`);
   if (!result.ready) {
     console.error("[chorusgate] Add SLACK_BOT_TOKEN and SLACK_APP_TOKEN before starting.");

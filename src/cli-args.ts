@@ -1,10 +1,15 @@
 // ============================================================
-// CLI Args — parse --agent and --env-file from process.argv
+// CLI Args — parse --agent, --env-file, and --agent-home from process.argv
 //
 // Issue #134: Agent Profile Config
 //   chorusgate run --agent <agent-id>     → load ~/.chorusgate/<id>/.env
 //   chorusgate run --env-file <path>      → load explicit .env path
 //   chorusgate run                        → legacy (project .env)
+//
+// Issue #140: Agent Home
+//   --agent-home <path>  → base dir for agent profiles (redirects the
+//                          default ~/.chorusgate base; relative resolves
+//                          against %USERPROFILE%).
 //
 // Validation happens here so invalid args fail early before any
 // side effects (network, file writes, etc.).
@@ -29,6 +34,9 @@ export interface CliArgs {
   /** Explicit .env file path (absolute only).
    *  When set, loads this file directly. Mutually exclusive with --agent. */
   envFile: string | undefined;
+  /** Base directory of the official/custom agent home (--agent-home).
+   *  Redirects agent profile lookup to <agentHome>/<agentId>/.env. */
+  agentHome: string | undefined;
   /** Initialize a missing agent profile before running. */
   initialize: boolean;
 }
@@ -101,6 +109,7 @@ export function validateEnvFilePath(filePath: string): void {
 export function parseCliArgs(argv: string[] = process.argv): CliArgs {
   let agentId: string | undefined;
   let envFile: string | undefined;
+  let agentHome: string | undefined;
   let initialize = false;
 
   for (let i = 2; i < argv.length; i++) {
@@ -117,6 +126,12 @@ export function parseCliArgs(argv: string[] = process.argv): CliArgs {
       envFile = argv[++i];
     } else if (arg.startsWith("--env-file=")) {
       envFile = arg.slice("--env-file=".length);
+    }
+    // --agent-home <value> or --agent-home=<value>
+    else if (arg === "--agent-home" && i + 1 < argv.length) {
+      agentHome = argv[++i];
+    } else if (arg.startsWith("--agent-home=")) {
+      agentHome = arg.slice("--agent-home=".length);
     } else if (arg === "--init") {
       initialize = true;
     }
@@ -141,5 +156,5 @@ export function parseCliArgs(argv: string[] = process.argv): CliArgs {
     validateEnvFilePath(envFile);
   }
 
-  return { agentId, envFile, initialize };
+  return { agentId, envFile, agentHome, initialize };
 }
