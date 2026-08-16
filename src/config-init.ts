@@ -142,7 +142,7 @@ export async function prepareRunConfig(argv: string[] = process.argv): Promise<b
 export async function runInit(argv: string[] = process.argv): Promise<void> {
   const args = parseCliArgs(argv);
   if (!args.agentId) {
-    console.error("Usage: chorusgate config init --agent <id> [--from <project.env>] [--cwd <project>] [--force]");
+    console.error("Usage: chorusgate config init --agent <id> [--from <project.env>] [--cwd <project>] [--agent-home <path>] [--force]");
     process.exitCode = 2;
     return;
   }
