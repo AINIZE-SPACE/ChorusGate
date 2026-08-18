@@ -31,6 +31,16 @@ const agentId = cliArgs.agentId ?? (cliArgs.envFile ? undefined : "default");
 // Control-plane identity: pid/status/log always live under
 // ~/.chorusgate/<agent>/ — with --env-file and no --agent, use "default".
 const controlAgentId = agentId ?? "default";
+
+// Issue #141: daemon-owned rotating logger. Init as early as possible so all
+// console output (this file + socket-manager, same process) is captured, even
+// before main() runs. The daemon self-manages the log fd — the CLI `start`
+// no longer passes a stdio fd (rotating from inside the daemon is the only
+// way around the fd-rename trap on Windows).
+const logger = createLogger({ logFile: getLogFile(controlAgentId) });
+// Route all console output through the rotating logger (module "daemon").
+redirectConsoleToLogger(logger);
+
 const profiles = bootstrap({ agentId, envFile: cliArgs.envFile });
 
 import { getWebClient } from "./slack-clients.js";
@@ -59,8 +69,10 @@ import {
   ensureGatewayDir,
   getPidFile,
   getStatusFile,
+  getLogFile,
   type GatewayStatus,
 } from "./gateway-paths.js";
+import { createLogger, redirectConsoleToLogger } from "./logger.js";
 import { writeFileSync, rmSync } from "node:fs";
 import type { StoredEvent } from "./types.js";
 import { sanitizeForSlack, splitSlackMessage } from "./slack-message.js";
@@ -1199,9 +1211,10 @@ async function shutdown(): Promise<void> {
   } catch {
     // ignore
   }
+  // Flush + close the rotating logger so the final lines land on disk.
+  await logger.close();
   process.exit(0);
 }
-
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 

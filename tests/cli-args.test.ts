@@ -181,3 +181,37 @@ describe("parseCliArgs validation integration", () => {
     );
   });
 });
+
+describe("parseCliArgs log command flags (#141)", () => {
+  it("parses --lines with space and equals separators", () => {
+    assert.equal(parseCliArgs(["node", "chorusgate", "log", "--lines", "100"]).lines, 100);
+    assert.equal(parseCliArgs(["node", "chorusgate", "log", "--lines=25"]).lines, 25);
+  });
+
+  it("parses -n short form", () => {
+    assert.equal(parseCliArgs(["node", "chorusgate", "log", "-n", "10"]).lines, 10);
+  });
+
+  it("defaults lines to undefined (command applies default 50)", () => {
+    assert.equal(parseCliArgs(["node", "chorusgate", "log"]).lines, undefined);
+  });
+
+  it("parses --follow and -f", () => {
+    assert.equal(parseCliArgs(["node", "chorusgate", "log", "--follow"]).follow, true);
+    assert.equal(parseCliArgs(["node", "chorusgate", "log", "-f"]).follow, true);
+  });
+
+  it("combines --agent + --lines + --follow", () => {
+    const r = parseCliArgs(["node", "chorusgate", "log", "--agent", "codex", "--lines", "5", "--follow"]);
+    assert.equal(r.agentId, "codex");
+    assert.equal(r.lines, 5);
+    assert.equal(r.follow, true);
+  });
+
+  it("does not affect start/stop flag parsing", () => {
+    const r = parseCliArgs(["node", "chorusgate", "start", "--agent", "claude"]);
+    assert.equal(r.agentId, "claude");
+    assert.equal(r.lines, undefined);
+    assert.equal(r.follow, false);
+  });
+});

@@ -1,10 +1,13 @@
 // ============================================================
-// CLI Args — parse --agent and --env-file from process.argv
+// CLI Args — parse --agent, --env-file, and log command flags from process.argv
 //
 // Issue #134: Agent Profile Config
 //   chorusgate run --agent <agent-id>     → load ~/.chorusgate/<id>/.env
 //   chorusgate run --env-file <path>      → load explicit .env path
 //   chorusgate run                        → legacy (project .env)
+//
+// Issue #141: log command
+//   chorusgate log --agent <id> [--lines N] [--follow]
 //
 // Validation happens here so invalid args fail early before any
 // side effects (network, file writes, etc.).
@@ -31,6 +34,10 @@ export interface CliArgs {
   envFile: string | undefined;
   /** Initialize a missing agent profile before running. */
   initialize: boolean;
+  /** `log` command: number of trailing lines to print (default 50). */
+  lines: number | undefined;
+  /** `log` command: follow new lines as they arrive (tail -f). */
+  follow: boolean;
 }
 
 /**
@@ -102,6 +109,8 @@ export function parseCliArgs(argv: string[] = process.argv): CliArgs {
   let agentId: string | undefined;
   let envFile: string | undefined;
   let initialize = false;
+  let lines: number | undefined;
+  let follow = false;
 
   for (let i = 2; i < argv.length; i++) {
     const arg = argv[i];
@@ -117,6 +126,18 @@ export function parseCliArgs(argv: string[] = process.argv): CliArgs {
       envFile = argv[++i];
     } else if (arg.startsWith("--env-file=")) {
       envFile = arg.slice("--env-file=".length);
+    }
+    // log command: --lines <N> / --lines=<N> / -n <N> (default 50)
+    else if (arg === "--lines" && i + 1 < argv.length) {
+      lines = Number(argv[++i]);
+    } else if (arg.startsWith("--lines=")) {
+      lines = Number(arg.slice("--lines=".length));
+    } else if (arg === "-n" && i + 1 < argv.length) {
+      lines = Number(argv[++i]);
+    }
+    // log command: --follow / -f (tail -f)
+    else if (arg === "--follow" || arg === "-f") {
+      follow = true;
     } else if (arg === "--init") {
       initialize = true;
     }
@@ -141,5 +162,5 @@ export function parseCliArgs(argv: string[] = process.argv): CliArgs {
     validateEnvFilePath(envFile);
   }
 
-  return { agentId, envFile, initialize };
+  return { agentId, envFile, initialize, lines, follow };
 }
