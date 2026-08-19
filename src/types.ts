@@ -29,6 +29,12 @@ export interface StoredEvent {
   channel_name?: string;
   /** User ID who triggered the event */
   user: string;
+  /** Author identity kind: "USER" | "BOT" (see src/user-identity.ts) */
+  user_type?: "USER" | "BOT";
+  /** Bot's ID (B-prefixed) — present only when the author is a bot */
+  bot_id?: string;
+  /** Whether the author is a bot (derived from user_type) */
+  is_bot?: boolean;
   /** User's display name (resolved) */
   user_name?: string;
   /** Message text (if applicable) */

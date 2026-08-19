@@ -217,6 +217,7 @@ chorusgate list --agent codex      # 只列出 codex 的 channel→session 映�
 | `GATEWAY_CLAUDE_MODE` | `legacy` | Claude 模式: `legacy` (单向) 或 `stream` (双向 stream-json) |
 | `GATEWAY_BUSY_MODE` | `interrupt` | 用户连续发消息时的处理: `interrupt` (打断) 或 `queue` (排队) |
 | `GATEWAY_INTERACTIVE_PERMISSIONS` | — | 设为 `1` 开启审批按钮 (需 `CLAUDE_PERMISSION_MODE` ≠ `bypassPermissions`) |
+| `GATEWAY_BOT_MESSAGE_HANDLING` | `1` | bot 间消息跟踪/处理 (#144): 设为 `0` 关闭 bot/human message handler 分发（解析作者身份始终进行）|
 | `CLAUDE_BIN` | `claude` | claude CLI 路径 |
 | `CODEX_BIN` | `codex` | codex CLI 路径 |
 | `CLAUDE_PERMISSION_MODE` | `bypassPermissions` | headless 模式权限策略 |
