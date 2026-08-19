@@ -135,6 +135,8 @@ rename gateway.log → gateway.log.<YYYYMMDD>.old；新建写 c1 c2
 
 **flaky 根因**：Windows 上 `spawn` 偶发 `UNKNOWN`（errno -4094，`uv_spawn`），node test runner 并发多文件时概率更高（`_full-test-run.txt` / `tests-out4.txt` 即该现象的原始记录：头部 OOM、尾部 `spawn UNKNOWN` 文件级失败）；**串行也会偶发**（本次复核 claude-stream-integration 两次结果不同）。手动 spawn mock 进程 10+ 次全部正常（`tests/_diag-mock.mjs`），tsx 加载器非根因，属环境级偶发。**非功能回归** —— 日志域/liveness 验收文件重跑稳定 45/45。
 
+> **精确根因（补充）**：同日姊妹文档 `docs/tests/cases/2026-08-19-liveness-unit-test-verify.md` §3 诊断出开发机 ainize-dev **内存仅剩 0.6GB（4.1%）**（20+ claude 会话 + chrome + Slack），此内存水位下全量 `node --test` 必然 OOM（`Fatal process out of memory` / `spawn UNKNOWN` / `uv_os_get_passwd ENOMEM`）。解法：`--max-old-space-size=128` 单文件串行跑。故本节的 flaky 实为**低内存环境的确定性结果**，非代码缺陷。
+
 > 注：原 §1 记录"串行 325/325 全过"为当时的实跑结果；归档复核时因 spawn flaky 未能重放一次完整 325 全绿，验收域（Issue #141）已单独重跑确认无回归。flaky 文件可考虑后续排查（如限制 spawn 并发或加 retry），建议开发/测试侧跟进。
 
 ## 7. 交付物
