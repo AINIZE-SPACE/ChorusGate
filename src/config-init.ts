@@ -1,9 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from "node:fs";
 import { parse as parseDotEnv } from "dotenv";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
-import { agentProfileEnvPath, listAgentProfiles } from "./load-env.js";
+import { agentProfileEnvPath, listAgentProfiles, CHORUSGATE_HOME } from "./load-env.js";
 import { parseCliArgs, validateAgentId } from "./cli-args.js";
 import { migrateConfig } from "./config-migrate.js";
 
@@ -101,6 +101,30 @@ export async function prepareRunConfig(argv: string[] = process.argv): Promise<b
   if (!args.agentId || args.envFile) return true;
 
   const targetPath = agentProfileEnvPath(args.agentId);
+
+  // #145: auto-restore from the rolling backup when the profile .env is
+  // gone (e.g. agent dir accidentally deleted). The backup lives OUTSIDE
+  // the agent dir at ~/.chorusgate/backups/<agentId>.env so an
+  // agent-dir-scoped deletion stays recoverable.
+  if (!existsSync(targetPath)) {
+    const backup = resolve(CHORUSGATE_HOME, "backups", `${args.agentId}.env`);
+    if (existsSync(backup)) {
+      try {
+        mkdirSync(resolve(targetPath, ".."), { recursive: true });
+        copyFileSync(backup, targetPath);
+        console.error(
+          `[chorusgate] Agent profile "${args.agentId}" was missing — ` +
+          `restored from backup: ${backup}`,
+        );
+      } catch (err) {
+        console.error(
+          `[chorusgate] Found backup ${backup} but restore failed: ` +
+          (err as Error).message,
+        );
+      }
+    }
+  }
+
   if (existsSync(targetPath)) {
     const missing = missingProfileKeys(targetPath);
     if (missing.length === 0) return true;
