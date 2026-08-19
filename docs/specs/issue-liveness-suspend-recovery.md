@@ -107,3 +107,29 @@ export function startLivenessMonitor(opts: {
 2. **看门狗**：手动 `kill -9 <pid>`，运行看门狗脚本，验证 restart（AC2）断网恢复验证（AC1）+ 死进程看门狗拉起（AC2）。
 3. **心跳年龄**：`chorusgate stale heartbeat` 场景模拟（临时改 statusTimer 间隔）验证 status 输出（AC3）。
 4. **回归**：tsc + 全量测试（AC5）。
+
+## 6. 实现状态（小克，2026-08-19）
+
+已在 `v5/logging-liveness` 实现，tsc 零错误；`src/liveness.ts`（17 例单测）+ `control-plane.test.ts`（status 心跳年龄，3 例新增）通过。commit 见分支 log。
+
+**实现要点与 spec 的差异（有意为之，需 SIT 关注）**
+
+1. **`src/liveness.ts` 独立 `LivenessMonitor`**（非 spec §2.1 建议的嵌入 statusTimer 回调）。Monitor 自带 tick(5s，同 statusTimer cadence)/probe(60s) 两个 unref'd interval，gateway main() 在 `startAll` 后启动。理由：逻辑内聚、tick/probe 可手动驱动注入 fake clock 单测、statusTimer 职责保持单一。
+2. **假活探测用 `websocket?.isActive()`**：`@slack/socket-mode` 的 SocketModeClient **无公开 `isConnected()`**（已核实 d.ts），Layer 2 探测源改用底层 `rp.socket.websocket?.isActive()`（ws readyState===OPEN）。半开 TCP 下 readyState 仍可能 OPEN——与 spec 风险表一致，靠 Layer 3 看门狗兜底。
+3. **Layer 3 退出由 gateway 决策**：liveness 模块只上报 `onUnrecoverable`，不直接 `process.exit`；gateway 的 handler 在 `forceReconnectAll()` 仍失败时 `process.exit(1)`。可测性优先。
+4. **挂起后立即探测**：spec Layer 1 说"记日志 + 主动触发探测"，实现为 `onSuspendDetected` 内立即检查 `anyConnected()`，假活则直接 `forceReconnectAll()`（跳过 N 次失败累积），不等下一个 60s 探测周期。
+5. **watchdog 脚本**：`scripts/chorusgate-watchdog.{ps1,sh}`。读 **pid 文件**（与 `livePid` 同源）+ `status.json.updatedAt`；死进程或心跳过期（>`GATEWAY_HEARTBEAT_STALE_MS`）→ `chorusgate restart --agent <id>`。支持 `CHORUSGATE_BIN`/`CHORUSGATE_HOME` 覆盖。
+6. **status() 心跳年龄**：新增 `heartbeat: <age> ago` 行；`updatedAt` 年龄 > `GATEWAY_HEARTBEAT_STALE_MS`（默认 180s）输出 `⚠️ heartbeat stale — daemon may be hung; watchdog will restart it`（stale 时替代原 >20s busy 提示，不重复输出）。
+
+**AC 状态**：AC3（心跳年龄）单测覆盖；AC7（跳变时长含于日志）单测覆盖；AC4（正常 tick/probe 零噪音）单测覆盖；AC1（断网自动重连 ≤2 探测周期）、AC2（看门狗 ≤1 轮询周期拉起）、AC6（跨日运行）待小马 SIT（真实网络断连 / kill -9 / 跨日）。
+
+## 7. 配置项（实现对照）
+
+spec §2.3 四变量均已在 gateway.ts `startLivenessForDaemon` 读取并 clamp 正数：
+
+| 环境变量 | 默认值 | 读取位置 |
+|---------|--------|---------|
+| `GATEWAY_HEARTBEAT_STALE_MS` | `180000` | `gateway-control.ts` status() |
+| `GATEWAY_LIVENESS_PROBE_INTERVAL_MS` | `60000` | `gateway.ts` startLivenessForDaemon |
+| `GATEWAY_LIVENESS_FAILURE_LIMIT` | `3` | `gateway.ts` startLivenessForDaemon |
+| `GATEWAY_SUSPEND_JUMP_MS` | `60000` | `gateway.ts` startLivenessForDaemon |

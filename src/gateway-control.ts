@@ -227,10 +227,19 @@ export async function status(): Promise<void> {
   if (st) {
     const uptime = fmtDuration(Date.now() - st.startedAt);
     const staleMs = Date.now() - st.updatedAt;
+    const staleThreshold = Number(
+      process.env.GATEWAY_HEARTBEAT_STALE_MS || 180_000,
+    );
     console.error(`  uptime:       ${uptime}`);
+    console.error(`  heartbeat:    ${fmtDuration(staleMs)} ago`);
     console.error(`  slots:        ${st.activeSlots}/${st.maxConcurrent} active`);
     console.error(`  sessions:     ${st.sessions.length} thread(s)`);
-    if (staleMs > 20000) {
+    if (staleMs > staleThreshold) {
+      console.error(
+        `  ⚠️ heartbeat stale (${fmtDuration(staleMs)} old) — ` +
+          `daemon may be hung; watchdog will restart it`,
+      );
+    } else if (staleMs > 20000) {
       console.error(
         `  (status snapshot is ${fmtDuration(staleMs)} old — daemon may be busy)`
       );

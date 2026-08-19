@@ -312,6 +312,83 @@ export class SocketManager {
     return this.profiles.size;
   }
 
+  // ---- liveness probe + reconnect (Issue: 休眠唤醒不恢复) -------------------
+
+  /**
+   * Whether a profile's Socket Mode connection is currently believed active.
+   *
+   * SocketModeClient has no public isConnected(); the underlying
+   * `websocket?.isActive()` reflects the ws readyState === OPEN. In a
+   * half-open TCP (Modern Standby) the ready state stays OPEN even though
+   * no data flows — hence Layer 2 of liveness treats this as a probe, not
+   * a guarantee.
+   */
+  isConnected(profileId: string = "default"): boolean {
+    const rp = this.profiles.get(profileId);
+    if (!rp) return false;
+    try {
+      return rp.socket.websocket?.isActive() ?? false;
+    } catch {
+      return false;
+    }
+  }
+
+  /** True if at least one profile is connected (gateway-level probe). */
+  anyConnected(): boolean {
+    for (const id of this.profiles.keys()) {
+      if (this.isConnected(id)) return true;
+    }
+    return this.profiles.size === 0 ? true : false;
+  }
+
+  /**
+   * Force a reconnect across all running profiles. Returns true only if
+   * every profile ended up connected. Never throws — errors are logged.
+   */
+  async forceReconnectAll(): Promise<boolean> {
+    const ids = [...this.profiles.keys()];
+    if (ids.length === 0) return true;
+    const results = await Promise.all(
+      ids.map((id) => this.forceReconnect(id)),
+    );
+    return results.every(Boolean);
+  }
+
+  /**
+   * Force a Socket Mode reconnect for a profile — actively tear down the
+   * (possibly half-open) WebSocket and establish a fresh session.
+   * SocketModeClient supports start() again after disconnect(). Returns
+   * whether the connection is believed active afterwards.
+   */
+  async forceReconnect(profileId: string = "default"): Promise<boolean> {
+    const rp = this.profiles.get(profileId);
+    if (!rp) {
+      console.error(`[socket-manager] profile '${profileId}': not running, cannot reconnect`);
+      return false;
+    }
+    console.error(
+      `[socket-manager] profile '${profileId}': forcing reconnect (zombie socket)`,
+    );
+    try {
+      await rp.socket.disconnect();
+    } catch (err) {
+      console.error(
+        `[socket-manager] profile '${profileId}': disconnect during forced reconnect failed: ` +
+          (err as Error).message,
+      );
+    }
+    try {
+      await rp.socket.start();
+    } catch (err) {
+      console.error(
+        `[socket-manager] profile '${profileId}': forced reconnect failed: ` +
+          (err as Error).message,
+      );
+      return false;
+    }
+    return this.isConnected(profileId);
+  }
+
   /** Get the bot user ID for a profile. */
   getBotUserId(profileId: string): string | null {
     return this.profiles.get(profileId)?.botUserId ?? null;

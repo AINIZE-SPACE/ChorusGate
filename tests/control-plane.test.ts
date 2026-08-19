@@ -43,7 +43,12 @@ function restoreHomedirEnv(): void {
 }
 
 /** Seed a running agent's control-plane files under the temp home. */
-function seedAgent(agent: string, home: string, pid: number): void {
+function seedAgent(
+  agent: string,
+  home: string,
+  pid: number,
+  updatedAt: number = Date.now(),
+): void {
   const dir = resolve(home, ".chorusgate", agent);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "gateway.pid"), String(pid), "utf8");
@@ -52,7 +57,7 @@ function seedAgent(agent: string, home: string, pid: number): void {
     JSON.stringify({
       pid,
       startedAt: Date.now(),
-      updatedAt: Date.now(),
+      updatedAt,
       activeSlots: 0,
       maxConcurrent: 2,
       sessions: [],
@@ -125,5 +130,28 @@ describe("control-plane: per-agent status isolation", () => {
     assert.equal(existsSync(pidFile), true);
     assert.ok(!pidFile.startsWith(process.cwd()));
     assert.ok(!resolve(tempHome, ".chorusgate", "claude", "gateway.pid").startsWith(process.cwd()));
+  });
+
+  it("prints heartbeat age in status output (liveness AC3)", async () => {
+    seedAgent("codex", tempHome, process.pid);
+    const out = await runStatus("status", "--agent", "codex");
+    assert.match(out, /heartbeat:/);
+    assert.match(out, / ago/);
+  });
+
+  it("warns heartbeat stale beyond GATEWAY_HEARTBEAT_STALE_MS (liveness AC3)", async () => {
+    // updatedAt 5 minutes old > default 180s threshold.
+    seedAgent("codex", tempHome, process.pid, Date.now() - 300_000);
+    const out = await runStatus("status", "--agent", "codex");
+    assert.match(out, /⚠️ heartbeat stale/);
+    assert.match(out, /watchdog will restart/);
+  });
+
+  it("keeps the busy hint for a mid-aged snapshot, no stale warning", async () => {
+    // 60s old: past the 20s busy hint, below the 180s stale threshold.
+    seedAgent("codex", tempHome, process.pid, Date.now() - 60_000);
+    const out = await runStatus("status", "--agent", "codex");
+    assert.match(out, /daemon may be busy/);
+    assert.ok(!out.includes("heartbeat stale"));
   });
 });

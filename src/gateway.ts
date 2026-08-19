@@ -88,6 +88,7 @@ import {
   type GatewayStatus,
 } from "./gateway-paths.js";
 import { createLogger, redirectConsoleToLogger } from "./logger.js";
+import { LivenessMonitor } from "./liveness.js";
 import { writeFileSync, rmSync } from "node:fs";
 import type { StoredEvent } from "./types.js";
 import { sanitizeForSlack, splitSlackMessage } from "./slack-message.js";
@@ -1207,6 +1208,10 @@ async function main(): Promise<void> {
   // Start all profiles — one Socket Mode connection per Slack app.
   await socketManager.startAll(profiles);
 
+  // Liveness (Issue: 休眠唤醒后不恢复): suspend + zombie detection with
+  // self-heal. Only anomalies log (spec AC4 — normal ticks stay silent).
+  startLivenessForDaemon(socketManager);
+
   console.error(
     "[gateway] listening on " +
       `${profiles.length} Slack app(s) — ` +
@@ -1215,8 +1220,69 @@ async function main(): Promise<void> {
   );
 }
 
+// ---- liveness (Issue: 休眠唤醒后不恢复) -------------------------------------
+
+/** Stopped in shutdown(); null until main() installs it. */
+let livenessStop: (() => void) | null = null;
+
+function startLivenessForDaemon(sm: SocketManager): void {
+  // Env config (spec §2.3): GATEWAY_SUSPEND_JUMP_MS / probe interval /
+  // failure limit. tickIntervalMs mirrors the statusTimer cadence.
+  const jumpMs = Number(process.env.GATEWAY_SUSPEND_JUMP_MS || 60_000);
+  const probeMs = Number(process.env.GATEWAY_LIVENESS_PROBE_INTERVAL_MS || 60_000);
+  const failLimit = Number(process.env.GATEWAY_LIVENESS_FAILURE_LIMIT || 3);
+
+  const monitor = new LivenessMonitor(
+    {
+      tickIntervalMs: 5000,
+      suspendJumpMs: Number.isFinite(jumpMs) && jumpMs > 0 ? jumpMs : 60_000,
+      probeIntervalMs: Number.isFinite(probeMs) && probeMs > 0 ? probeMs : 60_000,
+      failureLimit: Number.isFinite(failLimit) && failLimit > 0 ? failLimit : 3,
+    },
+    {
+      isConnected: () => sm.anyConnected(),
+      log: (level, module, msg, ...args) => logger.log(level, module, msg, ...args),
+      onSuspendDetected: (seconds) => {
+        // Suspend may have left the socket half-open. Probe immediately
+        // (skip the N-failure accumulation) and force a reconnect if dead.
+        logger.warn("liveness", `suspend detected (${seconds}s) — probing socket immediately`);
+        if (!sm.anyConnected()) {
+          logger.warn("liveness", "socket not connected after resume — forcing reconnect");
+          void sm.forceReconnectAll().then((ok) => {
+            if (!ok) {
+              logger.error("liveness", "reconnect after suspend failed — exiting for watchdog");
+              process.exit(1);
+            }
+          });
+        }
+      },
+      onZombieDetected: () => {
+        logger.warn("liveness", "zombie socket — forcing reconnect");
+        void sm.forceReconnectAll().then((ok) => {
+          if (!ok) {
+            logger.error("liveness", "forced reconnect failed — exiting for watchdog");
+            process.exit(1);
+          }
+        });
+      },
+      onUnrecoverable: () => {
+        logger.error("liveness", "unrecoverable — exiting for watchdog");
+        process.exit(1);
+      },
+    },
+  );
+  monitor.start();
+  livenessStop = () => monitor.stop();
+  logger.info("liveness", "liveness monitor started", {
+    suspendJumpMs: jumpMs,
+    probeIntervalMs: probeMs,
+    failureLimit: failLimit,
+  });
+}
+
 async function shutdown(): Promise<void> {
   console.error("[gateway] shutting down...");
+  livenessStop?.();
   const socketManager = getSocketManager();
   await socketManager.stopAll();
   // Clean up control-plane files so `status` reports stopped.

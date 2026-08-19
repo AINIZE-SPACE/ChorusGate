@@ -7,19 +7,19 @@
 > **Branch**: `v5/logging-liveness`
 > **Test Owner**: 小马 (U0B91BVKTL2)
 > **Date**: 2026-08-18
-> **Status**: Phase 1（#141 日志）Dev Ready 于 `1849fad`（功能基线 `26bbc2e` + 补充提交），SIT 可执行；Phase 2（liveness）依赖开发落地，用例已按 spec 设计、暂阻塞
-> **Update**: 2026-08-19 评审核对——与当前文件系统状态一致；Dev Ready SHA、测试计数、回归基线已按现状更新
+> **Status**: Phase 1（#141 日志）Dev Ready 于 `1849fad`（功能基线 `26bbc2e` + 补充提交），SIT 可执行；Phase 2（liveness）开发已完成（`src/liveness.ts` + watchdog 脚本 + status 心跳年龄），Dev Ready 后 SIT 可执行
+> **Update**: 2026-08-19 评审核对——与当前文件系统状态一致；Dev Ready SHA、测试计数、回归基线已按现状更新。2026-08-19 二次更新——Phase 2 阻塞项已产出（见 §5），用例可执行
 
 ---
 
 ## 0. 阶段划分
 
-本分支同时含两个域：**日志域（#141，已开发完成）** 与 **liveness 域（待建 issue，未开发）**。SIT 分两阶段，避免 liveness 阻塞日志验收：
+本分支同时含两个域：**日志域（#141，已开发完成）** 与 **liveness 域（待建 issue，已开发完成）**。SIT 分两阶段，避免 liveness 阻塞日志验收：
 
 | 阶段 | 范围 | 依赖 | 状态 |
 |------|------|------|------|
 | Phase 1 | #141 日志轮转 + `chorusgate log` | Dev Ready `1849fad`（基 `26bbc2e`） | 可立即执行 |
-| Phase 2 | liveness 挂起/假活检测 + 看门狗 | `src/liveness.ts` + watchdog 脚本未产出 | 阻塞，用例先设计 |
+| Phase 2 | liveness 挂起/假活检测 + 看门狗 | `src/liveness.ts` + watchdog 脚本 + status 心跳年龄已产出 | Dev Ready 后执行 |
 
 ---
 
@@ -111,7 +111,11 @@ Phase 1 小克 Dev Ready 必须提供：
 - [ ] **Change list** — 变更文件清单
 - [ ] **Dev commit pushed** — `1849fad` 已 push 到 `v5/logging-liveness`
 
-Phase 2 阻塞项（未交付，用例已设计）：`src/liveness.ts`、watchdog 脚本 `scripts/chorusgate-watchdog.{ps1,sh}`、`status` 心跳年龄输出。
+Phase 2 阻塞项（2026-08-19 已产出，Dev Ready 待小克提交确认）：
+- [x] `src/liveness.ts` — `LivenessMonitor`（Layer 1/2/3），gateway.ts 已接入
+- [x] watchdog 脚本 `scripts/chorusgate-watchdog.{ps1,sh}`
+- [x] `status()` 心跳年龄 + `⚠️ heartbeat stale` 提示
+- [ ] liveness issue 立项（待小扣）
 
 **缺任一项，小马不开始对应阶段 SIT。**
 
