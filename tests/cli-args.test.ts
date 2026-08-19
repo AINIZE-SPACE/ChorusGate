@@ -214,4 +214,19 @@ describe("parseCliArgs log command flags (#141)", () => {
     assert.equal(r.lines, undefined);
     assert.equal(r.follow, false);
   });
+
+  it("ignores a trailing --lines with no value", () => {
+    const r = parseCliArgs(["node", "chorusgate", "log", "--lines"]);
+    assert.equal(r.lines, undefined);
+  });
+
+  it("parses a non-numeric --lines as NaN (the command clamps it)", () => {
+    const r = parseCliArgs(["node", "chorusgate", "log", "--lines=abc"]);
+    assert.equal(Number.isNaN(r.lines), true);
+  });
+
+  it("ignores a trailing -n with no value", () => {
+    const r = parseCliArgs(["node", "chorusgate", "log", "-n"]);
+    assert.equal(r.lines, undefined);
+  });
 });

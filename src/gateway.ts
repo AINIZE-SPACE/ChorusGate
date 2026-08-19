@@ -37,7 +37,22 @@ const controlAgentId = agentId ?? "default";
 // before main() runs. The daemon self-manages the log fd — the CLI `start`
 // no longer passes a stdio fd (rotating from inside the daemon is the only
 // way around the fd-rename trap on Windows).
-const logger = createLogger({ logFile: getLogFile(controlAgentId) });
+//
+// Config (#141 spec §2.4): GATEWAY_LOG_MAX_SIZE_MB / GATEWAY_LOG_KEEP_DAYS /
+// GATEWAY_LOG_LEVEL override the logger defaults.
+const logMaxSizeMb = Number(process.env.GATEWAY_LOG_MAX_SIZE_MB || 5);
+const logKeepDays = Number(process.env.GATEWAY_LOG_KEEP_DAYS || 7);
+const logLevel = (process.env.GATEWAY_LOG_LEVEL || "info") as
+  | "debug"
+  | "info"
+  | "warn"
+  | "error";
+const logger = createLogger({
+  logFile: getLogFile(controlAgentId),
+  maxSize: Number.isFinite(logMaxSizeMb) && logMaxSizeMb > 0 ? logMaxSizeMb * 1024 * 1024 : undefined,
+  keepDays: Number.isFinite(logKeepDays) && logKeepDays > 0 ? logKeepDays : undefined,
+  level: logLevel,
+});
 // Route all console output through the rotating logger (module "daemon").
 redirectConsoleToLogger(logger);
 

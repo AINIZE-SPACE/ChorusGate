@@ -111,3 +111,56 @@ describe("chorusgate log", () => {
     assert.equal(stdout, "");
   });
 });
+
+describe("chorusgate log — edge cases", () => {
+  beforeEach(() => {
+    rmSync(tempHome, { recursive: true, force: true });
+    mkdirSync(tempHome, { recursive: true });
+  });
+
+  it("clamps --lines 0 / negative / NaN to the default 50", async () => {
+    const lines = Array.from({ length: 60 }, (_, i) => `line ${i}`);
+    seedLog("default", lines);
+    for (const args of [
+      ["log", "--lines", "0"],
+      ["log", "--lines", "-5"],
+      ["log", "--lines", "abc"],
+    ]) {
+      const { stdout } = await runWithArgs(args);
+      const out = stdout.split("\n").filter(Boolean);
+      assert.equal(out.length, 50, `${args.join(" ")} must fall back to default 50`);
+      assert.equal(out[0], "line 10");
+      assert.equal(out[out.length - 1], "line 59");
+    }
+  });
+
+  it("floors fractional --lines values", async () => {
+    const lines = Array.from({ length: 10 }, (_, i) => `line ${i}`);
+    seedLog("default", lines);
+    const { stdout } = await runWithArgs(["log", "--lines", "3.9"]);
+    assert.deepEqual(stdout.split("\n").filter(Boolean), ["line 7", "line 8", "line 9"]);
+  });
+
+  it("keeps the last real line when the file has no trailing newline", async () => {
+    const dir = resolve(tempHome, "default");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "gateway.log"), "one\ntwo\nthree", "utf8");
+    const { stdout } = await runWithArgs(["log", "--lines", "2"]);
+    assert.deepEqual(stdout.split("\n").filter(Boolean), ["two", "three"]);
+  });
+
+  it("returns all lines when the file has fewer than requested", async () => {
+    seedLog("default", ["only", "two"]);
+    const { stdout } = await runWithArgs(["log", "--lines", "100"]);
+    assert.deepEqual(stdout.split("\n").filter(Boolean), ["only", "two"]);
+  });
+
+  it("prints nothing and exits 0 for an empty existing log file", async () => {
+    const dir = resolve(tempHome, "default");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "gateway.log"), "", "utf8");
+    const { stdout, code } = await runWithArgs(["log"]);
+    assert.equal(stdout, "");
+    assert.equal(code, 0);
+  });
+});

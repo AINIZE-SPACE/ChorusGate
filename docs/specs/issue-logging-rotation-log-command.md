@@ -1,10 +1,11 @@
 # Spec: 日志改造 + `chorusgate log --agent` 命令
 
-> **Issue**: 待建（小扣立项，本 spec 先行） | **Epic**: - | **合并 issue**: 日志无日期/无轮转 + `chorusgate log --agent`（均为日志域小改，合一个 issue 立项）
+> **Issue**: #141（小扣立项） | **Epic**: - | **合并 issue**: 日志无日期/无轮转 + `chorusgate log --agent`（均为日志域小改，合一个 issue 立项）
 > **Type**: Tech-debt / Enhancement | **Priority**: P1（日常运维可读性直接受影响）
 > **Analyst**: 小马 (U0B91BVKTL2)
 > **Date**: 2026-08-18
-> **Branch**: `v5/logging-liveness-spec`（spec 提交分支）
+> **Branch**: `v5/logging-liveness`（开发分支，基于 `v5/logging-liveness-spec`@07c480a）
+> **Status**: ✅ 已实现（commit `26bbc2e`），待 SIT 验收
 
 ## 1. 问题分析
 
@@ -196,3 +197,17 @@ export async function log(): Promise<void> {
 3. **log 命令**：`chorusgate log --agent default --lines 50`、`--follow`、无 `--agent` 三种形态验证（AC4-AC7）。
 4. **format 校验**：grep 新日志行匹配 `^\[ts \d{4}-\d{2}-\d{2}`（AC1）。
 5. **回归**：tsc + 全量测试（AC10）。
+
+## 6. 实现状态（小克，2026-08-19）
+
+已在 `v5/logging-liveness` 实现并本地全绿（commit `26bbc2e`，tsc 零错误，324/324 单测通过；ST-PROV-002 超时为基线上已存在的环境项，非本改动回归）。
+
+**实现要点与 spec 的差异（有意为之，需 SIT 关注）**
+
+1. **写入层改用 `fs.appendFileSync`（非 `createWriteStream`）**。评审关心的 fd 持有坑由更彻底的方式根治：logger 不持任何 fd，每次写前 `statSync` 判断大小/跨日 → `rename` → 下次 append 自然重建新文件。这消除了 createWriteStream 的异步 flush/排序面（此前实现曾因此产生偶发乱序），且 appendFileSync 在该量级（每条 Slack 事件数行）开销可忽略。**目标不变**：daemon 自管文件、轮转 close→rename→reopen 语义、不依赖 `spawn` stdio fd。
+2. **daemon console 接管抽为 `redirectConsoleToLogger(logger)`**（logger.ts 导出，返回 restore 函数，便于测试）。gateway.ts 模块作用域调用，早于 `main()`。
+3. **`start()` stdio 改 `["ignore","ignore","ignore"]`**（spec 推荐项），daemon 启动失败时 `start()` 仍读取 `~/.chorusgate/<agent>/gateway.log` 尾部回显。
+4. **`log --follow`**：`fs.watch` 仅作唤醒，实际读用「大小偏移轮询」；检测到文件收缩（被轮转重建）时偏移从 0 重锚，Windows 与轮转场景均正确。
+5. **`cli-args`** 新增 `--lines/-n`、`--follow/-f`；`log()` 无 `--agent` 时回退 `default`（与 #134 一致）。
+
+**AC 状态**：AC1-AC10 已由单测+typecheck 覆盖；AC6（`--follow` 双平台）、AC11（跨平台）待小马 SIT。

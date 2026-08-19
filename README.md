@@ -141,6 +141,9 @@ chorusgate status --agent codex   # show only codex's pid, uptime, and sessions
 chorusgate stop --agent codex     # stop only codex
 chorusgate restart --agent codex  # restart only codex
 chorusgate list --agent codex     # list only codex's channel→session mappings
+chorusgate log --agent codex      # show codex's daemon log (default: last 50 lines)
+chorusgate log --agent codex --lines 200  # last 200 lines
+chorusgate log --agent codex --follow     # follow new lines (tail -f; also -f / -n)
 ```
 
 Omitting `--agent` is equivalent to `--agent default`. Different agents may run
