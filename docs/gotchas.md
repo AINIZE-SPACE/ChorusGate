@@ -69,6 +69,11 @@
 **原因**：`STATUS_DLL_INIT_FAILED`——空消息触发的 spawn 风暴，Windows 同时创建太多进程，DLL 初始化资源耗尽。  
 **修复**：修复 shouldReply 过滤 + MAX_CONCURRENT 限制 spawn 数量。
 
+### 10. PowerShell `$HOME` 只读陷阱 — 删了真实主目录（#145）
+**现象**：`~/.chorusgate/codex/` 整个 agent profile 目录凭空消失，daemon 报 "not initialized"。  
+**原因**：PowerShell 里 `$HOME`（含大小写变体 `$home`）是**只读自动变量**。脚本写 `$home = "D:\tmp\sit"` 赋值静默失败，`$home` 仍指向真实主目录，后续 `Remove-Item -Recurse -Force $home\xxx` 直接遍历 `D:\Users\<user>` 删除。无锁文件（.env/pid/日志）全没，有锁的 DLL 挡住其余删除，造成"没丢数据"的误判。  
+**修复**：① SIT/清理脚本禁用 `$home` 做变量名，用 `$sitHome`/`$tmpDir`；② 任何 `Remove-Item -Recurse` 前先打印目标路径人工确认；③ profile `.env` 现在有滚动备份 `~/.chorusgate/backups/<agent>.env`（agent 目录外），丢失时 `chorusgate run --agent <id>` 自动恢复。
+
 ---
 
 ## Claude Code / MCP

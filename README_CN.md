@@ -130,6 +130,9 @@ chorusgate status --agent codex    # 只显示 codex 的 pid、运行时长、se
 chorusgate stop --agent codex      # 只停止 codex
 chorusgate restart --agent codex   # 只重启 codex
 chorusgate list --agent codex      # 只列出 codex 的 channel→session 映射
+chorusgate log --agent codex       # 查看 codex 的 daemon 日志（默认最近 50 行）
+chorusgate log --agent codex --lines 200   # 最近 200 行
+chorusgate log --agent codex --follow      # 实时跟随（tail -f，支持 -f / -n）
 ```
 
 省略 `--agent` 等价于 `--agent default`。不同 agent 可以同时运行，且必须

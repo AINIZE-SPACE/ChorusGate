@@ -51,12 +51,27 @@ export function buildSpawnOptions(
 
 // ---- Env helper (per-profile token injection, STORY-7) -----------------------
 
+/**
+ * #147 代理隔离：Slack 直连、spawn 的 agent CLI 按 CHORUSGATE_AGENT_PROXY
+ * 模式构造子进程 env。
+ *
+ * 不修改 process.env（spec §1 约束 + 小马 SIT D1-5）：Slack 直连靠 @slack
+ * SDK 本身不走代理（web-api v7 proxy:false / socket-mode 无 proxy agent /
+ * ws 不读 HTTP_PROXY）；子进程 env 由 transport.buildAgentSpawnEnv 按模式
+ * 显式构造：inherit（默认，继承宿主代理）/ direct（剥离）/ proxy（注入
+ * CHORUSGATE_PROXY_URL）。旧配置 GATEWAY_AGENT_PROXY=<URL> 视为 proxy 模式。
+ */
+import {
+  agentTransportConfig,
+  buildAgentSpawnEnv,
+} from "../transport.js";
+
 /** Build spawn environment with per-profile Slack tokens injected. */
 export function buildSpawnEnv(opts: {
   botToken?: string;
   appToken?: string;
 }): Record<string, string | undefined> {
-  const env: Record<string, string | undefined> = { ...process.env };
+  const env = buildAgentSpawnEnv(agentTransportConfig(), process.env);
   if (opts.botToken) env.SLACK_BOT_TOKEN = opts.botToken;
   if (opts.appToken) env.SLACK_APP_TOKEN = opts.appToken;
   return env;

@@ -235,6 +235,19 @@ export function migrateConfig(opts: MigrateOptions): MigrateResult {
     .join("\n") + "\n";
   writeFileSync(targetPath, targetContent, "utf-8");
 
+  // 9. Rolling latest-known-good backup OUTSIDE the agent dir
+  //    (~/.chorusgate/backups/<agentId>.env) so an agent-dir-scoped
+  //    deletion stays recoverable (#145). listAgentProfiles() only matches
+  //    dirs containing a file literally named ".env", so "backups/" is
+  //    never mistaken for an agent profile.
+  try {
+    const rollingBackupDir = resolve(opts.profileRoot ?? CHORUSGATE_HOME, "backups");
+    mkdirSync(rollingBackupDir, { recursive: true });
+    copyFileSync(targetPath, resolve(rollingBackupDir, `${agentId}.env`));
+  } catch {
+    // best-effort — never fail a successful migration over the backup
+  }
+
   console.error(`[migrate] Written: ${targetPath} (${chorusgateKeys.length} keys)`);
 
   return {

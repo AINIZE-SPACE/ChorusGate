@@ -181,3 +181,64 @@ describe("runMigrate", () => {
     });
   });
 });
+
+// ============================================================
+// #145 — rolling backup + auto-restore after profile loss
+// ============================================================
+
+describe("profile backup & restore (#145)", () => {
+  it("migrate --apply writes a rolling backup outside the agent dir", async () => {
+    const source = join(tempHome, "legacy.env");
+    writeFileSync(
+      source,
+      "SLACK_BOT_TOKEN=xoxb-test\nSLACK_APP_TOKEN=xapp-test\n",
+      "utf8",
+    );
+    process.argv = migrateArgv([
+      "--agent", "codex",
+      "--from", source,
+      "--apply",
+    ]);
+
+    await runMigrate();
+    assert.equal(process.exitCode, 0);
+
+    const backup = join(tempHome, "backups", "codex.env");
+    assert.ok(existsSync(backup), "rolling backup must exist");
+    const content = readFileSync(backup, "utf8");
+    assert.ok(content.includes("SLACK_BOT_TOKEN=xoxb-test"));
+
+    // backups/ must NOT be listed as an agent profile
+    const { listAgentProfiles } = await import("../src/load-env.js");
+    assert.ok(!listAgentProfiles().includes("backups"));
+  });
+
+  it("prepareRunConfig auto-restores a deleted profile from the backup", async () => {
+    const source = join(tempHome, "legacy.env");
+    writeFileSync(
+      source,
+      "SLACK_BOT_TOKEN=xoxb-test\nSLACK_APP_TOKEN=xapp-test\n",
+      "utf8",
+    );
+    process.argv = migrateArgv([
+      "--agent", "codex",
+      "--from", source,
+      "--apply",
+    ]);
+    await runMigrate();
+    assert.equal(process.exitCode, 0);
+
+    // Simulate the #145 incident: the whole agent dir is deleted
+    rmSync(join(tempHome, "codex"), { recursive: true, force: true });
+    assert.ok(!existsSync(join(tempHome, "codex", ".env")));
+
+    const { prepareRunConfig } = await import("../src/config-init.js");
+    const ok = await prepareRunConfig([
+      "node", "chorusgate", "run", "--agent", "codex",
+    ]);
+
+    assert.equal(ok, true, "restore should make the profile runnable");
+    const restored = readFileSync(join(tempHome, "codex", ".env"), "utf8");
+    assert.ok(restored.includes("SLACK_BOT_TOKEN=xoxb-test"));
+  });
+});

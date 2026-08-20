@@ -47,6 +47,11 @@ export function getLogFile(agentId = DEFAULT_AGENT): string {
   return resolve(getGatewayDir(agentId), "gateway.log");
 }
 
+/** #148 独立异常日志（error 级额外写一份，带堆栈）。 */
+export function getErrorLogFile(agentId = DEFAULT_AGENT): string {
+  return resolve(getGatewayDir(agentId), "error.log");
+}
+
 /** Periodic runtime snapshot the daemon writes for status/list. */
 export function getStatusFile(agentId = DEFAULT_AGENT): string {
   return resolve(getGatewayDir(agentId), "status.json");

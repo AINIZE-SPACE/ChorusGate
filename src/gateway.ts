@@ -37,7 +37,57 @@ const agentId = cliArgs.agentId ?? (cliArgs.envFile ? undefined : "default");
 // Control-plane identity: pid/status/log always live under
 // ~/.chorusgate/<agent>/ — with --env-file and no --agent, use "default".
 const controlAgentId = agentId ?? "default";
+
+// Issue #141: daemon-owned rotating logger. Init as early as possible so all
+// console output (this file + socket-manager, same process) is captured, even
+// before main() runs. The daemon self-manages the log fd — the CLI `start`
+// no longer passes a stdio fd (rotating from inside the daemon is the only
+// way around the fd-rename trap on Windows).
+//
+// Config (#141 spec §2.4): GATEWAY_LOG_MAX_SIZE_MB / GATEWAY_LOG_KEEP_DAYS /
+// GATEWAY_LOG_LEVEL override the logger defaults.
+const logMaxSizeMb = Number(process.env.GATEWAY_LOG_MAX_SIZE_MB || 5);
+const logKeepDays = Number(process.env.GATEWAY_LOG_KEEP_DAYS || 7);
+const logLevel = (process.env.GATEWAY_LOG_LEVEL || "info") as
+  | "debug"
+  | "info"
+  | "warn"
+  | "error";
+const logger = createLogger({
+  logFile: getLogFile(controlAgentId),
+  // #148: error 级额外写独立异常日志（带堆栈）。
+  errorFile: getErrorLogFile(controlAgentId),
+  maxSize: Number.isFinite(logMaxSizeMb) && logMaxSizeMb > 0 ? logMaxSizeMb * 1024 * 1024 : undefined,
+  keepDays: Number.isFinite(logKeepDays) && logKeepDays > 0 ? logKeepDays : undefined,
+  level: logLevel,
+});
+// Route all console output through the rotating logger (module "daemon").
+redirectConsoleToLogger(logger);
+// #148 全局异常捕捉：unhandledRejection 记录后继续，uncaughtException 记录后 exit(1)。
+installGlobalErrorHandlers(logger);
+
 const profiles = bootstrap({ agentId, envFile: cliArgs.envFile });
+
+// #147 传输配置：Slack 直连（CHORUSGATE_SLACK_TRANSPORT 默认 direct）+ agent
+// 子进程按 CHORUSGATE_AGENT_PROXY 构造 env。必须在 bootstrap() 之后执行，
+// 才能读到 profile .env 里的配置。不改 process.env —— Slack 直连靠 @slack
+// SDK 本身不走代理；子进程 env 由 buildSpawnEnv 按模式显式构造（transport.ts）。
+const slackCfg = slackTransportConfig();
+const agentCfg = agentTransportConfig();
+const slackAgent = buildSlackAgent(slackCfg);
+getSocketManager().setSlackAgent(slackAgent);
+logger.info(
+  "daemon",
+  `transport: ${describeTransport("slack", slackCfg)}; ` +
+    describeTransport("agent", agentCfg),
+);
+if (slackCfg.mode === "proxy" && !slackAgent) {
+  logger.warn(
+    "daemon",
+    "CHORUSGATE_SLACK_TRANSPORT=proxy 但无法构造代理 agent " +
+      "（https-proxy-agent 缺失或无代理 URL）— 回退 Slack 直连",
+  );
+}
 
 import { getWebClient } from "./slack-clients.js";
 import {
@@ -65,8 +115,18 @@ import {
   ensureGatewayDir,
   getPidFile,
   getStatusFile,
+  getLogFile,
+  getErrorLogFile,
   type GatewayStatus,
 } from "./gateway-paths.js";
+import { createLogger, redirectConsoleToLogger, installGlobalErrorHandlers } from "./logger.js";
+import {
+  slackTransportConfig,
+  agentTransportConfig,
+  buildSlackAgent,
+  describeTransport,
+} from "./transport.js";
+import { LivenessMonitor } from "./liveness.js";
 import { writeFileSync, rmSync } from "node:fs";
 import type { StoredEvent } from "./types.js";
 import { sanitizeForSlack, splitSlackMessage } from "./slack-message.js";
@@ -1212,6 +1272,10 @@ async function main(): Promise<void> {
   // Start all profiles — one Socket Mode connection per Slack app.
   await socketManager.startAll(profiles);
 
+  // Liveness (Issue: 休眠唤醒后不恢复): suspend + zombie detection with
+  // self-heal. Only anomalies log (spec AC4 — normal ticks stay silent).
+  startLivenessForDaemon(socketManager);
+
   console.error(
     "[gateway] listening on " +
       `${profiles.length} Slack app(s) — ` +
@@ -1220,8 +1284,80 @@ async function main(): Promise<void> {
   );
 }
 
+// ---- liveness (Issue: 休眠唤醒后不恢复) -------------------------------------
+
+/** Stopped in shutdown(); null until main() installs it. */
+let livenessStop: (() => void) | null = null;
+
+function startLivenessForDaemon(sm: SocketManager): void {
+  // Env config (spec §2.3): GATEWAY_SUSPEND_JUMP_MS / probe interval /
+  // failure limit. tickIntervalMs mirrors the statusTimer cadence.
+  const jumpMs = Number(process.env.GATEWAY_SUSPEND_JUMP_MS || 60_000);
+  const probeMs = Number(process.env.GATEWAY_LIVENESS_PROBE_INTERVAL_MS || 60_000);
+  const failLimit = Number(process.env.GATEWAY_LIVENESS_FAILURE_LIMIT || 3);
+  // #148: 熔断退避接管重连后，重连失败不再立刻 exit(1)；仅在持续宕机超过
+  // GATEWAY_RECONNECT_MAX_DOWN_MS 仍未恢复时退出交 watchdog 重启。
+  const maxDownMs = Number(
+    process.env.GATEWAY_RECONNECT_MAX_DOWN_MS || 600_000,
+  );
+
+  // 重连失败后的兜底：退避/熔断期间不 exit；持续宕机超时才 exit(1) 交 watchdog。
+  const exitIfDownTooLong = (reason: string): void => {
+    if (sm.shouldExitForWatchdog(
+      Number.isFinite(maxDownMs) && maxDownMs > 0 ? maxDownMs : 600_000,
+    )) {
+      logger.error("liveness", `${reason} — down too long, exiting for watchdog`);
+      process.exit(1);
+    } else {
+      logger.warn("liveness", `${reason} — backoff/circuit will retry`);
+    }
+  };
+
+  const monitor = new LivenessMonitor(
+    {
+      tickIntervalMs: 5000,
+      suspendJumpMs: Number.isFinite(jumpMs) && jumpMs > 0 ? jumpMs : 60_000,
+      probeIntervalMs: Number.isFinite(probeMs) && probeMs > 0 ? probeMs : 60_000,
+      failureLimit: Number.isFinite(failLimit) && failLimit > 0 ? failLimit : 3,
+    },
+    {
+      isConnected: () => sm.anyConnected(),
+      log: (level, module, msg, ...args) => logger.log(level, module, msg, ...args),
+      onSuspendDetected: (seconds) => {
+        // Suspend may have left the socket half-open. Probe immediately
+        // (skip the N-failure accumulation) and force a reconnect if dead.
+        logger.warn("liveness", `suspend detected (${seconds}s) — probing socket immediately`);
+        if (!sm.anyConnected()) {
+          logger.warn("liveness", "socket not connected after resume — forcing reconnect");
+          void sm.forceReconnectAll().then((ok) => {
+            if (!ok) exitIfDownTooLong("reconnect after suspend failed");
+          });
+        }
+      },
+      onZombieDetected: () => {
+        logger.warn("liveness", "zombie socket — forcing reconnect");
+        void sm.forceReconnectAll().then((ok) => {
+          if (!ok) exitIfDownTooLong("forced reconnect failed");
+        });
+      },
+      onUnrecoverable: () => {
+        logger.error("liveness", "unrecoverable — exiting for watchdog");
+        process.exit(1);
+      },
+    },
+  );
+  monitor.start();
+  livenessStop = () => monitor.stop();
+  logger.info("liveness", "liveness monitor started", {
+    suspendJumpMs: jumpMs,
+    probeIntervalMs: probeMs,
+    failureLimit: failLimit,
+  });
+}
+
 async function shutdown(): Promise<void> {
   console.error("[gateway] shutting down...");
+  livenessStop?.();
   const socketManager = getSocketManager();
   await socketManager.stopAll();
   // Clean up control-plane files so `status` reports stopped.
@@ -1231,9 +1367,10 @@ async function shutdown(): Promise<void> {
   } catch {
     // ignore
   }
+  // Flush + close the rotating logger so the final lines land on disk.
+  await logger.close();
   process.exit(0);
 }
-
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 

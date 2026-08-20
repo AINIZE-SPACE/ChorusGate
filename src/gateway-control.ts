@@ -7,10 +7,20 @@
 // ============================================================
 
 import { spawn } from "node:child_process";
-import { openSync, readFileSync, rmSync } from "node:fs";
+import {
+  openSync,
+  readFileSync,
+  readSync,
+  closeSync,
+  rmSync,
+  existsSync,
+  statSync,
+  watch,
+} from "node:fs";
 import {
   ensureGatewayDir,
   getLogFile,
+  getErrorLogFile,
   getPidFile,
   getStatusFile,
   BIN_FILE,
@@ -107,7 +117,6 @@ export async function start(skipConfigPreflight = false): Promise<void> {
 
   ensureGatewayDir(agentId);
   const logFile = getLogFile(agentId);
-  const out = openSync(logFile, "a");
 
   // Forward --agent and --env-file to the daemon process (#134)
   const cliArgs = parseCliArgs();
@@ -116,9 +125,14 @@ export async function start(skipConfigPreflight = false): Promise<void> {
   if (cliArgs.envFile) forwardArgs.push("--env-file", cliArgs.envFile);
   if (cliArgs.initialize) forwardArgs.push("--init");
 
+  // Issue #141: the daemon OWNS its log file via an internal rotating logger.
+  // We no longer pass a stdio fd — an externally-held fd would keep writing
+  // into a renamed file after rotation (the fd-rename trap on Windows).
+  // Early daemon output is still recoverable: the daemon inits its logger at
+  // module scope and `start()` surfaces the log tail on startup failure.
   const child = spawn(process.execPath, [BIN_FILE, "run", ...forwardArgs], {
     detached: true,
-    stdio: ["ignore", out, out],
+    stdio: ["ignore", "ignore", "ignore"],
     windowsHide: true,
   });
   child.unref();
@@ -214,10 +228,19 @@ export async function status(): Promise<void> {
   if (st) {
     const uptime = fmtDuration(Date.now() - st.startedAt);
     const staleMs = Date.now() - st.updatedAt;
+    const staleThreshold = Number(
+      process.env.GATEWAY_HEARTBEAT_STALE_MS || 180_000,
+    );
     console.error(`  uptime:       ${uptime}`);
+    console.error(`  heartbeat:    ${fmtDuration(staleMs)} ago`);
     console.error(`  slots:        ${st.activeSlots}/${st.maxConcurrent} active`);
     console.error(`  sessions:     ${st.sessions.length} thread(s)`);
-    if (staleMs > 20000) {
+    if (staleMs > staleThreshold) {
+      console.error(
+        `  ⚠️ heartbeat stale (${fmtDuration(staleMs)} old) — ` +
+          `daemon may be hung; watchdog will restart it`,
+      );
+    } else if (staleMs > 20000) {
       console.error(
         `  (status snapshot is ${fmtDuration(staleMs)} old — daemon may be busy)`
       );
@@ -255,6 +278,95 @@ export async function list(): Promise<void> {
   process.exitCode = 0;
 }
 
+/**
+ * Print (and optionally follow) the daemon log for an agent.
+ *
+ * Issue #141: `chorusgate log [--agent <id>] [--lines N] [--follow]`.
+ * Omitting --agent resolves to "default" (same semantics as #134).
+ */
+export async function log(): Promise<void> {
+  const cliArgs = parseCliArgs();
+  const agentId = cliArgs.agentId ?? "default";
+  const lines =
+    cliArgs.lines !== undefined && Number.isFinite(cliArgs.lines) && cliArgs.lines > 0
+      ? Math.floor(cliArgs.lines)
+      : 50;
+  const follow = cliArgs.follow || false;
+  // #148: --error 读独立异常日志 error.log（error 级 + 堆栈）。
+  const logFile = cliArgs.error
+    ? getErrorLogFile(agentId)
+    : getLogFile(agentId);
+
+  if (!existsSync(logFile)) {
+    console.error(
+      cliArgs.error
+        ? `no error log for agent '${agentId}' at ${logFile} — no errors logged yet`
+        : `no log file for agent '${agentId}' at ${logFile} — start the gateway first (chorusgate start --agent ${agentId})`
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  // tail -n lines (cross-platform: read whole file, take last N lines).
+  const content = readFileSync(logFile, "utf8");
+  const linesArr = content.split("\n");
+  // A trailing newline leaves an empty last element — drop it so the count is
+  // exact (slice(-N) otherwise consumes one real line).
+  if (linesArr.length > 0 && linesArr[linesArr.length - 1] === "") {
+    linesArr.pop();
+  }
+  console.log(linesArr.slice(-lines).join("\n"));
+
+  if (follow) {
+    await followLog(logFile);
+  }
+}
+
+/**
+ * Follow a log file, printing appended bytes until interrupted.
+ *
+ * fs.watch is only a wake-up trigger; actual reads use a size-offset poll so
+ * behavior stays correct on Windows (unstable watch events) and across log
+ * rotation (a recreated/shrunken file re-anchors the offset from 0).
+ */
+async function followLog(logFile: string): Promise<void> {
+  let size = statSync(logFile).size;
+
+  const drain = (): void => {
+    try {
+      const st = statSync(logFile);
+      if (st.size < size) {
+        // Rotated/recreated (size shrank): re-anchor so the fresh file's
+        // bytes stream from the start.
+        size = 0;
+      }
+      if (st.size <= size) return;
+      const fd = openSync(logFile, "r");
+      try {
+        const buf = Buffer.alloc(st.size - size);
+        const n = readSync(fd, buf, 0, buf.length, size);
+        if (n > 0) process.stdout.write(buf.subarray(0, n));
+        size += n;
+      } finally {
+        closeSync(fd);
+      }
+    } catch {
+      // Transient (file locked / mid-rename) — retry on next poll.
+    }
+  };
+
+  try {
+    watch(logFile, drain);
+  } catch {
+    // watch unsupported/locked — polling below still works.
+  }
+  // Poll as a fallback for platforms where watch is unreliable.
+  const poll = setInterval(drain, 200);
+  poll.unref?.();
+  // Keep the process alive while following (watcher/poll handles are active).
+  process.stdout.on("error", () => process.exit(0));
+}
+
 /** Print usage for unknown commands. */
 export function help(): void {
   console.error(
@@ -268,6 +380,16 @@ export function help(): void {
       "  restart         restart the daemon",
       "  status          show whether the daemon is running + runtime info",
       "  list            list active thread→session mappings",
+      "  log             print the daemon log (default: last 50 lines)",
+      "                  --lines N / -n N   print last N lines",
+      "                  --follow / -f      follow new lines (tail -f)",
+      "                  --error            print the standalone error log (error.log)",
+      "  install         register a watchdog scheduled task / systemd timer that",
+      "                  restarts a dead or stale daemon (alias: watchdog install)",
+      "  uninstall       remove the watchdog task (alias: watchdog uninstall)",
+      "  watchdog install   register a scheduled task / systemd timer that restarts",
+      "                     a dead or stale daemon (every 5 min)",
+      "  watchdog uninstall remove the scheduled task / systemd timer",
       "  config migrate  migrate project .env → ~/.chorusgate/<id>/.env",
       "  config init     initialize a missing agent profile",
       "",
@@ -275,6 +397,11 @@ export function help(): void {
       "  --agent <id>     load config from ~/.chorusgate/<id>/.env (default: default)",
       "  --env-file <path> load explicit .env file (mutually exclusive with --agent)",
       "  --init           initialize a missing --agent profile automatically",
+      "",
+      "Transport env (#147):",
+      "  CHORUSGATE_SLACK_TRANSPORT  direct|proxy|inherit  Slack 连接模式 (默认 direct)",
+      "  CHORUSGATE_AGENT_PROXY      direct|proxy|inherit  agent CLI 子进程代理模式 (默认 inherit)",
+      "  CHORUSGATE_PROXY_URL        <url>   proxy 模式的代理地址 (回退 GATEWAY_AGENT_PROXY)",
     ].join("\n")
   );
 }

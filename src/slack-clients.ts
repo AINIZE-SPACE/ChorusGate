@@ -12,6 +12,7 @@
 // ============================================================
 
 import { WebClient } from "@slack/web-api";
+import type http from "node:http";
 
 // ---- types -------------------------------------------------------------------
 
@@ -29,12 +30,14 @@ let appToken: string | null = null;
 /**
  * Initialize the default singleton clients.
  * Called once by bootstrap() for single-profile / MCP server mode.
+ * `agent`（#147 proxy 模式）传给 WebClient 使 HTTP 请求走代理。
  */
 export function initSlackClients(opts: {
   botToken: string;
   appToken: string;
+  agent?: http.Agent;
 }): WebClient {
-  webClient = new WebClient(opts.botToken);
+  webClient = new WebClient(opts.botToken, opts.agent ? { agent: opts.agent } : undefined);
   appToken = opts.appToken;
   return webClient;
 }
@@ -71,9 +74,10 @@ export function getAppToken(): string {
 export function createSlackClientSet(opts: {
   botToken: string;
   appToken: string;
+  agent?: http.Agent;
 }): SlackClientSet {
   return {
-    web: new WebClient(opts.botToken),
+    web: new WebClient(opts.botToken, opts.agent ? { agent: opts.agent } : undefined),
     appToken: opts.appToken,
   };
 }
