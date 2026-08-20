@@ -33,6 +33,8 @@ import { resolve, basename, dirname } from "node:path";
 export interface LoggerOptions {
   /** Absolute path of the log file (e.g. ~/.chorusgate/<agent>/gateway.log). */
   logFile: string;
+  /** Optional: error-level lines are ALSO written here (独立异常日志, #148). */
+  errorFile?: string;
   /** Single-file size cap in bytes before rotation (default 5MB). */
   maxSize?: number;
   /** Daily-rotation files kept before pruning (default 7). */
@@ -100,6 +102,7 @@ function fmtArg(a: unknown): string {
  */
 export function createLogger(opts: LoggerOptions): Logger {
   const logFile = resolve(opts.logFile);
+  const errorFile = opts.errorFile ? resolve(opts.errorFile) : undefined;
   const maxSize = opts.maxSize ?? 5 * 1024 * 1024;
   const keepDays = opts.keepDays ?? 7;
   const minLevel = LEVEL_ORDER[opts.level ?? "info"] ?? 1;
@@ -122,11 +125,10 @@ export function createLogger(opts: LoggerOptions): Logger {
     }
   }
 
-  /** Prune gateway.log.*.old files older than keepDays. */
-  function prune(): void {
+  /** Prune `<file>.*.old` files older than keepDays. */
+  function prune(prefix: string): void {
     try {
       const cutoff = Date.now() - keepDays * 24 * 60 * 60 * 1000;
-      const prefix = basename(logFile) + ".";
       for (const entry of readdirSync(dir)) {
         if (!entry.startsWith(prefix) || !entry.endsWith(".old")) continue;
         const full = resolve(dir, entry);
@@ -141,6 +143,34 @@ export function createLogger(opts: LoggerOptions): Logger {
     }
   }
 
+  /** Rotate `file` if over size cap or not today's file, then append. */
+  function appendLine(file: string, line: string): void {
+    try {
+      // Rotate before writing (best-effort; never let logging break the daemon).
+      // Condition: file over size cap, OR its mtime-day is not today (covers
+      // natural midnight crossing and a stale file carried over from a
+      // previous day). No fd is held open, so rename is safe even on Windows.
+      try {
+        const st = statSync(file);
+        const fileDay = dayOf(file);
+        if (st.size >= maxSize || fileDay !== todayStr()) {
+          const target = `${file}.${fileDay}.old`;
+          const finalTarget = existsSync(target) ? `${target}.${Date.now()}` : target;
+          renameSync(file, finalTarget);
+          prune(basename(file) + ".");
+        }
+      } catch {
+        // stat failed (file missing) — nothing to rotate; append recreates it.
+      }
+      // Ensure the parent dir exists (logger inits before ensureGatewayDir).
+      mkdirSync(dirname(file), { recursive: true });
+      appendFileSync(file, line, "utf8");
+    } catch {
+      // Logging must never crash the daemon — fall back to stderr.
+      process.stderr.write(line);
+    }
+  }
+
   function write(level: string, module: string, msg: string, ...args: unknown[]): void {
     if ((LEVEL_ORDER[level] ?? 1) < minLevel) return;
     const line =
@@ -148,30 +178,9 @@ export function createLogger(opts: LoggerOptions): Logger {
       msg.replace(/\r?\n/g, " \\n ") +
       (args.length > 0 ? " " + args.map(fmtArg).join(" ") : "") +
       "\n";
-    try {
-      // Rotate before writing (best-effort; never let logging break the daemon).
-      // Condition: file over size cap, OR its mtime-day is not today (covers
-      // natural midnight crossing and a stale file carried over from a
-      // previous day). No fd is held open, so rename is safe even on Windows.
-      try {
-        const st = statSync(logFile);
-        const fileDay = dayOf(logFile);
-        if (st.size >= maxSize || fileDay !== todayStr()) {
-          const target = `${logFile}.${fileDay}.old`;
-          const finalTarget = existsSync(target) ? `${target}.${Date.now()}` : target;
-          renameSync(logFile, finalTarget);
-          prune();
-        }
-      } catch {
-        // stat failed (file missing) — nothing to rotate; append recreates it.
-      }
-      // Ensure the parent dir exists (logger inits before ensureGatewayDir).
-      mkdirSync(dir, { recursive: true });
-      appendFileSync(logFile, line, "utf8");
-    } catch {
-      // Logging must never crash the daemon — fall back to stderr.
-      process.stderr.write(line);
-    }
+    appendLine(logFile, line);
+    // #148: error-level lines land in the standalone error log too.
+    if (level === "error" && errorFile) appendLine(errorFile, line);
   }
 
   return {
@@ -211,5 +220,34 @@ export function redirectConsoleToLogger(logger: Logger): () => void {
     console.log = orig.log;
     console.warn = orig.warn;
     console.error = orig.error;
+  };
+}
+
+/**
+ * #148 全局异常捕捉 — 不再静默崩溃。
+ *
+ * - `unhandledRejection`：记录堆栈后**继续运行**。2026-08-20 6am 事故的直接
+ *   死因是 @slack/socket-mode 内部 rejection（"WebSocket was closed before
+ *   the connection was established"）在无任何兜底时直接终止进程；socket 层已
+ *   有 error 监听，单个 promise rejection 不应拖垮整个 daemon。
+ * - `uncaughtException`：记录堆栈后 `exit(1)`（事件循环状态可能已损坏，不可
+ *   安全继续），交给 watchdog 重启（#148 §3.4）。
+ *
+ * 返回还原函数（测试用）。监听器在 gateway.ts 创建 logger 后立即安装。
+ */
+export function installGlobalErrorHandlers(logger: Logger): () => void {
+  const onUnhandledRejection = (reason: unknown): void => {
+    const err = reason instanceof Error ? reason : new Error(String(reason));
+    logger.error("daemon", "UNHANDLED_REJECTION (continuing)", err);
+  };
+  const onUncaughtException = (err: Error): void => {
+    logger.error("daemon", "UNCAUGHT_EXCEPTION — exiting for watchdog", err);
+    process.exit(1);
+  };
+  process.on("unhandledRejection", onUnhandledRejection);
+  process.on("uncaughtException", onUncaughtException);
+  return () => {
+    process.off("unhandledRejection", onUnhandledRejection);
+    process.off("uncaughtException", onUncaughtException);
   };
 }

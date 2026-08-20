@@ -52,6 +52,25 @@ if (cmd === "run") {
     console.error("  --force          overwrite existing target (with backup)");
     process.exitCode = 2;
   }
+} else if (cmd === "watchdog") {
+  const sub = (process.argv[3] || "").toLowerCase();
+  const wd = await tsImport("../src/watchdog.ts", import.meta.url);
+  if (sub === "install") {
+    await wd.watchdogInstall();
+  } else if (sub === "uninstall") {
+    await wd.watchdogUninstall();
+  } else {
+    console.error("Usage: chorusgate watchdog <install|uninstall> [--agent <id>]");
+    console.error("");
+    console.error("  install    register a scheduled task / systemd timer that restarts");
+    console.error("             the agent daemon when it dies or its heartbeat goes stale");
+    console.error("             (default: every 5 min, elevated on Windows)");
+    console.error("  uninstall  remove the scheduled task / systemd timer");
+    console.error("");
+    console.error("Options:");
+    console.error("  --agent <id>     target agent profile (default: default)");
+    process.exitCode = 2;
+  }
 } else {
   const ctl = await tsImport("../src/gateway-control.ts", import.meta.url);
   const fn = ctl[cmd];

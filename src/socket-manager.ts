@@ -21,6 +21,31 @@ import {
 } from "./slack-clients.js";
 import type { ProfileConfig } from "./profile-config.js";
 import type { StoredEvent, SlackEventType } from "./types.js";
+import {
+  ReconnectPolicy,
+  type ReconnectPolicyConfig,
+} from "./reconnect-policy.js";
+
+// ---- reconnect policy config (#148) ------------------------------------------
+// 读取 GATEWAY_RECONNECT_* / GATEWAY_CIRCUIT_* 环境变量；缺省即默认值。
+function reconnectPolicyConfig(): ReconnectPolicyConfig {
+  const num = (k: string, d: number): number | undefined => {
+    const v = Number(process.env[k]);
+    return Number.isFinite(v) && v > 0 ? v : d;
+  };
+  const ratio = (k: string, d: number): number | undefined => {
+    const v = Number(process.env[k]);
+    return Number.isFinite(v) && v >= 0 && v <= 1 ? v : d;
+  };
+  return {
+    baseDelayMs: num("GATEWAY_RECONNECT_BASE_DELAY_MS", 1000),
+    maxDelayMs: num("GATEWAY_RECONNECT_MAX_DELAY_MS", 60_000),
+    multiplier: num("GATEWAY_RECONNECT_MULTIPLIER", 2),
+    jitterRatio: ratio("GATEWAY_RECONNECT_JITTER", 0.3),
+    circuitOpenAfter: num("GATEWAY_CIRCUIT_OPEN_AFTER", 5),
+    circuitCooldownMs: num("GATEWAY_CIRCUIT_COOLDOWN_MS", 300_000),
+  };
+}
 
 // ---- callbacks (profile-aware) ----------------------------------------------
 
@@ -61,12 +86,22 @@ interface RunningProfile {
   clients: SlackClientSet;
   socket: SocketModeClient;
   botUserId: string | null;
+  /** #148 指数退避 + 熔断策略（每 profile 独立）。 */
+  policy: ReconnectPolicy;
+  /** 已排定的重连定时器（去重，避免多源重复调度）。 */
+  reconnectTimer: NodeJS.Timeout | null;
+  /** 是否已排定重连（防叠加重连风暴）。 */
+  reconnectPending: boolean;
+  /** 主动重连中（forceReconnect 内部 disconnect 阶段）——忽略 disconnected 事件。 */
+  intentionalReconnect: boolean;
 }
 
 // ---- SocketManager ----------------------------------------------------------
 
 export class SocketManager {
   private profiles = new Map<string, RunningProfile>();
+  /** #148: stopAll 后置位，停止一切自动重连调度。 */
+  private shutdownStarted = false;
 
   private onEvent: EventCallback | null = null;
   private onSlash: SlashCallback | null = null;
@@ -123,9 +158,20 @@ export class SocketManager {
     const socket = new SocketModeClient({
       appToken: clients.appToken,
       logLevel: LogLevel.INFO,
+      // #148: 关掉库内建线性重连（5–10s 风暴），重连统一走 ReconnectPolicy。
+      autoReconnectEnabled: false,
     });
 
-    const rp: RunningProfile = { config, clients, socket, botUserId };
+    const rp: RunningProfile = {
+      config,
+      clients,
+      socket,
+      botUserId,
+      policy: new ReconnectPolicy(reconnectPolicyConfig()),
+      reconnectTimer: null,
+      reconnectPending: false,
+      intentionalReconnect: false,
+    };
     this.profiles.set(config.id, rp);
 
     // Wire Socket Mode lifecycle events
@@ -138,6 +184,8 @@ export class SocketManager {
       console.error(
         `[socket-manager] profile '${config.id}': Socket Mode connected`,
       );
+      rp.intentionalReconnect = false;
+      rp.policy.recordSuccess();
     });
     socket.on("ready", () => {
       console.error(
@@ -149,10 +197,14 @@ export class SocketManager {
         `[socket-manager] profile '${config.id}': disconnecting...`,
       );
     });
-    socket.on("reconnecting", () => {
+    // autoReconnectEnabled=false 时，ws 意外关闭后库只会 emit "disconnected"。
+    // 这是 ChorusGate 层重连的主驱动：记录失败 + 按退避/熔断调度重连。
+    socket.on("disconnected", () => {
+      if (rp.intentionalReconnect || this.shutdownStarted) return;
       console.error(
-        `[socket-manager] profile '${config.id}': reconnecting...`,
+        `[socket-manager] profile '${config.id}': disconnected unexpectedly`,
       );
+      this.onFailure(config.id, "socket disconnected");
     });
     socket.on("error", (error) => {
       console.error(
@@ -266,29 +318,29 @@ export class SocketManager {
       }
     });
 
-    await socket.start();
+    // #148: 初始连接失败不抛错——profile 留在 map 里，交给退避/熔断调度重试，
+    // 避免"启动即网络抖动"导致 daemon 直接退出。
+    try {
+      await socket.start();
+      rp.policy.recordSuccess();
+    } catch (err) {
+      console.error(
+        `[socket-manager] profile '${config.id}': initial connect failed — ` +
+          (err as Error).message,
+      );
+      this.onFailure(config.id, "initial connect failed");
+    }
   }
 
   /** Start all profiles from a parsed config list. */
   async startAll(configs: ProfileConfig[]): Promise<void> {
-    const results = await Promise.allSettled(
-      configs.map((c) => this.startProfile(c)),
-    );
-    for (let i = 0; i < results.length; i++) {
-      const r = results[i];
-      if (r.status === "rejected") {
-        console.error(
-          `[socket-manager] profile '${configs[i].id}': failed to start — ` +
-            (r.reason as Error).message,
-        );
-      }
-    }
-    const started = [...this.profiles.keys()];
-    if (started.length === 0) {
+    await Promise.allSettled(configs.map((c) => this.startProfile(c)));
+    const managed = [...this.profiles.keys()];
+    if (managed.length === 0) {
       throw new Error("No profiles could be started. Check your configuration.");
     }
     console.error(
-      `[socket-manager] ${started.length} profile(s) started: ${started.join(", ")}`,
+      `[socket-manager] ${managed.length} profile(s) managed: ${managed.join(", ")}`,
     );
   }
 
@@ -296,13 +348,20 @@ export class SocketManager {
   async stopProfile(id: string): Promise<void> {
     const rp = this.profiles.get(id);
     if (!rp) return;
-    await rp.socket.disconnect();
+    rp.intentionalReconnect = true;
+    this.clearReconnectTimer(id);
+    try {
+      await rp.socket.disconnect();
+    } catch {
+      // ignore
+    }
     this.profiles.delete(id);
     console.error(`[socket-manager] profile '${id}': stopped`);
   }
 
   /** Stop all running profiles. */
   async stopAll(): Promise<void> {
+    this.shutdownStarted = true;
     const ids = [...this.profiles.keys()];
     await Promise.all(ids.map((id) => this.stopProfile(id)));
   }
@@ -344,6 +403,7 @@ export class SocketManager {
   /**
    * Force a reconnect across all running profiles. Returns true only if
    * every profile ended up connected. Never throws — errors are logged.
+   * #148: 尊重熔断/已排定重连——熔断打开或已排定重连的 profile 跳过，不再硬连。
    */
   async forceReconnectAll(): Promise<boolean> {
     const ids = [...this.profiles.keys()];
@@ -359,6 +419,9 @@ export class SocketManager {
    * (possibly half-open) WebSocket and establish a fresh session.
    * SocketModeClient supports start() again after disconnect(). Returns
    * whether the connection is believed active afterwards.
+   *
+   * #148: 熔断打开时跳过并返回 false（由冷却定时器驱动下一次尝试）；主动
+   * reconnect 期间置 intentionalReconnect，忽略 disconnected 事件回声。
    */
   async forceReconnect(profileId: string = "default"): Promise<boolean> {
     const rp = this.profiles.get(profileId);
@@ -366,9 +429,23 @@ export class SocketManager {
       console.error(`[socket-manager] profile '${profileId}': not running, cannot reconnect`);
       return false;
     }
+    if (rp.reconnectPending) {
+      console.error(
+        `[socket-manager] profile '${profileId}': reconnect already scheduled — skipping`,
+      );
+      return this.isConnected(profileId);
+    }
+    if (rp.policy.isCircuitOpen()) {
+      console.error(
+        `[socket-manager] profile '${profileId}': circuit OPEN — skipping forced reconnect ` +
+          `(${rp.policy.circuitRemainingMs()}ms remaining)`,
+      );
+      return false;
+    }
     console.error(
       `[socket-manager] profile '${profileId}': forcing reconnect (zombie socket)`,
     );
+    rp.intentionalReconnect = true;
     try {
       await rp.socket.disconnect();
     } catch (err) {
@@ -379,14 +456,104 @@ export class SocketManager {
     }
     try {
       await rp.socket.start();
+      rp.policy.recordSuccess();
+      rp.intentionalReconnect = false;
+      return this.isConnected(profileId);
     } catch (err) {
+      rp.intentionalReconnect = false;
       console.error(
         `[socket-manager] profile '${profileId}': forced reconnect failed: ` +
           (err as Error).message,
       );
+      // 记录失败并按退避/熔断调度下一次尝试。
+      this.onFailure(profileId, "forced reconnect failed");
       return false;
     }
-    return this.isConnected(profileId);
+  }
+
+  // ---- #148 退避/熔断驱动重连 ------------------------------------------------
+
+  /** 记录一次连接失败，并按策略调度下一次尝试（去重）。 */
+  private onFailure(profileId: string, reason: string): void {
+    const rp = this.profiles.get(profileId);
+    if (!rp || this.shutdownStarted) return;
+    const { opened, cooldownMs } = rp.policy.recordFailure();
+    console.error(
+      `[socket-manager] profile '${profileId}': connection failed (${reason}) — ` +
+        `consecutive=${rp.policy.consecutiveFailures()}`,
+    );
+    if (opened) {
+      console.error(
+        `[socket-manager] profile '${profileId}': circuit OPEN for ${cooldownMs}ms`,
+      );
+    }
+    this.scheduleReconnect(profileId);
+  }
+
+  /** 按策略计算等待并排定重连（幂等：已排定则跳过）。 */
+  private scheduleReconnect(profileId: string): void {
+    const rp = this.profiles.get(profileId);
+    if (!rp || rp.reconnectPending || this.shutdownStarted) return;
+    const waitMs = rp.policy.isCircuitOpen()
+      ? rp.policy.circuitRemainingMs()
+      : rp.policy.nextDelayMs();
+    rp.reconnectPending = true;
+    console.error(
+      `[socket-manager] profile '${profileId}': reconnect scheduled in ${waitMs}ms`,
+    );
+    rp.reconnectTimer = setTimeout(() => {
+      rp.reconnectPending = false;
+      rp.reconnectTimer = null;
+      void this.doReconnect(profileId);
+    }, waitMs);
+    rp.reconnectTimer.unref?.();
+  }
+
+  /** 执行一次排定的重连；成功复位策略，失败继续排下一次。 */
+  private async doReconnect(profileId: string): Promise<void> {
+    const rp = this.profiles.get(profileId);
+    if (!rp || this.shutdownStarted) return;
+    if (rp.policy.isCircuitOpen()) {
+      // half-open：熔断刚结束允许一次尝试；若仍开着（其他源重试了）则再等。
+      this.scheduleReconnect(profileId);
+      return;
+    }
+    const ok = await this.forceReconnect(profileId);
+    if (ok) {
+      rp.policy.recordSuccess();
+      console.error(
+        `[socket-manager] profile '${profileId}': reconnect successful — backoff reset`,
+      );
+    } else if (!rp.reconnectPending) {
+      // forceReconnect 抛错路径已 onFailure 排下一次；这里覆盖"start() 成功但
+      // socket 未 active"或"熔断跳过"的静默失败。
+      this.onFailure(profileId, "reconnect not active");
+    }
+  }
+
+  private clearReconnectTimer(profileId: string): void {
+    const rp = this.profiles.get(profileId);
+    if (!rp) return;
+    if (rp.reconnectTimer) {
+      clearTimeout(rp.reconnectTimer);
+      rp.reconnectTimer = null;
+    }
+    rp.reconnectPending = false;
+  }
+
+  /**
+   * #148 最后兜底：某 profile 连续宕机超过 maxDownMs 仍未恢复 → true，
+   * gateway 据此 exit(1) 交给 watchdog 重启（新鲜进程可能走不同网络路径）。
+   */
+  shouldExitForWatchdog(maxDownMs: number): boolean {
+    const nowMs = Date.now();
+    for (const rp of this.profiles.values()) {
+      const f = rp.policy.firstFailureAt();
+      if (rp.policy.consecutiveFailures() > 0 && f > 0 && nowMs - f > maxDownMs) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Get the bot user ID for a profile. */

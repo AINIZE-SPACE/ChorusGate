@@ -49,14 +49,27 @@ const logLevel = (process.env.GATEWAY_LOG_LEVEL || "info") as
   | "error";
 const logger = createLogger({
   logFile: getLogFile(controlAgentId),
+  // #148: error 级额外写独立异常日志（带堆栈）。
+  errorFile: getErrorLogFile(controlAgentId),
   maxSize: Number.isFinite(logMaxSizeMb) && logMaxSizeMb > 0 ? logMaxSizeMb * 1024 * 1024 : undefined,
   keepDays: Number.isFinite(logKeepDays) && logKeepDays > 0 ? logKeepDays : undefined,
   level: logLevel,
 });
 // Route all console output through the rotating logger (module "daemon").
 redirectConsoleToLogger(logger);
+// #148 全局异常捕捉：unhandledRejection 记录后继续，uncaughtException 记录后 exit(1)。
+installGlobalErrorHandlers(logger);
 
 const profiles = bootstrap({ agentId, envFile: cliArgs.envFile });
+
+// #148 代理隔离：捕获 spawn 子进程要用的代理并剥离 daemon 自身代理 env。
+// 必须在 bootstrap() 之后执行，才能读到 profile .env 里的 GATEWAY_AGENT_PROXY。
+const agentProxy = daemonizeProxyEnv();
+if (agentProxy) {
+  logger.info("daemon", `agent CLI proxy injected (${agentProxy}) — Slack 直连`);
+} else {
+  logger.info("daemon", "daemon proxy env stripped — Slack 直连 (无 agent 代理)");
+}
 
 import { getWebClient } from "./slack-clients.js";
 import {
@@ -85,9 +98,11 @@ import {
   getPidFile,
   getStatusFile,
   getLogFile,
+  getErrorLogFile,
   type GatewayStatus,
 } from "./gateway-paths.js";
-import { createLogger, redirectConsoleToLogger } from "./logger.js";
+import { createLogger, redirectConsoleToLogger, installGlobalErrorHandlers } from "./logger.js";
+import { daemonizeProxyEnv } from "./providers/_spawn-helpers.js";
 import { LivenessMonitor } from "./liveness.js";
 import { writeFileSync, rmSync } from "node:fs";
 import type { StoredEvent } from "./types.js";
@@ -1231,6 +1246,23 @@ function startLivenessForDaemon(sm: SocketManager): void {
   const jumpMs = Number(process.env.GATEWAY_SUSPEND_JUMP_MS || 60_000);
   const probeMs = Number(process.env.GATEWAY_LIVENESS_PROBE_INTERVAL_MS || 60_000);
   const failLimit = Number(process.env.GATEWAY_LIVENESS_FAILURE_LIMIT || 3);
+  // #148: 熔断退避接管重连后，重连失败不再立刻 exit(1)；仅在持续宕机超过
+  // GATEWAY_RECONNECT_MAX_DOWN_MS 仍未恢复时退出交 watchdog 重启。
+  const maxDownMs = Number(
+    process.env.GATEWAY_RECONNECT_MAX_DOWN_MS || 600_000,
+  );
+
+  // 重连失败后的兜底：退避/熔断期间不 exit；持续宕机超时才 exit(1) 交 watchdog。
+  const exitIfDownTooLong = (reason: string): void => {
+    if (sm.shouldExitForWatchdog(
+      Number.isFinite(maxDownMs) && maxDownMs > 0 ? maxDownMs : 600_000,
+    )) {
+      logger.error("liveness", `${reason} — down too long, exiting for watchdog`);
+      process.exit(1);
+    } else {
+      logger.warn("liveness", `${reason} — backoff/circuit will retry`);
+    }
+  };
 
   const monitor = new LivenessMonitor(
     {
@@ -1249,20 +1281,14 @@ function startLivenessForDaemon(sm: SocketManager): void {
         if (!sm.anyConnected()) {
           logger.warn("liveness", "socket not connected after resume — forcing reconnect");
           void sm.forceReconnectAll().then((ok) => {
-            if (!ok) {
-              logger.error("liveness", "reconnect after suspend failed — exiting for watchdog");
-              process.exit(1);
-            }
+            if (!ok) exitIfDownTooLong("reconnect after suspend failed");
           });
         }
       },
       onZombieDetected: () => {
         logger.warn("liveness", "zombie socket — forcing reconnect");
         void sm.forceReconnectAll().then((ok) => {
-          if (!ok) {
-            logger.error("liveness", "forced reconnect failed — exiting for watchdog");
-            process.exit(1);
-          }
+          if (!ok) exitIfDownTooLong("forced reconnect failed");
         });
       },
       onUnrecoverable: () => {

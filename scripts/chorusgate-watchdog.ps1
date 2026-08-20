@@ -17,7 +17,10 @@
 # ============================================================
 param(
   [string]$Agent = "default",
-  [int]$StaleMs = 180000
+  [int]$StaleMs = 180000,
+  # #148: install 命令写入的绝对重启命令（如 "node E:\...\bin\chorusgate.mjs"）。
+  # 缺省回退 $env:CHORUSGATE_BIN，再回退 PATH 上的 "chorusgate"。
+  [string]$Bin = $env:CHORUSGATE_BIN
 )
 $ErrorActionPreference = "SilentlyContinue"
 
@@ -59,7 +62,7 @@ if (-not $alive) { $restart = $true }
 elseif ($ageMs -gt $StaleMs) { $restart = $true }
 
 if ($restart) {
-  $cmd = if ($env:CHORUSGATE_BIN) { $env:CHORUSGATE_BIN } else { "chorusgate" }
+  $cmd = if ($Bin) { $Bin } else { "chorusgate" }
   Write-Host "[watchdog] restarting agent '$Agent' (alive=$alive heartbeatAge=${ageMs}ms)"
   & $cmd restart --agent $Agent
 }

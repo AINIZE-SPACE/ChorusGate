@@ -20,6 +20,7 @@ import {
 import {
   ensureGatewayDir,
   getLogFile,
+  getErrorLogFile,
   getPidFile,
   getStatusFile,
   BIN_FILE,
@@ -291,11 +292,16 @@ export async function log(): Promise<void> {
       ? Math.floor(cliArgs.lines)
       : 50;
   const follow = cliArgs.follow || false;
-  const logFile = getLogFile(agentId);
+  // #148: --error 读独立异常日志 error.log（error 级 + 堆栈）。
+  const logFile = cliArgs.error
+    ? getErrorLogFile(agentId)
+    : getLogFile(agentId);
 
   if (!existsSync(logFile)) {
     console.error(
-      `no log file for agent '${agentId}' at ${logFile} — start the gateway first (chorusgate start --agent ${agentId})`
+      cliArgs.error
+        ? `no error log for agent '${agentId}' at ${logFile} — no errors logged yet`
+        : `no log file for agent '${agentId}' at ${logFile} — start the gateway first (chorusgate start --agent ${agentId})`
     );
     process.exitCode = 1;
     return;
@@ -377,6 +383,10 @@ export function help(): void {
       "  log             print the daemon log (default: last 50 lines)",
       "                  --lines N / -n N   print last N lines",
       "                  --follow / -f      follow new lines (tail -f)",
+      "                  --error            print the standalone error log (error.log)",
+      "  watchdog install   register a scheduled task / systemd timer that restarts",
+      "                     a dead or stale daemon (every 5 min)",
+      "  watchdog uninstall remove the scheduled task / systemd timer",
       "  config migrate  migrate project .env → ~/.chorusgate/<id>/.env",
       "  config init     initialize a missing agent profile",
       "",

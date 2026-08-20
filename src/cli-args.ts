@@ -38,6 +38,8 @@ export interface CliArgs {
   lines: number | undefined;
   /** `log` command: follow new lines as they arrive (tail -f). */
   follow: boolean;
+  /** `log` command: print the standalone error log (error.log, #148). */
+  error: boolean;
 }
 
 /**
@@ -111,6 +113,7 @@ export function parseCliArgs(argv: string[] = process.argv): CliArgs {
   let initialize = false;
   let lines: number | undefined;
   let follow = false;
+  let error = false;
 
   for (let i = 2; i < argv.length; i++) {
     const arg = argv[i];
@@ -138,7 +141,12 @@ export function parseCliArgs(argv: string[] = process.argv): CliArgs {
     // log command: --follow / -f (tail -f)
     else if (arg === "--follow" || arg === "-f") {
       follow = true;
-    } else if (arg === "--init") {
+    }
+    // log command: --error (standalone error log)
+    else if (arg === "--error") {
+      error = true;
+    }
+    else if (arg === "--init") {
       initialize = true;
     }
   }
@@ -162,5 +170,5 @@ export function parseCliArgs(argv: string[] = process.argv): CliArgs {
     validateEnvFilePath(envFile);
   }
 
-  return { agentId, envFile, initialize, lines, follow };
+  return { agentId, envFile, initialize, lines, follow, error };
 }
