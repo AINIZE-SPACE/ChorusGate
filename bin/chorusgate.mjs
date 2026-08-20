@@ -52,6 +52,15 @@ if (cmd === "run") {
     console.error("  --force          overwrite existing target (with backup)");
     process.exitCode = 2;
   }
+} else if (cmd === "install" || cmd === "uninstall") {
+  // #147: 顶层 install/uninstall（spec §4 + ST-NR-106 口径）—
+  // 委托 watchdog 模块（与 `watchdog install|uninstall` 等价）。
+  const wd = await tsImport("../src/watchdog.ts", import.meta.url);
+  if (cmd === "install") {
+    await wd.watchdogInstall();
+  } else {
+    await wd.watchdogUninstall();
+  }
 } else if (cmd === "watchdog") {
   const sub = (process.argv[3] || "").toLowerCase();
   const wd = await tsImport("../src/watchdog.ts", import.meta.url);

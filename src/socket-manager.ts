@@ -14,6 +14,7 @@
 // ============================================================
 
 import { SocketModeClient, LogLevel } from "@slack/socket-mode";
+import type http from "node:http";
 import { eventStore } from "./event-store.js";
 import {
   createSlackClientSet,
@@ -103,11 +104,24 @@ export class SocketManager {
   /** #148: stopAll 后置位，停止一切自动重连调度。 */
   private shutdownStarted = false;
 
+  /** #147: Slack transport 的 http.Agent（proxy 模式由 gateway 注入；直连为 undefined）。 */
+  private slackAgent: http.Agent | undefined;
+
   private onEvent: EventCallback | null = null;
   private onSlash: SlashCallback | null = null;
   private onBlockAction: BlockActionCallback | null = null;
 
   // ---- configuration --------------------------------------------------------
+
+  /** #147: 设置 Slack transport 代理 agent（CHORUSGATE_SLACK_TRANSPORT=proxy 时）。 */
+  setSlackAgent(agent: http.Agent | undefined): void {
+    this.slackAgent = agent;
+  }
+
+  /** #147: 读取 Slack transport 代理 agent（legacy/MCP 路径共用）。 */
+  getSlackAgent(): http.Agent | undefined {
+    return this.slackAgent;
+  }
 
   /** Set the global event callback (called for all profiles). */
   setEventCallback(cb: EventCallback): void {
@@ -138,6 +152,8 @@ export class SocketManager {
     const clients = createSlackClientSet({
       botToken: config.botToken,
       appToken: config.appToken,
+      // #147: proxy 模式时 WebClient（auth.test 等）走代理。
+      agent: this.slackAgent,
     });
 
     // Resolve our own bot user ID to filter self-messages
@@ -160,6 +176,8 @@ export class SocketManager {
       logLevel: LogLevel.INFO,
       // #148: 关掉库内建线性重连（5–10s 风暴），重连统一走 ReconnectPolicy。
       autoReconnectEnabled: false,
+      // #147: proxy 模式时经 clientOptions.agent 透传 WebClient + ws 两腿。
+      clientOptions: this.slackAgent ? { agent: this.slackAgent } : undefined,
     });
 
     const rp: RunningProfile = {
@@ -695,6 +713,10 @@ export async function startSocketMode(
   _legacySocket = new SocketModeClient({
     appToken,
     logLevel: LogLevel.INFO,
+    // #147: proxy 模式时与 SocketManager 共用同一 agent（直连为 undefined）。
+    clientOptions: getSocketManager().getSlackAgent()
+      ? { agent: getSocketManager().getSlackAgent() }
+      : undefined,
   });
 
   _legacySocket.on("connecting", () => {

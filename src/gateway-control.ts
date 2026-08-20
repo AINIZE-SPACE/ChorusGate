@@ -384,6 +384,9 @@ export function help(): void {
       "                  --lines N / -n N   print last N lines",
       "                  --follow / -f      follow new lines (tail -f)",
       "                  --error            print the standalone error log (error.log)",
+      "  install         register a watchdog scheduled task / systemd timer that",
+      "                  restarts a dead or stale daemon (alias: watchdog install)",
+      "  uninstall       remove the watchdog task (alias: watchdog uninstall)",
       "  watchdog install   register a scheduled task / systemd timer that restarts",
       "                     a dead or stale daemon (every 5 min)",
       "  watchdog uninstall remove the scheduled task / systemd timer",
@@ -394,6 +397,11 @@ export function help(): void {
       "  --agent <id>     load config from ~/.chorusgate/<id>/.env (default: default)",
       "  --env-file <path> load explicit .env file (mutually exclusive with --agent)",
       "  --init           initialize a missing --agent profile automatically",
+      "",
+      "Transport env (#147):",
+      "  CHORUSGATE_SLACK_TRANSPORT  direct|proxy|inherit  Slack 连接模式 (默认 direct)",
+      "  CHORUSGATE_AGENT_PROXY      direct|proxy|inherit  agent CLI 子进程代理模式 (默认 inherit)",
+      "  CHORUSGATE_PROXY_URL        <url>   proxy 模式的代理地址 (回退 GATEWAY_AGENT_PROXY)",
     ].join("\n")
   );
 }

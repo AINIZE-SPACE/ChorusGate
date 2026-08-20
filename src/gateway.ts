@@ -62,13 +62,25 @@ installGlobalErrorHandlers(logger);
 
 const profiles = bootstrap({ agentId, envFile: cliArgs.envFile });
 
-// #148 代理隔离：捕获 spawn 子进程要用的代理并剥离 daemon 自身代理 env。
-// 必须在 bootstrap() 之后执行，才能读到 profile .env 里的 GATEWAY_AGENT_PROXY。
-const agentProxy = daemonizeProxyEnv();
-if (agentProxy) {
-  logger.info("daemon", `agent CLI proxy injected (${agentProxy}) — Slack 直连`);
-} else {
-  logger.info("daemon", "daemon proxy env stripped — Slack 直连 (无 agent 代理)");
+// #147 传输配置：Slack 直连（CHORUSGATE_SLACK_TRANSPORT 默认 direct）+ agent
+// 子进程按 CHORUSGATE_AGENT_PROXY 构造 env。必须在 bootstrap() 之后执行，
+// 才能读到 profile .env 里的配置。不改 process.env —— Slack 直连靠 @slack
+// SDK 本身不走代理；子进程 env 由 buildSpawnEnv 按模式显式构造（transport.ts）。
+const slackCfg = slackTransportConfig();
+const agentCfg = agentTransportConfig();
+const slackAgent = buildSlackAgent(slackCfg);
+getSocketManager().setSlackAgent(slackAgent);
+logger.info(
+  "daemon",
+  `transport: ${describeTransport("slack", slackCfg)}; ` +
+    describeTransport("agent", agentCfg),
+);
+if (slackCfg.mode === "proxy" && !slackAgent) {
+  logger.warn(
+    "daemon",
+    "CHORUSGATE_SLACK_TRANSPORT=proxy 但无法构造代理 agent " +
+      "（https-proxy-agent 缺失或无代理 URL）— 回退 Slack 直连",
+  );
 }
 
 import { getWebClient } from "./slack-clients.js";
@@ -102,7 +114,12 @@ import {
   type GatewayStatus,
 } from "./gateway-paths.js";
 import { createLogger, redirectConsoleToLogger, installGlobalErrorHandlers } from "./logger.js";
-import { daemonizeProxyEnv } from "./providers/_spawn-helpers.js";
+import {
+  slackTransportConfig,
+  agentTransportConfig,
+  buildSlackAgent,
+  describeTransport,
+} from "./transport.js";
 import { LivenessMonitor } from "./liveness.js";
 import { writeFileSync, rmSync } from "node:fs";
 import type { StoredEvent } from "./types.js";

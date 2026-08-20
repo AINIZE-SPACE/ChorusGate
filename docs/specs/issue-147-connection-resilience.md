@@ -1,11 +1,11 @@
 # Spec: 连接健壮性加固 — 代理隔离 + 全局异常兜底 + 重连退避/熔断 + watchdog 部署
 
-> **Issue**: #148（Zederer 立项） | **Epic**: - | **合并 issue**: 2026-08-20 6am claude/codex 双 daemon 挂掉复盘
+> **Issue**: #147（Zederer 立项，P1 · area:reliability） | **Epic**: - | **合并 issue**: 2026-08-20 6am claude/codex 双 daemon 挂掉复盘；#148 为同需求重复 issue（待合并）
 > **Type**: Bug / Enhancement | **Priority**: P1（daemon 无自愈，网络抖动即双挂）
 > **Analyst**: 小克 (U0B8VHLHJAX)
 > **Date**: 2026-08-20
 > **Branch**: `v5/logging-liveness`
-> **Status**: 📋 已立项，待开发
+> **Status**: ✅ 开发完成（`3824ae0` + 传输契约对齐提交）→ 待 SIT（小马）→ 验收关单（小扣）
 
 ## 1. 问题分析
 
@@ -32,18 +32,25 @@
 2. **异常日志**：增加异常日志 + 堆栈信息，可写独立异常日志文件。
 3. **全局异常捕捉**：`unhandledRejection` / `uncaughtException` 兜底，不再静默崩溃。
 4. **重连退避 + 熔断**：指数退避 + 随机抖动 + 熔断，避免网络中断时重连风暴。
-5. **watchdog 部署**：`chorusgate watchdog install/uninstall` 注册系统服务或计划任务。
+5. **watchdog 部署**：`chorusgate install/uninstall`（及 `watchdog install/uninstall` 别名）注册系统服务或计划任务。
 
 ## 3. 设计
 
-### 3.1 代理隔离（daemon 直连 + spawn 注入）
+### 3.1 连接路径隔离（Slack 直连 + agent 可选代理）
 
-- 新增 `src/providers/_spawn-helpers.ts` 内 `daemonizeProxyEnv()`：
-  - 启动时读取代理（优先级：`GATEWAY_AGENT_PROXY` > 继承的 `http_proxy/https_proxy/all_proxy` 及大写变体）。
-  - 将代理值保存为模块级 `capturedAgentProxy`，然后从 `process.env` **删除全部代理变量** → daemon 自身出站（含未来任何 HTTP）直连。
-  - `buildSpawnEnv()` 扩展：spawn 子进程时把 `capturedAgentProxy` 显式注入 `http_proxy/https_proxy/all_proxy/HTTP_PROXY/HTTPS_PROXY/ALL_PROXY` → 子进程（claude/codex）照常走代理。
-  - 兼容性：daemon 未调用 `daemonizeProxyEnv()`（如测试/MCP 路径）时行为不变（继承 env）。
-- 配置：`GATEWAY_AGENT_PROXY`（可选）。未设置时回退到启动时捕获的继承代理 → 现有 go.ps1 部署零改动迁移。
+- 新增 `src/transport.ts`，统一传输模式解析（对齐 #147 spec §1 配置名）：
+  - `CHORUSGATE_SLACK_TRANSPORT=direct|proxy|inherit`，**默认 direct**：
+    - direct：Slack Web API + Socket Mode 直连。@slack/web-api v7 `proxy:false`、socket-mode 未配 proxy agent、`ws` 不读 `HTTP_PROXY` —— **天然不走代理，无需改 process.env**。
+    - proxy：经 `CHORUSGATE_PROXY_URL` 走代理。用 `https-proxy-agent` 构造 http.Agent，经 `SocketModeClient.clientOptions.agent` 透传（源码确认该 agent 同时用于 WebClient 的 auth.test 与 WebSocket 的 `httpAgent` 两腿）。
+    - inherit：不干预（对 Slack 实际等同 direct，保留显式选项语义）。
+  - `CHORUSGATE_AGENT_PROXY=direct|proxy|inherit`，**默认 inherit**（子进程继承宿主代理，go.ps1 现状零改动迁移）：
+    - direct：spawn 子进程 env 剥离全部代理变量（claude/codex 直连）。
+    - proxy：spawn 子进程 env 注入 `CHORUSGATE_PROXY_URL`。
+    - inherit：子进程 env 保持继承的代理变量。
+  - `CHORUSGATE_PROXY_URL`：proxy 模式的代理地址。优先级：`CHORUSGATE_PROXY_URL` > 旧配置 `GATEWAY_AGENT_PROXY`（设了即视为 agent proxy 模式）> 继承的 `http_proxy/https_proxy/all_proxy`。
+- **关键约束（spec §1 + 小马 SIT D1-5）：不修改全局 process.env**。隔离只作用在 spawn 子进程 env（`buildAgentSpawnEnv` 返回值）与 Slack SDK 的 agent 选项，daemon 自身 process.env 不动 → Slack transport 与 provider 子进程互不污染。
+- `src/providers/_spawn-helpers.ts` `buildSpawnEnv()`：按 `agentTransportConfig()` 构造子进程 env + 注入 per-profile token。
+- `src/gateway.ts`：bootstrap 后解析两套 transport 配置，`getSocketManager().setSlackAgent(buildSlackAgent(slackCfg))`；日志只记 mode + 代理 host（不露认证信息）。
 
 ### 3.2 异常日志 + 全局异常捕捉
 
@@ -53,7 +60,7 @@
     - `unhandledRejection` → 记录堆栈，**继续运行**（6am 崩溃主因）。
     - `uncaughtException` → 记录堆栈，`process.exit(1)`（交给 watchdog 重启；不可安全继续）。
 - `src/gateway-paths.ts`：新增 `getErrorLogFile(agentId)` → `~/.chorusgate/<agent>/error.log`。
-- `gateway.ts`：logger 创建后立即调用 `daemonizeProxyEnv()` + `installGlobalErrorHandlers(logger)`。
+- `gateway.ts`：bootstrap 后调用 `installGlobalErrorHandlers(logger)`；transport 接线见 §3.1（`slackTransportConfig()`/`agentTransportConfig()`/`setSlackAgent`，**不修改全局 process.env**）。
 - CLI：`chorusgate log --error` 读取独立异常日志。
 
 ### 3.3 重连指数退避 + 抖动 + 熔断
@@ -70,22 +77,23 @@
 
 ### 3.4 watchdog install/uninstall
 
-- 新增 `chorusgate watchdog install [--agent <id>]` / `chorusgate watchdog uninstall [--agent <id>]`。
-- Windows：`schtasks /Create /TN chorusgate-watchdog-<agent> /TR "powershell -NoProfile -ExecutionPolicy Bypass -File <abs watchdog.ps1> -Agent <agent>" /SC MINUTE /MO 5 /RL HIGHEST /F`；卸载 `/Delete /TN ... /F`。
+- 顶层 `chorusgate install [--agent <id>]` / `chorusgate uninstall [--agent <id>]`（spec §4 + ST-NR-106 口径），`chorusgate watchdog install|uninstall` 为等价子命令别名。
+- Windows：`schtasks /Create /TN chorusgate-watchdog-<agent> /TR "powershell -NoProfile -ExecutionPolicy Bypass -File <abs watchdog.ps1> -Agent <agent> -Bin \"<node> <abs bin>\"" /SC MINUTE /MO 5 /RL HIGHEST /F`；卸载 `/Delete /TN ... /F`（任务不存在视为幂等成功）。
 - Linux：生成 systemd user timer（`~/.config/systemd/user/`）+ `systemctl --user enable --now`。
-- 复用现有 `scripts/chorusgate-watchdog.ps1`；安装时把 `CHORUSGATE_BIN` 解析为绝对路径写入任务，避免 schtasks 环境 PATH 缺失。
+- 复用现有 `scripts/chorusgate-watchdog.ps1`；安装时把重启命令解析为绝对路径写入任务，避免 schtasks 环境 PATH 缺失。
+- 安全：install/uninstall 只动系统任务，**绝不删除 profile/.env/token**（ST-NR-106/107 断言）。
 
 ## 4. 验收（AC）
 
-- AC1 代理隔离：daemon 启动后自身 `process.env` 无 `http_proxy` 等代理变量；spawn 子进程 env 含代理值（`GATEWAY_AGENT_PROXY` 或继承捕获值）。
+- AC1 代理隔离：`CHORUSGATE_SLACK_TRANSPORT=direct`（默认）时父进程存在 `HTTP_PROXY/HTTPS_PROXY` 也能正常连 Slack；spawn 子进程 env 按 `CHORUSGATE_AGENT_PROXY` 构造（direct 剥离 / proxy 注入 / inherit 继承）；**不修改全局 process.env**（D1-5 断言）。
 - AC2 异常兜底：人为抛 `unhandledRejection` 不崩 daemon 且有堆栈日志进 error.log；`uncaughtException` 记录后 exit(1)。
 - AC3 退避熔断：连续断连后重连间隔指数增长带抖动；超过阈值后熔断打开不再硬连；冷却后自愈。
-- AC4 watchdog：`install` 后计划任务存在且脚本可执行；模拟 daemon 死亡后 5 分钟内自动重启；`uninstall` 移除任务。
-- AC5 回归：`npx tsc --noEmit` 通过、`npm test` 全绿、真实 CLI 验证 `start/status/log --error/watchdog install`。
+- AC4 watchdog：`install` 后计划任务存在且脚本可执行；模拟 daemon 死亡后 5 分钟内自动重启；`uninstall` 移除任务且**不删 profile/token**。
+- AC5 回归：`npx tsc --noEmit` 通过、`npm test` 全绿、真实 CLI 验证 `start/status/log --error/install/uninstall`。
 
 ## 5. 测试计划
 
+- `tests/transport.test.ts`：`parseTransportMode` 三态/非法抛错、slack/agent 配置解析、`buildAgentSpawnEnv` direct/proxy/inherit、**无全局 env 变更断言**、`buildSlackAgent` proxy 模式。
 - `tests/reconnect-policy.test.ts`：假时钟驱动退避序列、熔断打开/冷却/自愈。
-- `tests/logger-error-file.test.ts`：error 级写独立文件、轮转、`installGlobalErrorHandlers` 不崩进程。
-- `tests/_spawn-helpers.test.ts`：`daemonizeProxyEnv` 删除+捕获+注入。
-- CLI 实测：`watchdog install --agent claude` / `uninstall`、`log --error`。
+- `tests/logger-error-file.test.ts`：error 级写独立文件、轮转、`installGlobalErrorHandlers` 不崩进程（子进程隔离验证）。
+- CLI 实测：`install --agent claude`（schtasks 验证）→ `uninstall`、`log --error`。
