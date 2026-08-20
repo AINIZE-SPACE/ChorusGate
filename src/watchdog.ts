@@ -153,7 +153,7 @@ function uninstallLinux(agentId: string): number {
   const unitDir = join(homedir(), ".config", "systemd", "user");
   rmSync(join(unitDir, `${name}.service`), { force: true });
   rmSync(join(unitDir, `${name}.timer`), { force: true });
-  if (r.status !== 0 && /Unit .* not loaded|not found/i.test((r.stderr || "") + (r.stdout || ""))) {
+  if (r.status !== 0 && /Unit .* does not exist|not loaded|not found/i.test((r.stderr || "") + (r.stdout || ""))) {
     console.error(`✔ watchdog '${name}' not found — nothing to uninstall`);
     return 0;
   }
