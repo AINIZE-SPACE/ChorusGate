@@ -64,6 +64,14 @@ elseif ($ageMs -gt $StaleMs) { $restart = $true }
 if ($restart) {
   $cmd = if ($Bin) { $Bin } else { "chorusgate" }
   Write-Host "[watchdog] restarting agent '$Agent' (alive=$alive heartbeatAge=${ageMs}ms)"
-  & $cmd restart --agent $Agent
+  # #148-D2: install 写入的 -Bin 是 "node <abs mjs>"（含空格）—— `& $cmd` 会把整串
+  # 当命令名静默失败，daemon 永远拉不起来（$ErrorActionPreference=SilentlyContinue 掩盖）。
+  # 在第一个空格拆成 exe + 脚本路径，再调用。
+  $sep = $cmd.IndexOf(' ')
+  if ($sep -gt 0) {
+    & $cmd.Substring(0, $sep) $cmd.Substring($sep + 1) restart --agent $Agent
+  } else {
+    & $cmd restart --agent $Agent
+  }
 }
 exit 0

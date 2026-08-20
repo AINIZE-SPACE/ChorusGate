@@ -524,7 +524,11 @@ export class SocketManager {
       rp.reconnectTimer = null;
       void this.doReconnect(profileId);
     }, waitMs);
-    rp.reconnectTimer.unref?.();
+    // #148-D3: 必须 ref。若 unref，socket 断开后 daemon 内所有句柄均 unref
+    // （liveness tick/probe、status/evict timer、本重连 timer），事件循环会先于
+    // 重连定时器耗尽 → daemon 静默 exit(0)（无异常无日志），退避/熔断全部成死代码。
+    // ref 后进程存活到重连尝试执行；优雅关闭走 SIGTERM 显式退出，不受影响。
+    rp.reconnectTimer.ref?.();
   }
 
   /** 执行一次排定的重连；成功复位策略，失败继续排下一次。 */

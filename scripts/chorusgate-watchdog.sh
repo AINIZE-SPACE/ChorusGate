@@ -55,6 +55,14 @@ if [ "$ALIVE" -eq 1 ] && [ "$AGE_MS" -gt "$STALE_MS" ]; then RESTART=1; fi
 if [ "$RESTART" -eq 1 ]; then
   CMD="${CHORUSGATE_BIN:-chorusgate}"
   echo "[watchdog] restarting agent '$AGENT' (alive=$ALIVE heartbeatAge=${AGE_MS}ms)"
-  "$CMD" restart --agent "$AGENT"
+  # #148-D2: CHORUSGATE_BIN 是 "node <abs mjs>"（含空格）—— "$CMD" 整体引号会把整串
+  # 当命令名静默失败，daemon 永远拉不起来。在第一个空格拆成 exe + 脚本路径再调用。
+  EXE="${CMD%% *}"
+  if [ "$EXE" = "$CMD" ]; then
+    "$EXE" restart --agent "$AGENT"
+  else
+    REST="${CMD#* }"
+    "$EXE" "$REST" restart --agent "$AGENT"
+  fi
 fi
 exit 0
