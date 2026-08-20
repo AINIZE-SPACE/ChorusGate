@@ -25,6 +25,10 @@ export interface ProfileConfig {
   /** Slack-facing slash-command prefix for this profile. Defaults to the
    *  profile id (e.g. "cc" → /cc_sessions).  MUST be unique per workspace. */
   commandPrefix?: string;
+  /** Our own Slack bot user ID (resolved at runtime from `auth.test()` by
+   *  socket-manager). Used for self-reply-loop prevention — NOT a hardcoded
+   *  list of teammate bots. */
+  botUserId?: string;
 }
 
 /**

@@ -24,6 +24,11 @@ import {
   type MessageHandlerHooks,
 } from "./message-handlers.js";
 import { parseUser } from "./user-identity.js";
+import {
+  shouldReply as decideShouldReply,
+  cleanText,
+  type ShouldReplyContext,
+} from "./shouldReply.js";
 
 // Windows requires an elevated process (see require-admin.ts). Enforced here
 // as defense-in-depth — the CLI dispatcher also guards, but `npm run gateway`
@@ -209,100 +214,34 @@ function sessionIdentity(
   );
 }
 
-/** Bot user IDs — skip messages from these (self-reply loop prevention). */
-const BOT_USER_IDS = new Set([
-  "U0B8VHLHJAX",  // 小克 (CC)
-  "U0BAGFVD8VB",  // 小扣 (CX)
-]);
-
-/** Decide whether a stored event warrants an auto-reply.
- *
- * #128: Multi-level decision pipeline:
- *   Level 1 — hard filters (subtype, bot, empty)
- *   Level 2 — app_mention + DM (existing)
- *   Level 3 — Thread context (name match, parent-is-bot)
- *   Level 4 — LLM judgment (optional, env-gated)
+/** Our own Slack bot user ID for a profile (resolved from auth.test by
+ *  socket-manager; undefined until profiles start). Used only to prevent
+ *  self-reply loops — deliberately NOT a hardcoded list of teammate bots
+ *  (colleagues join/leave; a fixed list would break with each roster change).
  */
-async function shouldReply(
-  event: StoredEvent,
-  profileId: string,
-): Promise<boolean> {
-  // Level 1: Hard filters
-  if (event.subtype) return false;
-  if (!event.user || BOT_USER_IDS.has(event.user)) return false;
-  if (!cleanText(event.text || "")) return false;
-
-  // Level 2: Explicit mentions + DM
-  if (event.type === "app_mention") return true;
-  if (event.type === "message") {
-    const channelType = (event.raw as Record<string, unknown> | undefined)
-      ?.channel_type as string | undefined;
-    if (channelType === "im") return true;
-  }
-
-  // Level 3: Thread context smart reply
-  if (process.env.GATEWAY_THREAD_SMART_REPLY !== "0") {
-    const profile = profileMap.get(profileId);
-    if (!profile) return false;
-
-    const triggers = parseProfileTriggers(profileId, "unknown");
-    const text = event.text || "";
-
-    // 3A: Name match — user mentioned our display name or aliases
-    if (mentionsMyName(text, triggers)) return true;
-
-    // 3B: Thread parent is our own message (user replied to us)
-    const threadTs = event.thread_ts;
-    if (threadTs && threadTs !== event.ts) {
-      if (await isThreadParentBot(threadTs, event.channel, profileId)) {
-        return true;
-      }
-
-      // 3C: No other bot was mentioned in this message, and it's in a
-      //     thread we're participating in → likely relevant
-      if (!mentionsOtherBot(text, profileId)) {
-        // Check if this thread has one of our sessions (meaning we're active in it)
-        if (isActiveInThread(event.channel, threadTs, profileId)) {
-          return true;
-        }
-      }
-    }
-
-    // Level 4: LLM judgment (optional, expensive — default off)
-    if (process.env.GATEWAY_LLM_REPLY_JUDGE === "1") {
-      return await llmShouldReply(event, triggers);
-    }
-  }
-
-  return false;
+function profileBotUserId(profileId: string): string | undefined {
+  return profileMap.get(profileId)?.botUserId;
 }
 
-/** Check if text contains the bot's display name or aliases. */
-function mentionsMyName(text: string, triggers: ProfileTriggers): boolean {
-  const lower = text.toLowerCase();
-  // Explicit Slack mention
-  if (triggers.botUserId !== "unknown" && lower.includes(`<@${triggers.botUserId}>`)) {
-    return true;
-  }
-  // Name / alias match
-  for (const word of [triggers.displayName, ...triggers.aliases]) {
-    if (word && lower.includes(word.toLowerCase())) return true;
-  }
-  return false;
-}
-
-/** Check if text mentions any *other* bot (not our profile). */
-function mentionsOtherBot(text: string, myProfileId: string): boolean {
-  // Find bot user IDs that aren't ours
-  for (const botId of BOT_USER_IDS) {
-    if (text.includes(`<@${botId}>`)) {
-      // Check if this is our own bot ID — if so, not "other"
-      // (We can't determine exact mapping without profile triggers,
-      //  so we're conservative: if it mentions ANY bot ID, skip.)
-      return true;
-    }
-  }
-  return false;
+/** Build the shouldReply decision context for a profile from gateway state.
+ *  The decision pipeline itself lives in src/shouldReply.ts (testable without
+ *  gateway side effects); this adapter supplies its runtime hooks.
+ */
+function buildShouldReplyContext(profileId: string): ShouldReplyContext {
+  const profile = profileMap.get(profileId);
+  const myBotUserId = profileBotUserId(profileId);
+  return {
+    myBotUserId,
+    // No profile → Level 3/4 are skipped (matches the old `if (!profile)` gate).
+    triggers: profile
+      ? parseProfileTriggers(profileId, myBotUserId ?? "unknown")
+      : undefined,
+    isThreadParentBot: (threadTs, channel) =>
+      isThreadParentBot(threadTs, channel, profileId),
+    isActiveInThread: (channel, threadTs) =>
+      isActiveInThread(channel, threadTs, profileId),
+    llmShouldReply: (event, triggers) => llmShouldReply(event, triggers),
+  };
 }
 
 /** Cache for thread parent checks (ttl 30s). */
@@ -330,8 +269,9 @@ async function isThreadParentBot(
     const parent = res.messages?.[0] as { user?: string } | undefined;
     const user = parent?.user || "unknown";
     threadParentCache.set(cacheKey, { user, ts: Date.now() });
-    // Check if parent is either of our bot user IDs
-    return BOT_USER_IDS.has(user);
+    // Parent is our own bot's message → user is replying to us.
+    const myBotUserId = profileBotUserId(profileId);
+    return Boolean(myBotUserId) && user === myBotUserId;
   } catch {
     threadParentCache.set(cacheKey, { user: "unknown", ts: Date.now() });
     return false;
@@ -390,11 +330,6 @@ async function llmShouldReply(
 // ============================================================
 // Prompt construction
 // ============================================================
-
-/** Strip the leading <@BOTID> mention from text for a cleaner prompt. */
-function cleanText(text: string): string {
-  return text.replace(/<@[A-Z0-9]+>/g, "").trim();
-}
 
 /**
  * Build the prompt sent to `claude -p`.
@@ -599,7 +534,7 @@ async function onEvent(event: StoredEvent, profileId: string): Promise<void> {
     profileId,
   );
 
-  if (!(await shouldReply(event, profileId))) {
+  if (!(await decideShouldReply(event, buildShouldReplyContext(profileId)))) {
     eventStore.markHandled(event.id);
     return;
   }
