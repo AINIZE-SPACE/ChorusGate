@@ -18,6 +18,12 @@ import type { ProfileConfig, ProfileTriggers } from "./profile-config.js";
 import { parseProfileTriggers } from "./profile-config.js";
 import { parseCliArgs } from "./cli-args.js";
 import { requireWindowsAdmin } from "./require-admin.js";
+import {
+  defaultMessageHandlerHooks,
+  dispatchMessageHandler,
+  type MessageHandlerHooks,
+} from "./message-handlers.js";
+import { parseUser } from "./user-identity.js";
 
 // Windows requires an elevated process (see require-admin.ts). Enforced here
 // as defense-in-depth — the CLI dispatcher also guards, but `npm run gateway`
@@ -153,6 +159,18 @@ function profileProvider(profileId: string): string {
 // ============================================================
 // Reply decision
 // ============================================================
+
+/**
+ * #144: bot/human message handler hooks. Defaults to structured
+ * logging; external callers may override to attach custom logic
+ * (e.g. special notifications) for bot-to-bot / human messages.
+ */
+let messageHandlerHooks: MessageHandlerHooks = defaultMessageHandlerHooks;
+
+/** Override the bot/human message handlers (e.g. in tests or by a host). */
+export function setMessageHandlerHooks(hooks: MessageHandlerHooks): void {
+  messageHandlerHooks = hooks;
+}
 
 /**
  * Compute the session identity for a channel+thread+profile combination.
@@ -567,6 +585,20 @@ function onSlash(slashCmd: SlashCommand): void {
 
 /** Entry point: enqueue an event onto its scope's serial chain. */
 async function onEvent(event: StoredEvent, profileId: string): Promise<void> {
+  // #144: dispatch to the bot/human message handlers (custom logic e.g.
+  // special notifications) for every event that reaches the gateway —
+  // including ones shouldReply will reject, so bot/human traffic is
+  // tracked regardless of whether we reply. Gated by
+  // GATEWAY_BOT_MESSAGE_HANDLING=0. The raw payload re-parses the same
+  // identity socket-manager already stored; parseUser is cheap and keeps
+  // this call site self-contained.
+  dispatchMessageHandler(
+    messageHandlerHooks,
+    event,
+    parseUser(event.raw),
+    profileId,
+  );
+
   if (!(await shouldReply(event, profileId))) {
     eventStore.markHandled(event.id);
     return;

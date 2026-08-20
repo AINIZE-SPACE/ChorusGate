@@ -26,6 +26,7 @@ import {
   ReconnectPolicy,
   type ReconnectPolicyConfig,
 } from "./reconnect-policy.js";
+import { parseUser } from "./user-identity.js";
 
 // ---- reconnect policy config (#148) ------------------------------------------
 // 读取 GATEWAY_RECONNECT_* / GATEWAY_CIRCUIT_* 环境变量；缺省即默认值。
@@ -595,13 +596,19 @@ export class SocketManager {
     try {
       const evt = rawEvent as Record<string, unknown>;
       const item = evt.item as Record<string, unknown> | undefined;
+      // #144: parse author identity (USER vs BOT) so bot-to-bot messages
+      // retain the fact they came from a bot.
+      const parsed = parseUser(rawEvent);
 
       const stored = eventStore.push({
         type,
         subtype: evt.subtype as string | undefined,
         channel:
           (evt.channel as string) || (item?.channel as string) || "",
-        user: (evt.user as string) || "",
+        user: parsed.user_id || "",
+        user_type: parsed.user_type,
+        bot_id: parsed.bot_id,
+        is_bot: parsed.is_bot,
         text: (evt.text as string) || "",
         ts: (evt.ts as string) || (evt.event_ts as string) || "",
         thread_ts: evt.thread_ts as string | undefined,
@@ -750,12 +757,17 @@ export async function startSocketMode(
   const pushEvent = (type: SlackEventType, rawEvent: unknown): StoredEvent => {
     const evt = rawEvent as Record<string, unknown>;
     const item = evt.item as Record<string, unknown> | undefined;
+    // #144: same USER vs BOT identity parse as handleSlackEvent above.
+    const parsed = parseUser(rawEvent);
     return eventStore.push({
       type,
       subtype: evt.subtype as string | undefined,
       channel:
         (evt.channel as string) || (item?.channel as string) || "",
-      user: (evt.user as string) || "",
+      user: parsed.user_id || "",
+      user_type: parsed.user_type,
+      bot_id: parsed.bot_id,
+      is_bot: parsed.is_bot,
       text: (evt.text as string) || "",
       ts: (evt.ts as string) || (evt.event_ts as string) || "",
       thread_ts: evt.thread_ts as string | undefined,
