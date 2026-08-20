@@ -64,21 +64,26 @@ test("ST-PROV-002: generateReply({providerId:claude-stream}) spawns stream-json"
 // ---- ST-PROV-003: codex provider ----
 test("ST-PROV-003: generateReply({providerId:codex}) spawns codex", async () => {
   const { generateReply } = await import("../src/reply-engine.js");
+  const oldBin = process.env.CODEX_BIN;
+  process.env.CODEX_BIN = process.execPath;
+  try {
+    let capturedArgs: string[] = [];
 
-  let capturedArgs: string[] = [];
+    await generateReply("hello", {
+      providerId: "codex",
+      cwd: __dirname,
+      timeoutMs: 5000,
+      onSpawn(child: ChildProcess) {
+        capturedArgs = child.spawnargs ?? [];
+      },
+    });
 
-  await generateReply("hello", {
-    providerId: "codex",
-    cwd: __dirname,
-    timeoutMs: 5000,
-    onSpawn(child: ChildProcess) {
-      capturedArgs = child.spawnargs ?? [];
-    },
-  });
-
-  const argsStr = capturedArgs.join(" ");
-  assert.match(argsStr, /codex/i, "spawnargs should contain codex binary");
-  assert.match(argsStr, /--json/, "codex should be called with --json flag");
+    const argsStr = capturedArgs.join(" ");
+    assert.match(argsStr, /--json/, "codex provider should pass the --json flag");
+  } finally {
+    if (oldBin === undefined) delete process.env.CODEX_BIN;
+    else process.env.CODEX_BIN = oldBin;
+  }
 });
 
 // ---- ST-PROV-004: default + legacy mode ----

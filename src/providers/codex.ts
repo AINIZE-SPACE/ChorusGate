@@ -13,10 +13,11 @@
 // 跟踪: [#23](https://github.com/AINIZE-SPACE/chorusgate/issues/23)
 // ============================================================
 
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { CodexEventParser } from "./codex-parser.js";
+import { executableExists } from "../agent-platform.js";
 import type {
   AgentProvider,
   CreateSessionOptions,
@@ -46,42 +47,56 @@ import type {
  * We use sandbox mode (-s workspace-write) as a safety baseline.
  * Set GATEWAY_CODEX_APPROVAL_MODE=bypass for the legacy dangerous behavior.
  */
-function buildHeadlessFlags(): string[] {
+function buildHeadlessFlags(opts: { includeSandbox: boolean }): string[] {
   const flags = ["--skip-git-repo-check"];
   const mode = process.env.GATEWAY_CODEX_APPROVAL_MODE || "sandbox";
   if (mode === "bypass") {
     flags.push("--dangerously-bypass-approvals-and-sandbox");
-  } else {
+  } else if (opts.includeSandbox) {
     // "sandbox" (default): safer — limits filesystem access to workspace
     flags.push("-s", "workspace-write");
   }
   return flags;
 }
 
+export function buildCodexExecArgs(opts: {
+  commandArgs: string[];
+  includeSandbox: boolean;
+  model?: string;
+}): string[] {
+  const maxIterations = process.env.CODEX_MAX_ITERATIONS || "10";
+  const execFlags = [
+    "-c", `max_iterations=${maxIterations}`,
+    ...buildHeadlessFlags({ includeSandbox: opts.includeSandbox }),
+  ];
+  const effectiveModel = process.env.CODEX_MODEL || opts.model;
+  if (effectiveModel) {
+    execFlags.push("-m", effectiveModel);
+  }
+  return ["exec", "--json", ...execFlags, ...opts.commandArgs];
+}
+
 // ---- spawn helper ------------------------------------------------------------
 
 function spawnCodex(
-  positionalArgs: string[],
+  commandArgs: string[],
   prompt: string,
   cwd: string,
   timeoutMs: number,
   parser: CodexEventParser,
+  includeSandbox: boolean,
   onSpawn?: (child: import("node:child_process").ChildProcess) => void,
   onStreamUpdate?: (update: import("./types.js").StreamUpdate) => void,
   model?: string,
+  isResume = false,
 ): Promise<SessionOutput> {
   return new Promise<SessionOutput>((resolve) => {
     const codexBin = process.env.CODEX_BIN || "codex";
-    const maxIterations = process.env.CODEX_MAX_ITERATIONS || "10";
 
     // Pre-check binary existence — avoids shell-mode ambiguity on Windows
     // (shell:true spawns cmd.exe which always succeeds, even when the
     //  wrapped binary doesn't exist, causing a misleading timeout error)
-    const whichCmd = process.platform === "win32" ? "where" : "which";
-    const whichCheck = spawnSync(whichCmd, [codexBin], {
-      timeout: 3000, stdio: "ignore", windowsHide: true,
-    });
-    if (whichCheck.status !== 0) {
+    if (!executableExists(codexBin)) {
       resolve({
         ok: false, text: "", sessionId: "",
         error: `failed to spawn codex: ENOENT — ${codexBin} not found`,
@@ -89,17 +104,12 @@ function spawnCodex(
       return;
     }
 
-    // Exec flags (--cd only for new sessions, not resume)
-    const execFlags = [
-      "-c", `max_iterations=${maxIterations}`,
-      ...buildHeadlessFlags(),
-    ];
-    // #86: model selection — env override takes precedence over opts.model
-    const effectiveModel = process.env.CODEX_MODEL || model;
-    if (effectiveModel) {
-      execFlags.push("-m", effectiveModel);
-    }
-    const allArgs = [...positionalArgs, ...execFlags];
+    // Exec-level flags must come before create/resume command args.
+    // #127: resume subcommand does NOT accept exec-level flags
+    // (-c, --skip-git-repo-check, -s, etc.). Only pass --json for resume.
+    const allArgs = isResume
+      ? ["exec", "--json", ...commandArgs]
+      : buildCodexExecArgs({ commandArgs, includeSandbox, model });
 
     const win = process.platform === "win32";
     const cmd = win
@@ -134,33 +144,62 @@ function spawnCodex(
     let stderr = "";
     let settled = false;
 
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      child.kill("SIGKILL");
-      resolve({
-        ok: false,
-        text: "",
-        sessionId: "",
-        error: `codex exec timed out after ${timeoutMs}ms`,
-      });
-    }, timeoutMs);
+    // #130: activity-based idle timeout — resets on every stdout/stderr chunk.
+    // Hard deadline prevents infinite reset loops (3x the idle timeout).
+    const HARD_DEADLINE_MULT = 3;
+    const hardDeadline = Date.now() + timeoutMs * HARD_DEADLINE_MULT;
+    let timer: NodeJS.Timeout;
+
+    const clearTimer = () => {
+      if (timer) clearTimeout(timer);
+    };
+
+    const resetTimer = () => {
+      clearTimer();
+      if (Date.now() >= hardDeadline) {
+        if (settled) return;
+        settled = true;
+        child.kill("SIGKILL");
+        resolve({
+          ok: false,
+          text: "",
+          sessionId: "",
+          error: `codex exec hard deadline exceeded (${timeoutMs * HARD_DEADLINE_MULT}ms total)`,
+        });
+        return;
+      }
+      timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        child.kill("SIGKILL");
+        resolve({
+          ok: false,
+          text: "",
+          sessionId: "",
+          error: `codex exec timed out (idle ${timeoutMs}ms with no output)`,
+        });
+      }, timeoutMs);
+    };
+
+    resetTimer(); // initial timer
 
     child.stdout!.on("data", (chunk) => {
       stdoutBuf += chunk.toString();
       const lines = stdoutBuf.split("\n");
       stdoutBuf = lines.pop() ?? "";
       for (const line of lines) parser.feed(line);
+      resetTimer(); // #130: activity resets idle timeout
     });
 
     child.stderr!.on("data", (chunk) => {
       stderr += chunk.toString();
+      resetTimer(); // #130: stderr activity also resets
     });
 
     child.on("error", (err) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      clearTimer();
       resolve({
         ok: false, text: "", sessionId: "",
         error: `failed to spawn codex: ${err.message}`,
@@ -170,7 +209,7 @@ function spawnCodex(
     child.on("close", (code) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      clearTimer();
 
       // Flush trailing buffer first — may contain turn.completed with metrics
       if (stdoutBuf) parser.feed(stdoutBuf);
@@ -183,14 +222,18 @@ function spawnCodex(
       if (code === 0 && text) {
         resolve({ ok: true, text, sessionId: "" });
       } else if (code === 0 && !text) {
+        const parserErrors = parser.errors.join("; ");
         resolve({
           ok: false, text: "", sessionId: "",
-          error: "codex exec exited 0 but produced no output",
+          error: `codex exec exited 0 but produced no output${parserErrors ? `: ${parserErrors}` : ""}`,
         });
       } else {
+        const parserErrors = parser.errors.join("; ");
+        const detail = (stderr.trim() || parserErrors || stdoutBuf.trim())
+          .slice(0, 500);
         resolve({
           ok: false, text, sessionId: "",
-          error: `codex exec exited ${code}: ${stderr.trim().slice(0, 500)}`,
+          error: `codex exec exited ${code}${detail ? `: ${detail}` : ""}`,
         });
       }
     });
@@ -239,7 +282,7 @@ export const codexProvider: AgentProvider = {
     opts: CreateSessionOptions,
   ): Promise<SessionOutput> {
     let resolvedSessionId = "";
-    const args = ["exec", "--json", "--cd", opts.cwd]; // prompt via stdin; --cd sets workspace
+    const args = ["--cd", opts.cwd, "-"]; // prompt via stdin; --cd sets workspace; `-` explicitly tells codex to read prompt from stdin
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
@@ -254,6 +297,7 @@ export const codexProvider: AgentProvider = {
       opts.cwd,
       opts.timeoutMs,
       parser,
+      true,
       opts.onSpawn,
       opts.onStreamUpdate, // #86: unified streaming
       opts.model,          // #86: model selection
@@ -266,7 +310,7 @@ export const codexProvider: AgentProvider = {
     sessionId: string,
     opts: ResumeSessionOptions,
   ): Promise<SessionOutput> {
-    const args = ["exec", "--json", "resume", sessionId, "-"]; // `-` tells codex to read prompt from stdin (required for resume)
+    const args = ["resume", sessionId, "-"]; // `-` tells codex to read prompt from stdin (required for resume)
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
@@ -279,9 +323,11 @@ export const codexProvider: AgentProvider = {
       opts.cwd,
       opts.timeoutMs,
       parser,
+      false,
       opts.onSpawn,
       opts.onStreamUpdate, // #86: unified streaming
       opts.model,          // #86: model selection
+      true,                // #127: isResume — skip exec-level flags
     ).then((r) => ({
       ...r,
       sessionId,

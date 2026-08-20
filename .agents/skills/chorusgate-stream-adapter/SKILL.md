@@ -1,4 +1,4 @@
-﻿---
+---
 name: chorusgate-stream-adapter
 description: ChorusGate multi-agent stream adapter design. Use when adding a new AI agent runtime, unifying real-time updates across Claude Code and Codex, or reviewing provider/parser abstraction in src/providers.
 ---

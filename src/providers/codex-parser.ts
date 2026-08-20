@@ -31,6 +31,8 @@ export type CodexTextCallback = (text: string) => void;
 
 export class CodexEventParser implements EventParser {
   private resultText = "";
+  /** Error messages collected from item.completed (type=error) + fallback events. */
+  readonly errors: string[] = [];
   onProgress?: (label: string) => void;
   onSessionId?: (sessionId: string) => void;
   /** Real-time text push on each agent_message (#86). */
@@ -71,6 +73,22 @@ export class CodexEventParser implements EventParser {
         this.onStreamUpdate?.({ kind: "progress", payload: "🤔 Codex 思考中…", providerId: "codex" });
         break;
 
+      // Top-level error event (e.g. model not found, API error)
+      case "error":
+        if (typeof evt.message === "string") {
+          this.errors.push(evt.message);
+        }
+        break;
+
+      // Turn failed event (e.g. model requires newer CLI version)
+      case "turn.failed": {
+        const failErr = evt.error as Record<string, unknown> | undefined;
+        if (failErr && typeof failErr.message === "string") {
+          this.errors.push(failErr.message);
+        }
+        break;
+      }
+
       case "item.completed": {
         const item = evt.item as Record<string, unknown> | undefined;
         if (!item) break;
@@ -80,6 +98,11 @@ export class CodexEventParser implements EventParser {
           this.resultText += text;
           this.onText?.(text); // #86: push to gateway for real-time Slack update
           this.onStreamUpdate?.({ kind: "text", payload: text, providerId: "codex" });
+        }
+
+        // Capture error items — codex reports errors via JSONL stdout, not stderr
+        if (item.type === "error" && typeof item.message === "string") {
+          this.errors.push(item.message as string);
         }
 
         if (

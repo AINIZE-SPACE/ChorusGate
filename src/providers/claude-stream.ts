@@ -170,6 +170,8 @@ interface StreamSpawnResult {
   stdoutBuf: string;
   stderr: string;
   settled: boolean;
+  /** #130: called on every stdout/stderr chunk to reset idle timeout */
+  onActivity?: () => void;
 }
 
 function spawnStream(
@@ -199,10 +201,12 @@ function spawnStream(
     const lines = result.stdoutBuf.split("\n");
     result.stdoutBuf = lines.pop() ?? "";
     for (const line of lines) parser.feed(line);
+    result.onActivity?.(); // #130: activity resets idle timeout
   });
 
   child.stderr!.on("data", (chunk) => {
     result.stderr += chunk.toString();
+    result.onActivity?.(); // #130: stderr also resets
   });
 
   return result;
@@ -216,20 +220,47 @@ function streamToResult(
   return new Promise((resolve) => {
     const { child, parser } = spawnResult;
 
-    const timer = setTimeout(() => {
-      if (spawnResult.settled) return;
-      spawnResult.settled = true;
-      child.kill("SIGKILL");
-      resolve({
-        ok: false, text: "", sessionId: (parser.init?.sessionId || ""),
-        error: `claude stream timed out after ${timeoutMs}ms`,
-      });
-    }, timeoutMs);
+    // #130: activity-based idle timeout — resets on every stdout/stderr chunk.
+    // Hard deadline prevents infinite reset loops (3x the idle timeout).
+    const HARD_DEADLINE_MULT = 3;
+    const hardDeadline = Date.now() + timeoutMs * HARD_DEADLINE_MULT;
+    let timer: NodeJS.Timeout;
+
+    const clearTimer = () => {
+      if (timer) clearTimeout(timer);
+    };
+
+    const resetTimer = () => {
+      clearTimer();
+      if (Date.now() >= hardDeadline) {
+        if (spawnResult.settled) return;
+        spawnResult.settled = true;
+        child.kill("SIGKILL");
+        resolve({
+          ok: false, text: "", sessionId: (parser.init?.sessionId || ""),
+          error: `claude stream hard deadline exceeded (${timeoutMs * HARD_DEADLINE_MULT}ms total)`,
+        });
+        return;
+      }
+      timer = setTimeout(() => {
+        if (spawnResult.settled) return;
+        spawnResult.settled = true;
+        child.kill("SIGKILL");
+        resolve({
+          ok: false, text: "", sessionId: (parser.init?.sessionId || ""),
+          error: `claude stream timed out (idle ${timeoutMs}ms with no output)`,
+        });
+      }, timeoutMs);
+    };
+
+    // Wire activity callback to timer reset
+    spawnResult.onActivity = resetTimer;
+    resetTimer(); // initial timer
 
     child.on("error", (err) => {
       if (spawnResult.settled) return;
       spawnResult.settled = true;
-      clearTimeout(timer);
+      clearTimer();
       resolve({
         ok: false, text: "", sessionId: "",
         error: `failed to spawn ${process.env.CLAUDE_BIN || "claude"}: ${err.message}`,
@@ -239,7 +270,7 @@ function streamToResult(
     child.on("close", (code) => {
       if (spawnResult.settled) return;
       spawnResult.settled = true;
-      clearTimeout(timer);
+      clearTimer();
 
       // flush trailing buffer
       if (spawnResult.stdoutBuf) parser.feed(spawnResult.stdoutBuf);

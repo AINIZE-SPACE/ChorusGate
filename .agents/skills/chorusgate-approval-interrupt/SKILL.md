@@ -1,4 +1,4 @@
-﻿---
+---
 name: chorusgate-approval-interrupt
 description: ChorusGate 4-Button Approval and Interrupt Manager patterns. Use when implementing or reviewing agent permission requests, Slack interactive buttons, kill/interrupt flows, or cross-profile approval caching in src/gateway.ts.
 ---

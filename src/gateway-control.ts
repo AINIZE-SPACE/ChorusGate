@@ -16,12 +16,22 @@ import {
   BIN_FILE,
   type GatewayStatus,
 } from "./gateway-paths.js";
+import { parseCliArgs } from "./cli-args.js";
+import { prepareRunConfig } from "./config-init.js";
 
 // ---- helpers ---------------------------------------------------------------
 
-function readPid(): number | null {
+/**
+ * Resolve the target agent for a control command.
+ * Omitting --agent is equivalent to --agent default (cross-project home).
+ */
+function resolveAgentId(): string {
+  return parseCliArgs().agentId ?? "default";
+}
+
+function readPid(agentId: string): number | null {
   try {
-    const raw = readFileSync(getPidFile(), "utf8").trim();
+    const raw = readFileSync(getPidFile(agentId), "utf8").trim();
     const pid = Number(raw);
     return Number.isInteger(pid) && pid > 0 ? pid : null;
   } catch {
@@ -40,23 +50,23 @@ function isAlive(pid: number): boolean {
   }
 }
 
-function readStatus(): GatewayStatus | null {
+function readStatus(agentId: string): GatewayStatus | null {
   try {
-    return JSON.parse(readFileSync(getStatusFile(), "utf8")) as GatewayStatus;
+    return JSON.parse(readFileSync(getStatusFile(agentId), "utf8")) as GatewayStatus;
   } catch {
     return null;
   }
 }
 
-/** Returns the live daemon PID, or null. Cleans up a stale PID file. */
-function livePid(): number | null {
-  const pid = readPid();
+/** Returns the live daemon PID for an agent, or null. Cleans up a stale PID file. */
+function livePid(agentId: string): number | null {
+  const pid = readPid(agentId);
   if (pid === null) return null;
   if (isAlive(pid)) return pid;
   // Stale PID file — process is gone.
   try {
-    rmSync(getPidFile(), { force: true });
-    rmSync(getStatusFile(), { force: true });
+    rmSync(getPidFile(agentId), { force: true });
+    rmSync(getStatusFile(agentId), { force: true });
   } catch {
     // ignore
   }
@@ -79,20 +89,34 @@ const sleep = (ms: number): Promise<void> =>
 // ---- commands --------------------------------------------------------------
 
 /** Start the daemon in the background. */
-export async function start(): Promise<void> {
-  const existing = livePid();
+export async function start(skipConfigPreflight = false): Promise<void> {
+  const agentId = resolveAgentId();
+  const existing = livePid(agentId);
   if (existing !== null) {
     console.error(
-      `gateway already running (pid ${existing}). Use 'restart' to restart.`
+      `gateway (${agentId}) already running (pid ${existing}). Use 'restart' to restart.`
     );
     process.exitCode = 0;
     return;
   }
 
-  ensureGatewayDir();
-  const logFile = getLogFile();
+  if (!skipConfigPreflight && !(await prepareRunConfig())) {
+    process.exitCode = 0;
+    return;
+  }
+
+  ensureGatewayDir(agentId);
+  const logFile = getLogFile(agentId);
   const out = openSync(logFile, "a");
-  const child = spawn(process.execPath, [BIN_FILE, "run"], {
+
+  // Forward --agent and --env-file to the daemon process (#134)
+  const cliArgs = parseCliArgs();
+  const forwardArgs: string[] = [];
+  if (cliArgs.agentId) forwardArgs.push("--agent", cliArgs.agentId);
+  if (cliArgs.envFile) forwardArgs.push("--env-file", cliArgs.envFile);
+  if (cliArgs.initialize) forwardArgs.push("--init");
+
+  const child = spawn(process.execPath, [BIN_FILE, "run", ...forwardArgs], {
     detached: true,
     stdio: ["ignore", out, out],
     windowsHide: true,
@@ -103,9 +127,9 @@ export async function start(): Promise<void> {
   const deadline = Date.now() + 8000;
   while (Date.now() < deadline) {
     await sleep(300);
-    const pid = livePid();
-    if (pid !== null && readStatus()) {
-      console.error(`gateway started (pid ${pid}). Logs: ${logFile}`);
+    const pid = livePid(agentId);
+    if (pid !== null && readStatus(agentId)) {
+      console.error(`gateway (${agentId}) started (pid ${pid}). Logs: ${logFile}`);
       return;
     }
   }
@@ -125,9 +149,10 @@ export async function start(): Promise<void> {
 
 /** Stop the running daemon gracefully. */
 export async function stop(): Promise<void> {
-  const pid = livePid();
+  const agentId = resolveAgentId();
+  const pid = livePid(agentId);
   if (pid === null) {
-    console.error("gateway is not running.");
+    console.error(`gateway (${agentId}) is not running.`);
     process.exitCode = 0;
     return;
   }
@@ -146,40 +171,46 @@ export async function stop(): Promise<void> {
     await sleep(300);
     if (!isAlive(pid)) {
       try {
-        rmSync(getPidFile(), { force: true });
-        rmSync(getStatusFile(), { force: true });
+        rmSync(getPidFile(agentId), { force: true });
+        rmSync(getStatusFile(agentId), { force: true });
       } catch {
         // ignore
       }
-      console.error(`gateway stopped (pid ${pid}).`);
+      console.error(`gateway (${agentId}) stopped (pid ${pid}).`);
       return;
     }
   }
   console.error(
-    `gateway (pid ${pid}) did not exit within 10s; it may still be shutting down.`
+    `gateway (${agentId}, pid ${pid}) did not exit within 10s; it may still be shutting down.`
   );
   process.exitCode = 1;
 }
 
 /** Restart: stop if running, then start. */
 export async function restart(): Promise<void> {
-  if (livePid() !== null) {
+  const agentId = resolveAgentId();
+  if (!(await prepareRunConfig())) {
+    process.exitCode = 0;
+    return;
+  }
+  if (livePid(agentId) !== null) {
     await stop();
     await sleep(500);
   }
-  await start();
+  await start(true);
 }
 
 /** Print whether the daemon is running and its runtime info. */
 export async function status(): Promise<void> {
-  const pid = livePid();
+  const agentId = resolveAgentId();
+  const pid = livePid(agentId);
   if (pid === null) {
-    console.error("● gateway: stopped");
+    console.error(`● gateway (${agentId}): stopped`);
     process.exitCode = 3;
     return;
   }
-  const st = readStatus();
-  console.error(`● gateway: running (pid ${pid})`);
+  const st = readStatus(agentId);
+  console.error(`● gateway (${agentId}): running (pid ${pid})`);
   if (st) {
     const uptime = fmtDuration(Date.now() - st.startedAt);
     const staleMs = Date.now() - st.updatedAt;
@@ -197,13 +228,14 @@ export async function status(): Promise<void> {
 
 /** List active thread→session mappings. */
 export async function list(): Promise<void> {
-  const pid = livePid();
+  const agentId = resolveAgentId();
+  const pid = livePid(agentId);
   if (pid === null) {
-    console.error("gateway is not running.");
+    console.error(`gateway (${agentId}) is not running.`);
     process.exitCode = 3;
     return;
   }
-  const st = readStatus();
+  const st = readStatus(agentId);
   if (!st || st.sessions.length === 0) {
     console.error("no active thread sessions.");
     process.exitCode = 0;
@@ -227,14 +259,22 @@ export async function list(): Promise<void> {
 export function help(): void {
   console.error(
     [
-      "Usage: chorusgate <command>",
+      "Usage: chorusgate <command> [options]",
       "",
-      "  run       run the gateway in the foreground (blocks)",
-      "  start     start the gateway as a background daemon",
-      "  stop      stop the running daemon",
-      "  restart   restart the daemon",
-      "  status    show whether the daemon is running + runtime info",
-      "  list      list active thread→session mappings",
+      "Commands:",
+      "  run             run the gateway in the foreground (blocks)",
+      "  start           start the gateway as a background daemon",
+      "  stop            stop the running daemon",
+      "  restart         restart the daemon",
+      "  status          show whether the daemon is running + runtime info",
+      "  list            list active thread→session mappings",
+      "  config migrate  migrate project .env → ~/.chorusgate/<id>/.env",
+      "  config init     initialize a missing agent profile",
+      "",
+      "Options:",
+      "  --agent <id>     load config from ~/.chorusgate/<id>/.env (default: default)",
+      "  --env-file <path> load explicit .env file (mutually exclusive with --agent)",
+      "  --init           initialize a missing --agent profile automatically",
     ].join("\n")
   );
 }
