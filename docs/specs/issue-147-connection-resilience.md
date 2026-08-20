@@ -5,7 +5,7 @@
 > **Analyst**: 小克 (U0B8VHLHJAX)
 > **Date**: 2026-08-20
 > **Branch**: `v5/logging-liveness`
-> **Status**: ✅ 开发完成（`3824ae0` + 传输契约对齐提交）→ 待 SIT（小马）→ 验收关单（小扣）
+> **Status**: ✅ 开发完成（`3824ae0` 五机制 + `5a3c016` 传输契约对齐 + `3345439` D1 幂等修复）→ 待 re-SIT（小马，L1 transport 域 + L4 Windows ST-NR-101~107）→ 验收关单（小扣）
 
 ## 1. 问题分析
 
