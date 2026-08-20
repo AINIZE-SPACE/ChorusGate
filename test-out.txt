@@ -1,6 +1,0 @@
-
-> chorusgate@1.0.0 test
-> node --import tsx --test --test-timeout=30000 --test-force-exit tests/*.test.ts
-
-(node:26316) Warning: node:test run() is being called recursively within a test file. skipping running files.
-(Use `node --trace-warnings ...` to show where the warning was created)
