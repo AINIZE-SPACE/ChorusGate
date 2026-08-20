@@ -15,3 +15,8 @@ memory/sessions.json
 memory/channel-directory.json
 # NOTE: memory/ is intentionally NOT ignored — memory/sessions.md (the
 # channel/thread → session routing map) is git-tracked for versioning.
+
+# debug/test scratch files (added accidentally in #134 branch, keep out of repo)
+t2.txt
+test-out.txt
+min.test.ts
