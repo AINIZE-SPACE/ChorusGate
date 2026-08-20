@@ -73,20 +73,26 @@ function installWindows(agentId: string): number {
 
 function uninstallWindows(agentId: string): number {
   const name = watchdogTaskName(agentId);
+  // 先查询任务是否存在——不依赖 /Delete 的输出文本匹配。Windows 本地化
+  // 环境下 schtasks 的中文报错是 GBK 编码，utf8 解码成乱码会让文本正则
+  // 失配（#148-D2），而 /Query 的退出码与文本编码无关。
+  const q = spawnSync("schtasks", ["/Query", "/TN", name], {
+    windowsHide: true,
+  });
+  if (q.status !== 0) {
+    // 任务不存在也算卸载成功（幂等）。
+    console.error(`✔ watchdog '${name}' not found — nothing to uninstall`);
+    return 0;
+  }
   const r = spawnSync("schtasks", ["/Delete", "/TN", name, "/F"], {
     encoding: "utf8",
     windowsHide: true,
   });
-  const out = (r.stdout || "") + (r.stderr || "");
   if (r.status === 0) {
     console.error(`✔ watchdog uninstalled: '${name}'`);
     return 0;
   }
-  // 任务不存在也算卸载成功（幂等）。
-  if (/does not exist|not find|找不到/i.test(out)) {
-    console.error(`✔ watchdog '${name}' not found — nothing to uninstall`);
-    return 0;
-  }
+  const out = (r.stdout || "") + (r.stderr || "");
   console.error(`✘ failed to uninstall '${name}': ${out.trim()}`);
   return 1;
 }
