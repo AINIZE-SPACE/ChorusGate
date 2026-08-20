@@ -20,11 +20,23 @@
 //     %USERPROFILE%\.ainize\.config and nothing else.
 // ============================================================
 
-import { isAbsolute, resolve } from "node:path";
+import { win32 as win32Path, posix as posixPath } from "node:path";
 import { homedir } from "node:os";
 
 /** Default official agent-home base, relative to the Windows home dir. */
 export const DEFAULT_AGENT_HOME_REL = [".ainize", ".config"] as const;
+
+/**
+ * Platform-adaptive path module. The win32 flavor is used whenever the
+ * resolution targets Windows semantics (either the host is Windows, or a
+ * test overrides `platform: "win32"` on a POSIX host) so that Windows path
+ * literals like `C:\...` are recognized as absolute and joined with
+ * backslashes — matching the AGENT_HOME-only-on-Windows contract in
+ * `resolveAgentHome`.
+ */
+function pathFor(platform: NodeJS.Platform): typeof win32Path {
+  return platform === "win32" ? win32Path : posixPath;
+}
 
 /** The Windows "home directory" (%USERPROFILE% on Windows). */
 export function windowsHomeDir(): string {
@@ -60,22 +72,23 @@ export interface AgentHomeOptions {
  */
 export function resolveAgentHome(opts: AgentHomeOptions = {}): string {
   const platform = opts.platform ?? process.platform;
+  const path = pathFor(platform);
   const home = opts.userProfile ?? process.env.USERPROFILE ?? homedir();
 
   // 1. Explicit CLI flag wins over everything (even a set AGENT_HOME).
   if (!isBlank(opts.cliAgentHome)) {
     const value = opts.cliAgentHome!.trim();
-    return isAbsolute(value) ? value : resolve(home, value);
+    return path.isAbsolute(value) ? value : path.resolve(home, value);
   }
 
   // 2. AGENT_HOME is honored only on Windows.
   if (platform === "win32" && !isBlank(opts.envAgentHome)) {
     const value = opts.envAgentHome!.trim();
-    return isAbsolute(value) ? value : resolve(home, value);
+    return path.isAbsolute(value) ? value : path.resolve(home, value);
   }
 
   // 3. Default official home — nothing layered on top.
-  return resolve(home, ...DEFAULT_AGENT_HOME_REL);
+  return path.resolve(home, ...DEFAULT_AGENT_HOME_REL);
 }
 
 export interface ConfigPathGuardOptions {
@@ -85,6 +98,8 @@ export interface ConfigPathGuardOptions {
   source: "cli" | "env";
   /** %USERPROFILE% override (tests). */
   userProfile?: string;
+  /** Platform override (tests). Defaults to process.platform. */
+  platform?: NodeJS.Platform;
 }
 
 /**
@@ -100,8 +115,9 @@ export function resolveConfigPathInHome(
   configFile: string,
   opts: ConfigPathGuardOptions,
 ): string {
-  if (isAbsolute(configFile)) return configFile;
-  if (isAbsolute(agentHome)) return resolve(agentHome, configFile);
+  const path = pathFor(opts.platform ?? process.platform);
+  if (path.isAbsolute(configFile)) return configFile;
+  if (path.isAbsolute(agentHome)) return path.resolve(agentHome, configFile);
   if (opts.source === "cli") {
     throw new Error(
       `[agent-home] config file path must be absolute, or the agent home ` +
@@ -109,5 +125,5 @@ export function resolveConfigPathInHome(
     );
   }
   const home = opts.userProfile ?? process.env.USERPROFILE ?? homedir();
-  return resolve(home, agentHome, configFile);
+  return path.resolve(home, agentHome, configFile);
 }

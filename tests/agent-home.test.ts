@@ -11,7 +11,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { resolve } from "node:path";
+import { win32, posix } from "node:path";
 import {
   resolveAgentHome,
   resolveConfigPathInHome,
@@ -19,12 +19,18 @@ import {
   DEFAULT_AGENT_HOME_REL,
 } from "../src/agent-home.js";
 
+// Platform-adaptive path resolvers — each fixture picks the flavor that
+// matches the `platform` it passes, so the suite runs identically on a
+// Windows dev box and on the Linux SIT host.
+const winResolve = win32.resolve;
+const posixResolve = posix.resolve;
+
 // Deterministic fixtures — every call passes an explicit home/platform so
 // the suite never depends on the real process env or OS.
 const WIN_HOME = "C:\\Users\\tester";
 const POSIX_HOME = "/home/tester";
-const DEFAULT_WIN = resolve(WIN_HOME, ...DEFAULT_AGENT_HOME_REL);
-const DEFAULT_POSIX = resolve(POSIX_HOME, ...DEFAULT_AGENT_HOME_REL);
+const DEFAULT_WIN = winResolve(WIN_HOME, ...DEFAULT_AGENT_HOME_REL);
+const DEFAULT_POSIX = posixResolve(POSIX_HOME, ...DEFAULT_AGENT_HOME_REL);
 
 describe("agent-home: resolution order", () => {
   it("CLI --agent-home (absolute) wins over env + default", () => {
@@ -44,7 +50,7 @@ describe("agent-home: resolution order", () => {
       platform: "win32",
       userProfile: WIN_HOME,
     });
-    assert.equal(r, resolve(WIN_HOME, "my-agents", "work"));
+    assert.equal(r, winResolve(WIN_HOME, "my-agents", "work"));
   });
 
   it("env AGENT_HOME (absolute) used when no CLI flag, on Windows", () => {
@@ -62,7 +68,7 @@ describe("agent-home: resolution order", () => {
       platform: "win32",
       userProfile: WIN_HOME,
     });
-    assert.equal(r, resolve(WIN_HOME, "agents", "claude"));
+    assert.equal(r, winResolve(WIN_HOME, "agents", "claude"));
   });
 
   it("falls to the default official home when neither flag nor env is set", () => {
@@ -152,7 +158,7 @@ describe("agent-home: home-dir (relative path) resolution", () => {
       platform: "win32",
       userProfile: WIN_HOME,
     });
-    assert.equal(r, resolve(WIN_HOME, "rel", "agent"));
+    assert.equal(r, winResolve(WIN_HOME, "rel", "agent"));
   });
 
   it("resolves a relative AGENT_HOME against %USERPROFILE%", () => {
@@ -161,7 +167,7 @@ describe("agent-home: home-dir (relative path) resolution", () => {
       platform: "win32",
       userProfile: WIN_HOME,
     });
-    assert.equal(r, resolve(WIN_HOME, "rel", "agent"));
+    assert.equal(r, winResolve(WIN_HOME, "rel", "agent"));
   });
 
   it("keeps an absolute --agent-home verbatim (no rebasing under home)", () => {
@@ -171,7 +177,7 @@ describe("agent-home: home-dir (relative path) resolution", () => {
       userProfile: WIN_HOME,
     });
     assert.equal(r, "C:\\abs\\agent");
-    assert.ok(!r.startsWith(resolve(WIN_HOME)));
+    assert.ok(!r.startsWith(winResolve(WIN_HOME)));
   });
 
   it("keeps an absolute AGENT_HOME verbatim (no rebasing under home)", () => {
@@ -181,7 +187,7 @@ describe("agent-home: home-dir (relative path) resolution", () => {
       userProfile: WIN_HOME,
     });
     assert.equal(r, "C:\\abs\\agent");
-    assert.ok(!r.startsWith(resolve(WIN_HOME)));
+    assert.ok(!r.startsWith(winResolve(WIN_HOME)));
   });
 });
 
@@ -189,11 +195,11 @@ describe("agent-home: defaults (official home, no fallback)", () => {
   it("default is exactly %USERPROFILE%\\.ainize\\.config", () => {
     assert.equal(
       resolveAgentHome({ platform: "win32", userProfile: WIN_HOME }),
-      resolve(WIN_HOME, ".ainize", ".config"),
+      winResolve(WIN_HOME, ".ainize", ".config"),
     );
     assert.equal(
       resolveAgentHome({ platform: "linux", userProfile: POSIX_HOME }),
-      resolve(POSIX_HOME, ".ainize", ".config"),
+      posixResolve(POSIX_HOME, ".ainize", ".config"),
     );
   });
 
@@ -222,6 +228,7 @@ describe("agent-home: config-path hardening guard", () => {
   it("passes through an absolute config file path", () => {
     const r = resolveConfigPathInHome("C:\\agent\\home", "C:\\cfg\\a.env", {
       source: "cli",
+      platform: "win32",
     });
     assert.equal(r, "C:\\cfg\\a.env");
   });
@@ -229,8 +236,9 @@ describe("agent-home: config-path hardening guard", () => {
   it("joins a relative config file under an absolute agent home", () => {
     const r = resolveConfigPathInHome("C:\\agent\\home", "profiles\\a.env", {
       source: "cli",
+      platform: "win32",
     });
-    assert.equal(r, resolve("C:\\agent\\home", "profiles", "a.env"));
+    assert.equal(r, winResolve("C:\\agent\\home", "profiles", "a.env"));
   });
 
   it("throws for CLI when both config path and agent home are relative", () => {
@@ -238,6 +246,7 @@ describe("agent-home: config-path hardening guard", () => {
       () =>
         resolveConfigPathInHome("rel\\home", "profiles\\a.env", {
           source: "cli",
+          platform: "win32",
         }),
       /must be absolute/,
     );
@@ -247,7 +256,11 @@ describe("agent-home: config-path hardening guard", () => {
     const r = resolveConfigPathInHome("rel\\home", "profiles\\a.env", {
       source: "env",
       userProfile: WIN_HOME,
+      platform: "win32",
     });
-    assert.equal(r, resolve(WIN_HOME, "rel", "home", "profiles", "a.env"));
+    assert.equal(
+      r,
+      winResolve(WIN_HOME, "rel", "home", "profiles", "a.env"),
+    );
   });
 });

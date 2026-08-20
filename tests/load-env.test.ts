@@ -138,8 +138,10 @@ describe("agent-home override (#140)", () => {
 
   it("redirects the base to an absolute --agent-home", () => {
     delete process.env.AGENT_HOME;
-    const p = agentProfileEnvPath("claude", "C:\\agents\\work");
-    assert.equal(p, resolve("C:\\agents\\work", "claude", ".env"));
+    // Platform-neutral absolute path: recognized as absolute by both the
+    // win32 and posix path flavors, so the assertion holds on either host.
+    const p = agentProfileEnvPath("claude", "/agents/work");
+    assert.equal(p, resolve("/agents/work", "claude", ".env"));
   });
 
   it("redirects the base to a relative --agent-home (resolves vs %USERPROFILE%)", () => {
@@ -149,7 +151,10 @@ describe("agent-home override (#140)", () => {
     try {
       process.env.USERPROFILE = up;
       const p = agentProfileEnvPath("claude", "my-agents\\work");
-      assert.equal(p, resolve(up, "my-agents", "work", "claude", ".env"));
+      // Keep the backslash as a single segment so the expectation matches
+      // the resolver's behavior on both hosts (win32 splits it, posix
+      // treats the whole literal as one segment under the same cwd base).
+      assert.equal(p, resolve(up, "my-agents\\work", "claude", ".env"));
     } finally {
       if (prev === undefined) delete process.env.USERPROFILE;
       else process.env.USERPROFILE = prev;
@@ -157,9 +162,15 @@ describe("agent-home override (#140)", () => {
   });
 
   it("redirects the base via AGENT_HOME (Windows only)", () => {
-    process.env.AGENT_HOME = "D:\\agents\\env";
+    // AGENT_HOME is honored only on Windows; on a POSIX host it is
+    // ignored and the legacy ~/.chorusgate base is kept.
+    process.env.AGENT_HOME = process.platform === "win32" ? "D:\\agents\\env" : "/agents/env";
     const p = agentProfileEnvPath("claude");
-    assert.equal(p, resolve("D:\\agents\\env", "claude", ".env"));
+    if (process.platform === "win32") {
+      assert.equal(p, resolve("D:\\agents\\env", "claude", ".env"));
+    } else {
+      assert.equal(p, resolve(tempHome, "claude", ".env"));
+    }
   });
 
   it("blank --agent-home falls through to the default base", () => {
