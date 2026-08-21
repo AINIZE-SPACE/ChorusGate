@@ -40,9 +40,21 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $log = Join-Path $logDir ("daily-standup-claude-$today.log")
 
 function Invoke-Standup {
-    & $claude -p --cd $repoRoot $prompt 2>&1 | Tee-Object -FilePath $log -Append
-    if ($LASTEXITCODE -ne 0) {
-        throw "Daily standup failed: claude exit $LASTEXITCODE -- see $log"
+    # claude (this build) has no --cd flag; set the process cwd instead (mirrors the
+    # gateway's cwd-spawn so claude picks up the project .mcp.json -> Slack MCP).
+    # Temporarily downgrade EA so claude's stderr (merged via 2>&1) doesn't terminate
+    # under $ErrorActionPreference='Stop' before Tee can write the log.
+    Push-Location $repoRoot
+    try {
+        $ErrorActionPreference = 'Continue'
+        & $claude -p $prompt 2>&1 | Tee-Object -FilePath $log -Append
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = 'Stop'
+        Pop-Location
+    }
+    if ($code -ne 0) {
+        throw "Daily standup failed: claude exit $code -- see $log"
     }
 }
 
