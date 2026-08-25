@@ -72,6 +72,14 @@ export async function shouldReply(
     if (channelType === "im") return true;
   }
 
+  // #133 C1 (ALLOW_MENTION_EVERYONE, 写死非配置): a room-broadcast mention
+  // (@everyone/@here/@channel) addresses the whole channel, so bots participate
+  // too. Receive-side trigger — output-side findMentionIssues already tolerates
+  // these for sending; this is the long-missing receive-side branch.
+  if (hasSpecialBroadcastMention(event.text)) {
+    return true;
+  }
+
   // Level 3: Thread context smart reply
   if (process.env.GATEWAY_THREAD_SMART_REPLY !== "0") {
     const triggers = ctx.triggers;
@@ -109,6 +117,16 @@ export async function shouldReply(
   }
 
   return false;
+}
+
+/**
+ * Detect Slack special room-broadcast mentions: @everyone/@here/@channel.
+ * These render in message text as <!everyone>, <!here>, <!channel>, each
+ * optionally followed by a |label suffix (e.g. <!channel|@channel>). #133 C1.
+ */
+export function hasSpecialBroadcastMention(text?: string): boolean {
+  if (!text) return false;
+  return /<!(?:everyone|here|channel)(?=[|>])/i.test(text);
 }
 
 /** Check if text contains the bot's display name or aliases. */
