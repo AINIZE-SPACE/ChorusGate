@@ -134,7 +134,7 @@ import {
 import { LivenessMonitor } from "./liveness.js";
 import { writeFileSync, rmSync } from "node:fs";
 import type { StoredEvent } from "./types.js";
-import { sanitizeForSlack, splitSlackMessage } from "./slack-message.js";
+import { sanitizeForSlack, splitSlackMessage, postSlackMessageChunks } from "./slack-message.js";
 
 // ---- multi-profile routing ---------------------------------------------------
 // Build a lookup map from profile id → ProfileConfig for O(1) routing.
@@ -1004,20 +1004,22 @@ async function processEvent(
       for (const chunk of replyChunks.slice(1)) {
         await web.chat.postMessage({
           channel: event.channel,
-          thread_ts: replyThreadTs,
+          thread_ts: replyThreadTs ?? placeholderTs,
           text: chunk,
           link_names: true,
         });
       }
     } else {
-      for (const chunk of replyChunks) {
-        await web.chat.postMessage({
-          channel: event.channel,
-          thread_ts: replyThreadTs,
-          text: chunk,
-          link_names: true,
-        });
-      }
+      // #133 C3 (reply_to_mode=first): route multi-chunk non-placeholder
+      // replies through postSlackMessageChunks so a top-level channel reply
+      // hangs chunk[1..N] on the first chunk's thread (R1) instead of leaving
+      // them all top-level. Reply is thread-internal when replyThreadTs is set
+      // (R2) or a DM (R3) — both keep current routing.
+      await postSlackMessageChunks(web, {
+        channel: event.channel,
+        text: displayText,
+        ...(replyThreadTs ? { thread_ts: replyThreadTs } : {}),
+      });
     }
 
     // Clean up appended progress messages now that final reply is posted

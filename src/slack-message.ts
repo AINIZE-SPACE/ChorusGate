@@ -101,6 +101,7 @@ export async function postSlackMessageChunks(
   args: { channel: string; text: string; thread_ts?: string },
 ) {
   // Interceptor: refuse to send if any mention is not in <@USER_ID> form.
+  // Runs BEFORE chunking/routing (R5) — a bare @mention aborts, zero sent.
   const mentionIssues = findMentionIssues(args.text);
   if (mentionIssues.length > 0) {
     throw new Error(
@@ -109,14 +110,37 @@ export async function postSlackMessageChunks(
     );
   }
 
+  const chunks = splitSlackMessage(args.text);
+
+  // #133 C3 (reply_to_mode=first): a top-level *channel* reply split into
+  // multiple chunks posts chunk[0] to the channel top level and hangs
+  // chunk[1..N] on that first message's thread (thread_ts = first chunk's
+  // returned ts). This does NOT apply to — and must not regress — messages
+  // already inside a thread (R2: all chunks stay) or DMs (R3: all chunks
+  // stay top level; DMs have no channel-thread semantics — Slack DM IDs are
+  // the channel that starts with "D").
+  const isThreaded = Boolean(args.thread_ts);
+  const isDM = args.channel.startsWith("D");
+
   const results = [];
-  for (const chunk of splitSlackMessage(args.text)) {
-    results.push(await web.chat.postMessage({
+  let firstTs: string | undefined;
+  for (let i = 0; i < chunks.length; i++) {
+    let thread_ts: string | undefined;
+    if (isThreaded) {
+      thread_ts = args.thread_ts; // R2: stay in the existing thread
+    } else if (i > 0 && !isDM) {
+      thread_ts = firstTs; // R1: hang on the first chunk's thread
+    }
+    const res = await web.chat.postMessage({
       channel: args.channel,
-      text: chunk,
-      ...(args.thread_ts ? { thread_ts: args.thread_ts } : {}),
+      text: chunks[i],
+      ...(thread_ts ? { thread_ts } : {}),
       link_names: true,
-    }));
+    });
+    if (i === 0 && !isThreaded && !isDM) {
+      firstTs = (res as { ts?: string }).ts; // remember first chunk's ts for R1 continuation
+    }
+    results.push(res);
   }
   return results;
 }
