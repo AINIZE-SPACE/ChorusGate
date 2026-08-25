@@ -147,3 +147,24 @@ test("ST-SR-012: thread message mentioning another bot → shouldReply=false (3C
     false,
   );
 });
+
+// ---- #133 C1: room-broadcast mentions (@everyone/@here/@channel) → true ----
+test("#133 C1: @everyone channel message → shouldReply=true", async () => {
+  const event = mkEvent({ subtype: undefined, user: HUMAN, text: "<!everyone> 全体都有，晨会开始", channel_type: "channel" });
+  assert.equal(await shouldReply(event, baseCtx), true);
+});
+
+test("#133 C1: @channel with |label suffix → shouldReply=true", async () => {
+  const event = mkEvent({ subtype: undefined, user: HUMAN, text: "<!channel|@channel> 请同步进度", channel_type: "channel" });
+  assert.equal(await shouldReply(event, baseCtx), true);
+});
+
+test("#133 C1: @here → shouldReply=true", async () => {
+  const event = mkEvent({ subtype: undefined, user: HUMAN, text: "线上问题 <!here> 谁在", channel_type: "channel" });
+  assert.equal(await shouldReply(event, baseCtx), true);
+});
+
+test("#133 C1: no special broadcast mention → shouldReply=false", async () => {
+  const event = mkEvent({ subtype: undefined, user: HUMAN, text: "普通群消息", channel_type: "channel" });
+  assert.equal(await shouldReply(event, baseCtx), false);
+});
