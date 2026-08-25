@@ -87,14 +87,24 @@ export async function shouldReply(
 
     const text = event.text || "";
 
-    // 3A: Name match — user mentioned our display name or aliases
+    // 3A: Name match — user mentioned our display name or aliases.
+    // Explicit trigger — stays ABOVE the #133 C2 ending-gate, so re-mentioning
+    // us always resumes the conversation.
     if (mentionsMyName(text, triggers)) return true;
+
+    // #133 C2 (ALLOW_MENTION_REPLIED_USER, JUDGE=1): the thread auto-reply
+    // paths (3B/3C) are gated by an LLM ending-judgment. When the model decides
+    // the conversation has ended (NO), we stop auto-replying until re-mentioned.
+    // Explicit triggers (3A here, plus L2 DM/app_mention/C1 special-mention)
+    // stay above the gate. Default (JUDGE off) → gate passes through → zero
+    // regression on existing 3B/3C behavior.
 
     // 3B: Thread parent is our own message (user replied to us)
     const threadTs = event.thread_ts;
     if (threadTs && threadTs !== event.ts) {
       if (await ctx.isThreadParentBot?.(threadTs, event.channel)) {
-        return true;
+        if (await llmContinuationGate(ctx, event, triggers)) return true; // 3B
+        return false; // ended — stop auto-replying
       }
 
       // 3C: Message doesn't mention any other entity, and it's in a
@@ -102,7 +112,8 @@ export async function shouldReply(
       if (!mentionsOtherBot(text, myBotUserId)) {
         // Check if this thread has one of our sessions (meaning we're active in it)
         if (ctx.isActiveInThread?.(event.channel, threadTs)) {
-          return true;
+          if (await llmContinuationGate(ctx, event, triggers)) return true; // 3C
+          return false; // ended — stop auto-replying
         }
       }
     }
@@ -117,6 +128,24 @@ export async function shouldReply(
   }
 
   return false;
+}
+
+/**
+ * #133 C2 ending-gate for thread auto-reply (3B/3C): when
+ * GATEWAY_LLM_REPLY_JUDGE="1" and an llmShouldReply hook is wired, the model
+ * decides whether a thread conversation has "ended". If it returns false
+ * (NO/ended) we do NOT auto-reply — a bot stops speaking unless re-mentioned.
+ * Default off (or no hook) → returns true and leaves existing 3B/3C intact.
+ */
+async function llmContinuationGate(
+  ctx: ShouldReplyContext,
+  event: StoredEvent,
+  triggers: ProfileTriggers,
+): Promise<boolean> {
+  if (process.env.GATEWAY_LLM_REPLY_JUDGE !== "1" || !ctx.llmShouldReply) {
+    return true; // gate off / no hook → pass through
+  }
+  return ctx.llmShouldReply(event, triggers);
 }
 
 /**
