@@ -240,5 +240,7 @@
 | 1787709715.832249 | C0BMEKM8YLA | U0BGK82C2KV | message | processing | 1787710081704 | 1787710081706 | 0 | - | 【ChorusGate 站会 · 2026-08-26】 （数据来源：GitHub AINIZE-SPACE/ChorusGate issues/PR + gi |
 | 1787726052.244989 | C0AHL7U33EE | U0AHDRREVPD | app_mention | processing | 1787726052519 | 1787726052521 | 0 | - | 小马每小时心路， 如果没有推动的事件，且mention其它同事，  就不要发message了。 发消息的必要： 1） 每日每周报（有进展） 2）  新增重要事件 |
 | 1787726141.972169 | C0BLZ8KD8DD | U0AHDRREVPD | app_mention | processing | 1787726141873 | 1787726141874 | 0 | - | OK， 今天我Review发布件， 1） 记忆的前周发布件（多渠道） 2） 主网站改版阶段稿。 <@U0BAGFVD8VB> <@U0B8VHLHJAX> <@ |
-| 1787726325.288509 | C0BMCL6GTUN | U0AHDRREVPD | app_mention | processing | 1787726363809 | 1787726363810 | 0 | - | OK， 今天推荐收尾吗？ 我看 1） <https://github.com/AINIZE-SPACE/aifitness/issues/96\\\|github |
+| 1787726325.288509 | C0BMCL6GTUN | U0AHDRREVPD | app_mention | processing | 1787726363809 | 1787726363810 | 0 | - | OK， 今天推荐收尾吗？ 我看 1） <https://github.com/AINIZE-SPACE/aifitness/issues/96\\\\|githu |
 | 1787726614.608319 | C0BLZ8KD8DD | U0B91BVKTL2 | message | replied | 1787726614602 | 1787726661958 | 0 | - | 乐老板，两件 Review 材料我已备齐并实测核验（git/COS/API 实查，非汇报转述）：  ---  *① 记忆 IP 发布件（#58 多渠道包）— 全 |
+| 1787727403.447589 | C0BMEKM8YLA | U0AHDRREVPD | message | replied | 1787727403260 | 1787727782717 | 0 | - | 此项目阶段性关闭， 改为新方案。 <@U0BAGFVD8VB> 关闭或取消所有需求和BUG<https://github.com/AINIZE-SPACE/Ch |
+| 1787727774.357419 | C0BMEKM8YLA | U0B8VHLHJAX | message | replied | 1787727774845 | 1787727808789 | 0 | - | :hourglass_flowing_sand: 处理中… |
