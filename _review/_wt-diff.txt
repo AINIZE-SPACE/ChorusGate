@@ -1,0 +1,261 @@
+﻿diff --git a/src/gateway-control.ts b/src/gateway-control.ts
+index c81aec0..2b05f25 100644
+--- a/src/gateway-control.ts
++++ b/src/gateway-control.ts
+@@ -227,10 +227,19 @@ export async function status(): Promise<void> {
+   if (st) {
+     const uptime = fmtDuration(Date.now() - st.startedAt);
+     const staleMs = Date.now() - st.updatedAt;
++    const staleThreshold = Number(
++      process.env.GATEWAY_HEARTBEAT_STALE_MS || 180_000,
++    );
+     console.error(`  uptime:       ${uptime}`);
++    console.error(`  heartbeat:    ${fmtDuration(staleMs)} ago`);
+     console.error(`  slots:        ${st.activeSlots}/${st.maxConcurrent} active`);
+     console.error(`  sessions:     ${st.sessions.length} thread(s)`);
+-    if (staleMs > 20000) {
++    if (staleMs > staleThreshold) {
++      console.error(
++        `  ⚠️ heartbeat stale (${fmtDuration(staleMs)} old) — ` +
++          `daemon may be hung; watchdog will restart it`,
++      );
++    } else if (staleMs > 20000) {
+       console.error(
+         `  (status snapshot is ${fmtDuration(staleMs)} old — daemon may be busy)`
+       );
+diff --git a/src/gateway.ts b/src/gateway.ts
+index 5bb9abc..16189ee 100644
+--- a/src/gateway.ts
++++ b/src/gateway.ts
+@@ -88,6 +88,7 @@ import {
+   type GatewayStatus,
+ } from "./gateway-paths.js";
+ import { createLogger, redirectConsoleToLogger } from "./logger.js";
++import { LivenessMonitor } from "./liveness.js";
+ import { writeFileSync, rmSync } from "node:fs";
+ import type { StoredEvent } from "./types.js";
+ import { sanitizeForSlack, splitSlackMessage } from "./slack-message.js";
+@@ -1207,6 +1208,10 @@ async function main(): Promise<void> {
+   // Start all profiles — one Socket Mode connection per Slack app.
+   await socketManager.startAll(profiles);
+ 
++  // Liveness (Issue: 休眠唤醒后不恢复): suspend + zombie detection with
++  // self-heal. Only anomalies log (spec AC4 — normal ticks stay silent).
++  startLivenessForDaemon(socketManager);
++
+   console.error(
+     "[gateway] listening on " +
+       `${profiles.length} Slack app(s) — ` +
+@@ -1215,8 +1220,69 @@ async function main(): Promise<void> {
+   );
+ }
+ 
++// ---- liveness (Issue: 休眠唤醒后不恢复) -------------------------------------
++
++/** Stopped in shutdown(); null until main() installs it. */
++let livenessStop: (() => void) | null = null;
++
++function startLivenessForDaemon(sm: SocketManager): void {
++  // Env config (spec §2.3): GATEWAY_SUSPEND_JUMP_MS / probe interval /
++  // failure limit. tickIntervalMs mirrors the statusTimer cadence.
++  const jumpMs = Number(process.env.GATEWAY_SUSPEND_JUMP_MS || 60_000);
++  const probeMs = Number(process.env.GATEWAY_LIVENESS_PROBE_INTERVAL_MS || 60_000);
++  const failLimit = Number(process.env.GATEWAY_LIVENESS_FAILURE_LIMIT || 3);
++
++  const monitor = new LivenessMonitor(
++    {
++      tickIntervalMs: 5000,
++      suspendJumpMs: Number.isFinite(jumpMs) && jumpMs > 0 ? jumpMs : 60_000,
++      probeIntervalMs: Number.isFinite(probeMs) && probeMs > 0 ? probeMs : 60_000,
++      failureLimit: Number.isFinite(failLimit) && failLimit > 0 ? failLimit : 3,
++    },
++    {
++      isConnected: () => sm.anyConnected(),
++      log: (level, module, msg, ...args) => logger.log(level, module, msg, ...args),
++      onSuspendDetected: (seconds) => {
++        // Suspend may have left the socket half-open. Probe immediately
++        // (skip the N-failure accumulation) and force a reconnect if dead.
++        logger.warn("liveness", `suspend detected (${seconds}s) — probing socket immediately`);
++        if (!sm.anyConnected()) {
++          logger.warn("liveness", "socket not connected after resume — forcing reconnect");
++          void sm.forceReconnectAll().then((ok) => {
++            if (!ok) {
++              logger.error("liveness", "reconnect after suspend failed — exiting for watchdog");
++              process.exit(1);
++            }
++          });
++        }
++      },
++      onZombieDetected: () => {
++        logger.warn("liveness", "zombie socket — forcing reconnect");
++        void sm.forceReconnectAll().then((ok) => {
++          if (!ok) {
++            logger.error("liveness", "forced reconnect failed — exiting for watchdog");
++            process.exit(1);
++          }
++        });
++      },
++      onUnrecoverable: () => {
++        logger.error("liveness", "unrecoverable — exiting for watchdog");
++        process.exit(1);
++      },
++    },
++  );
++  monitor.start();
++  livenessStop = () => monitor.stop();
++  logger.info("liveness", "liveness monitor started", {
++    suspendJumpMs: jumpMs,
++    probeIntervalMs: probeMs,
++    failureLimit: failLimit,
++  });
++}
++
+ async function shutdown(): Promise<void> {
+   console.error("[gateway] shutting down...");
++  livenessStop?.();
+   const socketManager = getSocketManager();
+   await socketManager.stopAll();
+   // Clean up control-plane files so `status` reports stopped.
+diff --git a/src/socket-manager.ts b/src/socket-manager.ts
+index bc0700d..36047e0 100644
+--- a/src/socket-manager.ts
++++ b/src/socket-manager.ts
+@@ -312,6 +312,83 @@ export class SocketManager {
+     return this.profiles.size;
+   }
+ 
++  // ---- liveness probe + reconnect (Issue: 休眠唤醒不恢复) -------------------
++
++  /**
++   * Whether a profile's Socket Mode connection is currently believed active.
++   *
++   * SocketModeClient has no public isConnected(); the underlying
++   * `websocket?.isActive()` reflects the ws readyState === OPEN. In a
++   * half-open TCP (Modern Standby) the ready state stays OPEN even though
++   * no data flows — hence Layer 2 of liveness treats this as a probe, not
++   * a guarantee.
++   */
++  isConnected(profileId: string = "default"): boolean {
++    const rp = this.profiles.get(profileId);
++    if (!rp) return false;
++    try {
++      return rp.socket.websocket?.isActive() ?? false;
++    } catch {
++      return false;
++    }
++  }
++
++  /** True if at least one profile is connected (gateway-level probe). */
++  anyConnected(): boolean {
++    for (const id of this.profiles.keys()) {
++      if (this.isConnected(id)) return true;
++    }
++    return this.profiles.size === 0 ? true : false;
++  }
++
++  /**
++   * Force a reconnect across all running profiles. Returns true only if
++   * every profile ended up connected. Never throws — errors are logged.
++   */
++  async forceReconnectAll(): Promise<boolean> {
++    const ids = [...this.profiles.keys()];
++    if (ids.length === 0) return true;
++    const results = await Promise.all(
++      ids.map((id) => this.forceReconnect(id)),
++    );
++    return results.every(Boolean);
++  }
++
++  /**
++   * Force a Socket Mode reconnect for a profile — actively tear down the
++   * (possibly half-open) WebSocket and establish a fresh session.
++   * SocketModeClient supports start() again after disconnect(). Returns
++   * whether the connection is believed active afterwards.
++   */
++  async forceReconnect(profileId: string = "default"): Promise<boolean> {
++    const rp = this.profiles.get(profileId);
++    if (!rp) {
++      console.error(`[socket-manager] profile '${profileId}': not running, cannot reconnect`);
++      return false;
++    }
++    console.error(
++      `[socket-manager] profile '${profileId}': forcing reconnect (zombie socket)`,
++    );
++    try {
++      await rp.socket.disconnect();
++    } catch (err) {
++      console.error(
++        `[socket-manager] profile '${profileId}': disconnect during forced reconnect failed: ` +
++          (err as Error).message,
++      );
++    }
++    try {
++      await rp.socket.start();
++    } catch (err) {
++      console.error(
++        `[socket-manager] profile '${profileId}': forced reconnect failed: ` +
++          (err as Error).message,
++      );
++      return false;
++    }
++    return this.isConnected(profileId);
++  }
++
+   /** Get the bot user ID for a profile. */
+   getBotUserId(profileId: string): string | null {
+     return this.profiles.get(profileId)?.botUserId ?? null;
+diff --git a/tests/control-plane.test.ts b/tests/control-plane.test.ts
+index 70f2a46..df12cfa 100644
+--- a/tests/control-plane.test.ts
++++ b/tests/control-plane.test.ts
+@@ -43,7 +43,12 @@ function restoreHomedirEnv(): void {
+ }
+ 
+ /** Seed a running agent's control-plane files under the temp home. */
+-function seedAgent(agent: string, home: string, pid: number): void {
++function seedAgent(
++  agent: string,
++  home: string,
++  pid: number,
++  updatedAt: number = Date.now(),
++): void {
+   const dir = resolve(home, ".chorusgate", agent);
+   mkdirSync(dir, { recursive: true });
+   writeFileSync(join(dir, "gateway.pid"), String(pid), "utf8");
+@@ -52,7 +57,7 @@ function seedAgent(agent: string, home: string, pid: number): void {
+     JSON.stringify({
+       pid,
+       startedAt: Date.now(),
+-      updatedAt: Date.now(),
++      updatedAt,
+       activeSlots: 0,
+       maxConcurrent: 2,
+       sessions: [],
+@@ -126,4 +131,27 @@ describe("control-plane: per-agent status isolation", () => {
+     assert.ok(!pidFile.startsWith(process.cwd()));
+     assert.ok(!resolve(tempHome, ".chorusgate", "claude", "gateway.pid").startsWith(process.cwd()));
+   });
++
++  it("prints heartbeat age in status output (liveness AC3)", async () => {
++    seedAgent("codex", tempHome, process.pid);
++    const out = await runStatus("status", "--agent", "codex");
++    assert.match(out, /heartbeat:/);
++    assert.match(out, / ago/);
++  });
++
++  it("warns heartbeat stale beyond GATEWAY_HEARTBEAT_STALE_MS (liveness AC3)", async () => {
++    // updatedAt 5 minutes old > default 180s threshold.
++    seedAgent("codex", tempHome, process.pid, Date.now() - 300_000);
++    const out = await runStatus("status", "--agent", "codex");
++    assert.match(out, /⚠️ heartbeat stale/);
++    assert.match(out, /watchdog will restart/);
++  });
++
++  it("keeps the busy hint for a mid-aged snapshot, no stale warning", async () => {
++    // 60s old: past the 20s busy hint, below the 180s stale threshold.
++    seedAgent("codex", tempHome, process.pid, Date.now() - 60_000);
++    const out = await runStatus("status", "--agent", "codex");
++    assert.match(out, /daemon may be busy/);
++    assert.ok(!out.includes("heartbeat stale"));
++  });
+ });

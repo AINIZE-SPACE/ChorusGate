@@ -1,0 +1,401 @@
+﻿diff --git a/src/agent-home.ts b/src/agent-home.ts
+new file mode 100644
+index 0000000..6b37702
+--- /dev/null
++++ b/src/agent-home.ts
+@@ -0,0 +1,113 @@
++// ============================================================
++// Agent-home resolution — official vs custom agent homes
++//
++// Resolves the base directory that holds agent config/profile files.
++// Agent config is looked up both in the official agent home
++// (%USERPROFILE%\.ainize\.config) and, when the user supplies one, in a
++// custom agent home given via --agent-home / AGENT_HOME.
++//
++// Resolution order (highest wins):
++//   1. --agent-home CLI flag           (blank/whitespace -> ignored)
++//   2. AGENT_HOME env var              (checked ONLY on Windows)
++//   3. Default official home: %USERPROFILE%\.ainize\.config
++//
++// Rules:
++//   - CLI overrides env: a non-blank --agent-home wins even when
++//     AGENT_HOME is set; a blank --agent-home falls through to env.
++//   - Relative --agent-home / AGENT_HOME values are resolved against
++//     %USERPROFILE% (the Windows home directory).
++//   - The official home has NO fallback layered on top: it is exactly
++//     %USERPROFILE%\.ainize\.config and nothing else.
++// ============================================================
++
++import { isAbsolute, resolve } from "node:path";
++import { homedir } from "node:os";
++
++/** Default official agent-home base, relative to the Windows home dir. */
++export const DEFAULT_AGENT_HOME_REL = [".ainize", ".config"] as const;
++
++/** The Windows "home directory" (%USERPROFILE% on Windows). */
++export function windowsHomeDir(): string {
++  return process.env.USERPROFILE || homedir();
++}
++
++/** A value that is nullish or only whitespace counts as "not provided". */
++function isBlank(value: string | undefined | null): boolean {
++  return value == null || value.trim() === "";
++}
++
++export interface AgentHomeOptions {
++  /** Raw value of --agent-home from the CLI (may be undefined). */
++  cliAgentHome?: string;
++  /** Raw value of AGENT_HOME from the environment (may be undefined). */
++  envAgentHome?: string;
++  /** Platform override (tests). Defaults to process.platform. */
++  platform?: NodeJS.Platform;
++  /** %USERPROFILE% override (tests). Defaults to the real env/home. */
++  userProfile?: string;
++}
++
++/**
++ * Resolve which agent home to use for agent config/profile files.
++ *
++ * 1. A non-blank --agent-home (CLI) wins over everything; a relative
++ *    value resolves against the Windows home directory.
++ * 2. Otherwise, on Windows only, a non-blank AGENT_HOME is honored;
++ *    a relative value likewise resolves against the Windows home dir.
++ * 3. Otherwise the default official home `%USERPROFILE%\.ainize\.config`.
++ *
++ * No fallback is layered on top of the official home.
++ */
++export function resolveAgentHome(opts: AgentHomeOptions = {}): string {
++  const platform = opts.platform ?? process.platform;
++  const home = opts.userProfile ?? process.env.USERPROFILE ?? homedir();
++
++  // 1. Explicit CLI flag wins over everything (even a set AGENT_HOME).
++  if (!isBlank(opts.cliAgentHome)) {
++    const value = opts.cliAgentHome!.trim();
++    return isAbsolute(value) ? value : resolve(home, value);
++  }
++
++  // 2. AGENT_HOME is honored only on Windows.
++  if (platform === "win32" && !isBlank(opts.envAgentHome)) {
++    const value = opts.envAgentHome!.trim();
++    return isAbsolute(value) ? value : resolve(home, value);
++  }
++
++  // 3. Default official home — nothing layered on top.
++  return resolve(home, ...DEFAULT_AGENT_HOME_REL);
++}
++
++export interface ConfigPathGuardOptions {
++  /** Where the agent home came from. "cli" throws in dev when both the
++   *  config-file path and the agent home are relative; "env" prefers to
++   *  resolve the relative agent home against the Windows home dir. */
++  source: "cli" | "env";
++  /** %USERPROFILE% override (tests). */
++  userProfile?: string;
++}
++
++/**
++ * Resolve a config-file path inside an agent home, with the hardening
++ * guard: the config file path must be absolute, or the agent home base
++ * must be absolute. If neither is absolute:
++ *   - "cli" (dev): throw — a relative config path in a relative home is
++ *     ambiguous and must not silently resolve against the cwd.
++ *   - "env": resolve the relative agent home against the Windows home dir.
++ */
++export function resolveConfigPathInHome(
++  agentHome: string,
++  configFile: string,
++  opts: ConfigPathGuardOptions,
++): string {
++  if (isAbsolute(configFile)) return configFile;
++  if (isAbsolute(agentHome)) return resolve(agentHome, configFile);
++  if (opts.source === "cli") {
++    throw new Error(
++      `[agent-home] config file path must be absolute, or the agent home ` +
++        `must be absolute (got configFile="${configFile}", agentHome="${agentHome}")`,
++    );
++  }
++  const home = opts.userProfile ?? process.env.USERPROFILE ?? homedir();
++  return resolve(home, agentHome, configFile);
++}
+diff --git a/src/bootstrap.ts b/src/bootstrap.ts
+index cbebb90..8476b1f 100644
+--- a/src/bootstrap.ts
++++ b/src/bootstrap.ts
+@@ -28,9 +28,11 @@ export type { LoadEnvOptions } from "./load-env.js";
+  *   4. Validate token formats
+  *   5. Initialize default singleton Slack clients (backward compat)
+  *
+- * @param opts.agentId — When set, loads from ~/.chorusgate/<agentId>/.env
+- *   instead of project .env. (#134)
++ * @param opts.agentId — When set, loads from <agentHome>/<agentId>/.env
++ *   (default base ~/.chorusgate) instead of project .env. (#134)
+  * @param opts.envFile — Explicit .env path. Takes precedence over agentId.
++ * @param opts.agentHome — Redirects the agent-profile base away from
++ *   ~/.chorusgate (--agent-home / AGENT_HOME). (#140)
+  *
+  * Returns the parsed profiles so callers can set up multi-profile
+  * Socket Mode if needed.
+diff --git a/src/cli-args.ts b/src/cli-args.ts
+index e56e84c..b465d7e 100644
+--- a/src/cli-args.ts
++++ b/src/cli-args.ts
+@@ -1,11 +1,16 @@
+ // ============================================================
+-// CLI Args — parse --agent and --env-file from process.argv
++// CLI Args — parse --agent, --env-file, and --agent-home from process.argv
+ //
+ // Issue #134: Agent Profile Config
+ //   chorusgate run --agent <agent-id>     → load ~/.chorusgate/<id>/.env
+ //   chorusgate run --env-file <path>      → load explicit .env path
+ //   chorusgate run                        → legacy (project .env)
+ //
++// Issue #140: Agent Home
++//   --agent-home <path>  → base dir for agent profiles (redirects the
++//                          default ~/.chorusgate base; relative resolves
++//                          against %USERPROFILE%).
++//
+ // Validation happens here so invalid args fail early before any
+ // side effects (network, file writes, etc.).
+ //
+@@ -29,6 +34,9 @@ export interface CliArgs {
+   /** Explicit .env file path (absolute only).
+    *  When set, loads this file directly. Mutually exclusive with --agent. */
+   envFile: string | undefined;
++  /** Base directory of the official/custom agent home (--agent-home).
++   *  Redirects agent profile lookup to <agentHome>/<agentId>/.env. */
++  agentHome: string | undefined;
+   /** Initialize a missing agent profile before running. */
+   initialize: boolean;
+ }
+@@ -101,6 +109,7 @@ export function validateEnvFilePath(filePath: string): void {
+ export function parseCliArgs(argv: string[] = process.argv): CliArgs {
+   let agentId: string | undefined;
+   let envFile: string | undefined;
++  let agentHome: string | undefined;
+   let initialize = false;
+ 
+   for (let i = 2; i < argv.length; i++) {
+@@ -117,6 +126,12 @@ export function parseCliArgs(argv: string[] = process.argv): CliArgs {
+       envFile = argv[++i];
+     } else if (arg.startsWith("--env-file=")) {
+       envFile = arg.slice("--env-file=".length);
++    }
++    // --agent-home <value> or --agent-home=<value>
++    else if (arg === "--agent-home" && i + 1 < argv.length) {
++      agentHome = argv[++i];
++    } else if (arg.startsWith("--agent-home=")) {
++      agentHome = arg.slice("--agent-home=".length);
+     } else if (arg === "--init") {
+       initialize = true;
+     }
+@@ -141,5 +156,5 @@ export function parseCliArgs(argv: string[] = process.argv): CliArgs {
+     validateEnvFilePath(envFile);
+   }
+ 
+-  return { agentId, envFile, initialize };
++  return { agentId, envFile, agentHome, initialize };
+ }
+diff --git a/src/config-init.ts b/src/config-init.ts
+index 7dea32f..2cada28 100644
+--- a/src/config-init.ts
++++ b/src/config-init.ts
+@@ -14,6 +14,9 @@ export interface InitAgentOptions {
+   force?: boolean;
+   /** Test/embedding override; defaults to ~/.chorusgate. */
+   profileRoot?: string;
++  /** Agent-home base (--agent-home / AGENT_HOME). Redirects the default
++   *  ~/.chorusgate profile base. (#140) */
++  agentHome?: string;
+ }
+ 
+ export interface InitAgentResult {
+@@ -52,7 +55,7 @@ export function initializeAgentProfile(opts: InitAgentOptions): InitAgentResult
+   const sourcePath = resolve(opts.from ?? resolve(cwd, ".env"));
+   const targetPath = opts.profileRoot
+     ? resolve(opts.profileRoot, opts.agentId, ".env")
+-    : agentProfileEnvPath(opts.agentId);
++    : agentProfileEnvPath(opts.agentId, opts.agentHome);
+ 
+   if (existsSync(sourcePath)) {
+     migrateConfig({
+@@ -100,7 +103,7 @@ export async function prepareRunConfig(argv: string[] = process.argv): Promise<b
+   const args = parseCliArgs(argv);
+   if (!args.agentId || args.envFile) return true;
+ 
+-  const targetPath = agentProfileEnvPath(args.agentId);
++  const targetPath = agentProfileEnvPath(args.agentId, args.agentHome);
+   if (existsSync(targetPath)) {
+     const missing = missingProfileKeys(targetPath);
+     if (missing.length === 0) return true;
+@@ -126,7 +129,7 @@ export async function prepareRunConfig(argv: string[] = process.argv): Promise<b
+     return false;
+   }
+ 
+-  const result = initializeAgentProfile({ agentId: args.agentId });
++  const result = initializeAgentProfile({ agentId: args.agentId, agentHome: args.agentHome });
+   if (result.sourcePath) {
+     console.error(`[chorusgate] Initialized "${args.agentId}" from ${result.sourcePath}.`);
+   } else {
+@@ -139,7 +142,7 @@ export async function prepareRunConfig(argv: string[] = process.argv): Promise<b
+ export async function runInit(argv: string[] = process.argv): Promise<void> {
+   const args = parseCliArgs(argv);
+   if (!args.agentId) {
+-    console.error("Usage: chorusgate config init --agent <id> [--from <project.env>] [--cwd <project>] [--force]");
++    console.error("Usage: chorusgate config init --agent <id> [--from <project.env>] [--cwd <project>] [--agent-home <path>] [--force]");
+     process.exitCode = 2;
+     return;
+   }
+@@ -156,7 +159,13 @@ export async function runInit(argv: string[] = process.argv): Promise<void> {
+     else if (arg === "--force") force = true;
+   }
+ 
+-  const result = initializeAgentProfile({ agentId: args.agentId, from, cwd, force });
++  const result = initializeAgentProfile({
++    agentId: args.agentId,
++    from,
++    cwd,
++    force,
++    agentHome: args.agentHome,
++  });
+   console.error(`[chorusgate] Agent "${args.agentId}" initialized at ${result.targetPath}.`);
+   if (!result.ready) {
+     console.error("[chorusgate] Add SLACK_BOT_TOKEN and SLACK_APP_TOKEN before starting.");
+diff --git a/src/gateway-control.ts b/src/gateway-control.ts
+index 38f4391..3663de6 100644
+--- a/src/gateway-control.ts
++++ b/src/gateway-control.ts
+@@ -109,11 +109,12 @@ export async function start(skipConfigPreflight = false): Promise<void> {
+   const logFile = getLogFile(agentId);
+   const out = openSync(logFile, "a");
+ 
+-  // Forward --agent and --env-file to the daemon process (#134)
++  // Forward --agent, --env-file, and --agent-home to the daemon process (#134/#140)
+   const cliArgs = parseCliArgs();
+   const forwardArgs: string[] = [];
+   if (cliArgs.agentId) forwardArgs.push("--agent", cliArgs.agentId);
+   if (cliArgs.envFile) forwardArgs.push("--env-file", cliArgs.envFile);
++  if (cliArgs.agentHome) forwardArgs.push("--agent-home", cliArgs.agentHome);
+   if (cliArgs.initialize) forwardArgs.push("--init");
+ 
+   const child = spawn(process.execPath, [BIN_FILE, "run", ...forwardArgs], {
+diff --git a/src/gateway.ts b/src/gateway.ts
+index 7fb3cce..9c20665 100644
+--- a/src/gateway.ts
++++ b/src/gateway.ts
+@@ -36,7 +36,7 @@ const agentId = cliArgs.agentId ?? (cliArgs.envFile ? undefined : "default");
+ // Control-plane identity: pid/status/log always live under
+ // ~/.chorusgate/<agent>/ — with --env-file and no --agent, use "default".
+ const controlAgentId = agentId ?? "default";
+-const profiles = bootstrap({ agentId, envFile: cliArgs.envFile });
++const profiles = bootstrap({ agentId, envFile: cliArgs.envFile, agentHome: cliArgs.agentHome });
+ 
+ import { getWebClient } from "./slack-clients.js";
+ import {
+diff --git a/src/load-env.ts b/src/load-env.ts
+index 1f8cd69..1ddf03d 100644
+--- a/src/load-env.ts
++++ b/src/load-env.ts
+@@ -4,7 +4,8 @@
+ // Issue #134: Agent Profile Config
+ //
+ // Load order when --agent <id> is specified (later overrides earlier):
+-//   1. ~/.chorusgate/<agent-id>/.env   — agent profile config
++//   1. <agent-home>/<id>/.env             — agent profile config (#140 base)
++//      (default base ~/.chorusgate; redirected by --agent-home / AGENT_HOME)
+ //   2. --env-file <path>               — explicit override (if specified)
+ //   3. Shell environment               — already in process.env, never overwritten
+ //
+@@ -23,6 +24,7 @@ import { parse as parseDotEnv } from "dotenv";
+ import { dirname, resolve, join, parse as parsePath } from "node:path";
+ import { homedir } from "node:os";
+ import { readFileSync, existsSync, readdirSync } from "node:fs";
++import { resolveAgentHome } from "./agent-home.js";
+ 
+ /**
+  * Walk upward from `startDir` until we find a directory containing
+@@ -71,10 +73,45 @@ export const CHORUSGATE_HOME = resolve(
+ 
+ /**
+  * Get the agent profile .env path.
+- *   ~/.chorusgate/<agentId>/.env
++ *   ~/.chorusgate/<agentId>/.env                       (default, #134)
++ *   <resolved agent home>/<agentId>/.env               (--agent-home / AGENT_HOME)
+  */
+-export function agentProfileEnvPath(agentId: string): string {
+-  return resolve(CHORUSGATE_HOME, agentId, ".env");
++export function agentProfileEnvPath(agentId: string, agentHome?: string): string {
++  return resolve(agentProfileBase(agentHome), agentId, ".env");
++}
++
++/**
++ * Whether the user explicitly opted into an agent home: a non-blank
++ * --agent-home CLI value, or (Windows only) a non-blank AGENT_HOME env var.
++ * The default official home is NOT an opt-in — without an explicit override
++ * we keep the legacy ~/.chorusgate base so #134 behavior is unchanged.
++ */
++function hasExplicitAgentHome(
++  cliAgentHome: string | undefined,
++  platform: NodeJS.Platform = process.platform,
++): boolean {
++  if (cliAgentHome?.trim()) return true;
++  return platform === "win32" && !!process.env.AGENT_HOME?.trim();
++}
++
++/**
++ * Base directory that holds agent profile configs.
++ *
++ *  - Explicit --agent-home / AGENT_HOME (Windows) → the resolved official or
++ *    custom agent home; relative values resolve against %USERPROFILE%.
++ *  - Otherwise → the legacy ~/.chorusgate base (#134). The two are distinct
++ *    concepts: ~/.chorusgate is ChorusGate's control plane (#134); the
++ *    resolved agent home is where an agent's official config/profile files
++ *    live (.ainize/.config by default, #140).
++ */
++export function agentProfileBase(agentHome?: string): string {
++  if (hasExplicitAgentHome(agentHome)) {
++    return resolveAgentHome({
++      cliAgentHome: agentHome,
++      envAgentHome: process.env.AGENT_HOME,
++    });
++  }
++  return CHORUSGATE_HOME;
+ }
+ 
+ /**
+@@ -111,13 +148,17 @@ export interface LoadEnvOptions {
+   agentId?: string;
+   /** Explicit .env file path. Takes precedence over agent profile. */
+   envFile?: string;
++  /** Base directory of the official/custom agent home (--agent-home).
++   *  Redirects the agent-profile base away from the legacy ~/.chorusgate. */
++  agentHome?: string;
+ }
+ 
+ /**
+  * Load .env from configured sources.
+  *
+  * Agent profile mode (agentId or envFile set):
+- *   1. ~/.chorusgate/<agentId>/.env  — if agentId is set and file exists
++ *   1. <agentHome>/<agentId>/.env       — if agentId is set and file exists
++ *      (base = ~/.chorusgate by default; --agent-home / AGENT_HOME redirects)
+  *   2. <envFile>                     — if envFile is set and file exists
+  *   3. Shell environment             — always wins
+  *
+@@ -130,7 +171,7 @@ export interface LoadEnvOptions {
+  * Returns the merged parsed result so callers can still do placeholder fixup.
+  */
+ export function loadEnv(opts: LoadEnvOptions = {}): Record<string, string> {
+-  const { agentId, envFile } = opts;
++  const { agentId, envFile, agentHome } = opts;
+   const shellKeys = new Set(Object.keys(process.env));
+   const merged: Record<string, string> = {};
+ 
+@@ -180,7 +221,7 @@ export function loadEnv(opts: LoadEnvOptions = {}): Record<string, string> {
+   // ---- Agent profile mode (#134) -------------------------------------------
+   if (agentId || envFile) {
+     if (agentId) {
+-      const profilePath = agentProfileEnvPath(agentId);
++      const profilePath = agentProfileEnvPath(agentId, agentHome);
+       loadRequired(profilePath, `agent profile "${agentId}"`);
+     }
+     if (envFile) {

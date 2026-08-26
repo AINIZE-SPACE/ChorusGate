@@ -1,0 +1,220 @@
+▶ agent platform preflight
+  ✔ maps claude-stream and codex to their platform requirements (5.7643ms)
+  ✔ recognizes the current Node executable by absolute path (1.1267ms)
+  ✔ reports a missing platform with an actionable hint (1843.7131ms)
+✔ agent platform preflight (1854.4666ms)
+[stream-parser] RESULT detected — closing stdin
+✔ claude-stream-integration: simple mode spawns mock and parses stream (1461.8654ms)
+[stream-parser] RESULT detected — closing stdin
+✔ claude-stream-integration: permission mode — request then response (1421.3385ms)
+[stream-parser] RESULT detected — closing stdin
+✔ claude-stream-integration: error mode emits is_error result (1122.0704ms)
+✔ PermissionTracker: full approve cycle via handleAction with userId (1.9243ms)
+✔ buildApprovalBlocks: timeout text is dynamic based on timeoutMs (1.2027ms)
+✔ PermissionTracker: requesterUserId returned for gateway auth check (0.6879ms)
+✔ PermissionTracker: handleAction parses requestId containing colons (0.7166ms)
+[stream-parser] RESULT detected — closing stdin
+[stream-parser] RESULT detected — closing stdin
+[stream-parser] RESULT detected — closing stdin
+[stream-parser] RESULT detected — closing stdin
+[stream-parser] RESULT detected — closing stdin
+[stream-parser] RESULT detected — closing stdin
+✔ ClaudeStreamParser parses system.init from fixture (8.2231ms)
+✔ ClaudeStreamParser parses permission_request from fixture (2.2957ms)
+✔ ClaudeStreamParser parses api_retry events (1.0038ms)
+✔ ClaudeStreamParser extracts assistant text and result (1.3927ms)
+✔ ClaudeStreamParser handles user replay (isReplay) (1.4961ms)
+✔ ClaudeStreamParser fires onSessionId from system.init (1.7916ms)
+✔ ClaudeStreamParser ignores empty and invalid lines (0.8043ms)
+✔ ClaudeStreamParser: stream_event unwrapping (5.407ms)
+✔ ClaudeStreamParser: direct delta still works (8.3599ms)
+✔ PermissionRequest type has correct shape (5.9577ms)
+✔ permission_response JSON matches protocol spec (0.7377ms)
+✔ ClaudeStreamSession shape validates (1.1911ms)
+▶ parseCliArgs
+  ✔ parses --init for automatic profile initialization (15.6422ms)
+  ✔ returns undefined for both when no flags present (0.5428ms)
+  ✔ parses --agent with space separator (0.6606ms)
+  ✔ parses --agent with equals separator (0.7141ms)
+  ✔ parses --env-file with space separator (absolute path) (0.8717ms)
+  ✔ parses --env-file with equals separator (absolute path) (0.4593ms)
+  ✔ throws when --agent and --env-file are both specified (mutual exclusion) (2.9193ms)
+  ✔ parses flags before the command (e.g. chorusgate --agent claude run) (0.989ms)
+  ✔ ignores unknown flags (0.7392ms)
+  ✔ rejects relative --env-file paths (0.9741ms)
+  ✔ rejects relative --env-file with equals form (0.5443ms)
+  ✔ accepts Windows absolute paths for --env-file (0.3775ms)
+✔ parseCliArgs (32.8179ms)
+▶ validateAgentId
+  ✔ accepts valid lowercase ids (1.5642ms)
+  ✔ accepts ids with dashes and underscores (0.4396ms)
+  ✔ rejects ids with uppercase letters (0.5339ms)
+  ✔ rejects ids with special characters (0.961ms)
+  ✔ rejects empty or whitespace-only ids (0.9531ms)
+  ✔ rejects path traversal via slashes (0.5599ms)
+  ✔ rejects path traversal via double dots alone (0.4274ms)
+  ✔ rejects ids over 64 characters (0.4489ms)
+  ✔ accepts ids at exactly 64 characters (0.4648ms)
+✔ validateAgentId (7.3549ms)
+▶ validateEnvFilePath
+  ✔ accepts absolute POSIX paths (0.4796ms)
+  ✔ rejects relative paths (0.7528ms)
+  ✔ rejects empty paths (0.5991ms)
+✔ validateEnvFilePath (2.2268ms)
+▶ parseCliArgs validation integration
+  ✔ throws on invalid agent-id via --agent flag (0.6499ms)
+  ✔ throws on path traversal in --agent (0.4828ms)
+  ✔ throws on relative --env-file (0.4349ms)
+  ✔ throws on mutual exclusion (0.509ms)
+✔ parseCliArgs validation integration (2.5653ms)
+▶ parseCliArgs log command flags (#141)
+  ✔ parses --lines with space and equals separators (1.5081ms)
+  ✔ parses -n short form (0.582ms)
+  ✔ defaults lines to undefined (command applies default 50) (0.4521ms)
+  ✔ parses --follow and -f (0.3016ms)
+  ✔ combines --agent + --lines + --follow (0.304ms)
+  ✔ does not affect start/stop flag parsing (0.3578ms)
+  ✔ ignores a trailing --lines with no value (0.3215ms)
+  ✔ parses a non-numeric --lines as NaN (the command clamps it) (0.2896ms)
+  ✔ ignores a trailing -n with no value (0.264ms)
+✔ parseCliArgs log command flags (#141) (7.8212ms)
+✔ codex createSession args contain --json and --cd (4.5165ms)
+✔ codex args: headless flags — sandbox mode (default) (0.6767ms)
+✔ codex args: headless flags — bypass mode (legacy) (0.5393ms)
+✔ codex args: prompt goes to stdin not argv (1.2569ms)
+✔ codex args: create includes sandbox before command args (3.1649ms)
+✔ codex args: resume omits unsupported sandbox flag (1.0726ms)
+✔ ST-CX-001: codex createSession exec --json (after subcommand) (5328.7592ms)
+✔ ST-CX-002: codex resumeSession exec --json resume (after subcommand) (4760.7845ms)
+✔ ST-CX-003: args with spaces are quoted; prompt not in args (goes via stdin) (1.2532ms)
+✔ ST-CX-004: CJK prompt via stdin doesn't crash spawn (4310.6627ms)
+✔ ST-CX-005: MAX_ITERATIONS=1 limits iterations (5980.7883ms)
+✔ ST-CX-006: CODEX_BIN=nonexistent → meaningful ENOENT error (1992.3713ms)
+✔ codexProvider.generateMCPConfig writes Web API-only config (217.0717ms)
+[migrate] No --agent given — auto-detecting from source .env (claude / codex / hermes / openclaw). Ambiguous or absent markers fail closed and require an explicit --agent.
+[migrate] No --agent given — auto-detecting from source .env (claude / codex / hermes / openclaw). Ambiguous or absent markers fail closed and require an explicit --agent.
+
+=== DRY-RUN (no changes made) ===
+
+Agent:     claude
+Target:    F:\Temp\cg-cli-VaHKDV\claude\.env
+
+📋 Migrating to ChorusGate (1 keys):
+  → SLACK_BOT_TOKEN
+
+📌 Staying in platform/project (1 keys):
+  · MY_VAR
+
+To apply: add --apply
+To overwrite existing: add --apply --force
+
+After migration, verify:
+  chorusgate run --agent claude
+
+[migrate] ERROR: --from <path> is required. Usage: chorusgate config migrate --from <source.env> [--agent <id>] [--cwd <project>] [--apply] [--force]
+[migrate] ERROR: Source file not found: F:\Temp\cg-cli-VaHKDV\missing.env
+[migrate] Written: F:\Temp\cg-cli-VaHKDV\codex\.env (1 keys)
+
+=== MIGRATION APPLIED ===
+
+Agent:     codex
+Target:    F:\Temp\cg-cli-VaHKDV\codex\.env
+Migrated:  1 keys
+
+Next steps:
+  1. Verify: chorusgate run --agent codex
+  2. Remove ChorusGate keys from source .env (optional, manual)
+  3. Source .env was NOT modified
+
+▶ parseMigrateArgs
+  ✔ parses all flags in space-separated form (13.6751ms)
+  ✔ parses flags in equals form (29.5226ms)
+  ✔ defaults to dry-run when --apply is absent (8.4732ms)
+  ✔ ignores unknown flags and command tokens (7.0999ms)
+  ✔ throws a usage error when --from is missing (7.2906ms)
+✔ parseMigrateArgs (100.5805ms)
+▶ runMigrate
+  ✔ succeeds with a dry-run preview (exitCode 0, no file written) (62.1843ms)
+  ✔ exits 1 with a clear message when --from is missing (18.9437ms)
+  ✔ exits 1 when the source file does not exist (9.9033ms)
+  ✔ --apply writes ChorusGate keys to the isolated home, keeping platform keys out (55.5993ms)
+✔ runMigrate (162.6512ms)
+[migrate] Written: F:\Temp\chorusgate-init-TJuch5\missing\profiles\claude\.env (4 keys)
+▶ agent profile initialization
+  ✔ creates missing directories and a starter config (30.6856ms)
+  ✔ migrates an existing project env and creates parent directories (47.4778ms)
+  ✔ formats known agents for spelling guidance (0.7093ms)
+  ✔ reports missing token names from an incomplete starter (8.8349ms)
+✔ agent profile initialization (125.3086ms)
+▶ config migrate cwd preservation
+  ✔ adds an explicit cwd when migrating a project-local config (11.1856ms)
+  ✔ rejects a missing cwd before writing (8.0257ms)
+✔ config migrate cwd preservation (22.3718ms)
+▶ config migrate auto-detect agent
+  ✔ detects claude from GATEWAY_PROVIDER (1.3966ms)
+  ✔ detects claude from claude-stream provider (0.4811ms)
+  ✔ detects codex from GATEWAY_PROVIDER (0.4751ms)
+  ✔ detects hermes from GATEWAY_PROVIDER (0.4237ms)
+  ✔ detects openclaw from GATEWAY_PROVIDER (35.4081ms)
+  ✔ detects claude from CLAUDE_BIN marker (0.6977ms)
+  ✔ detects codex from CODEX_BIN marker (0.6804ms)
+  ✔ detects claude from Claude-specific env vars (0.9011ms)
+  ✔ returns null when no marker is present (0.3783ms)
+  ✔ rejects claude+codex conflicting markers as ambiguous (0.5182ms)
+  ✔ rejects provider+bin conflicting markers as ambiguous (0.4823ms)
+  ✔ migrateConfig fails closed when no marker and no --agent (5.9014ms)
+  ✔ migrateConfig propagates ambiguity error to caller (31.4386ms)
+  ✔ explicit --agent skips auto-detection entirely (6.4967ms)
+✔ config migrate auto-detect agent (93.013ms)
+▶ control-plane: per-agent status isolation
+  ✔ reports running only for the agent whose home is seeded (175.9759ms)
+  ✔ omitting --agent targets 'default', not another running agent (11.9326ms)
+  ✔ uses exit code 3 for stopped and 0 for running (36.5404ms)
+  ✔ seeds/reads control-plane files under the agent home, not cwd (6.5466ms)
+  ✔ prints heartbeat age in status output (liveness AC3) (149.6327ms)
+  ✔ warns heartbeat stale beyond GATEWAY_HEARTBEAT_STALE_MS (liveness AC3) (79.0039ms)
+  ✔ honors a custom GATEWAY_HEARTBEAT_STALE_MS override (liveness AC3) (295.8232ms)
+  ✔ keeps the busy hint for a mid-aged snapshot, no stale warning (249.19ms)
+✔ control-plane: per-agent status isolation (1012.8905ms)
+✔ DurableEventStore: state machine — pending → processing → replied (24.3274ms)
+✔ DurableEventStore: state machine — fail and retry (1.4037ms)
+✔ DurableEventStore: replayable returns pending + stale processing events (1.6206ms)
+✔ DurableEventStore: dedup — fresh processing is not replayable (1.2549ms)
+✔ DurableEventStore: countByState — self-contained (1.3194ms)
+✔ EventStore keeps newest events when capacity is exceeded (2.9718ms)
+✔ EventStore filters pending events and marks handled (2.9309ms)
+▶ gateway-paths: per-agent home resolution
+  ✔ resolves (--agent omitted) to ~/.chorusgate/default (7.5397ms)
+  ✔ resolves each agent to its own isolated home (1.4848ms)
+  ✔ scopes pid/status/log per agent (no shared snapshot) (1.7583ms)
+  ✔ never places the daemon home under cwd (cross-project) (0.8507ms)
+  ✔ ensureGatewayDir creates the agent home (2.102ms)
+✔ gateway-paths: per-agent home resolution (19.5302ms)
+✔ IT-01: interrupt mode sends SIGTERM and busy ack (1688.4122ms)
+✔ IT-02: debounce — 2nd interrupt on same channel/thread is suppressed (127.1742ms)
+✔ IT-03: cross-session — interrupt on A does not touch B (86.8926ms)
+[interrupt] failed to kill process for IT-07: ESRCH: no such process
+✔ IT-05: queue mode — child already exited, interrupt returns true immediately (737.1186ms)
+✔ IT-06: clear() SIGKILLs all running children (58.9783ms)
+✔ IT-07: child.kill() throws, interrupt() still returns true (2.94ms)
+✔ IT-08: queue mode returns true after child exit (regression for #54) (1115.6565ms)
+✔ InterruptManager queue mode: sends queue ack, awaits child exit, returns true (1530.7207ms)
+✔ #58 regression: onSpawn (register) fires synchronously after spawn — no async gap (1272.8542ms)
+✔ #58 regression: 10,000 rapid register/isRunning cycles — zero false negatives (28.9126ms)
+✔ #58 regression: concurrent register of different keys doesn't interfere (2.0659ms)
+✔ #58 regression: isRunning remains true during simulated claude -p lifetime (22.9773ms)
+✔ InterruptManager: register + unregister lifecycle (1117.2951ms)
+✔ InterruptManager: interrupt returns true when no process is running (2.3921ms)
+✔ InterruptManager: interrupt mode calls child.kill(SIGTERM) (136.3176ms)
+✔ InterruptManager: sendBusyAck debounce — second call within 30s is suppressed (5.2972ms)
+✔ InterruptManager: clear() SIGKILLs all running children and resets state (1.9905ms)
+✔ InterruptManager: unregister is a no-op for unknown key (1.2039ms)
+ℹ tests 139
+ℹ suites 13
+ℹ pass 139
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 25554.0699
+EXIT=0 
