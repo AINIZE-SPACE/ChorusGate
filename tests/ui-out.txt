@@ -1,0 +1,8 @@
+﻿node : Could not find 'tests/user-identity.test.ts'
+At line:1 char:407
++ ... lyContinue; node --import tsx --import ./tests/test-env.mjs --test -- ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Could not find ...entity.test.ts' 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

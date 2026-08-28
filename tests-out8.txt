@@ -1,0 +1,536 @@
+▶ agent platform preflight
+  ✔ maps claude-stream and codex to their platform requirements (4.9093ms)
+  ✔ recognizes the current Node executable by absolute path (1.7333ms)
+  ✔ reports a missing platform with an actionable hint (2980.77ms)
+✔ agent platform preflight (2992.7308ms)
+[stream-parser] RESULT detected — closing stdin
+✔ claude-stream-integration: simple mode spawns mock and parses stream (2765.7175ms)
+[stream-parser] RESULT detected — closing stdin
+✔ claude-stream-integration: permission mode — request then response (2510.3305ms)
+[stream-parser] RESULT detected — closing stdin
+✔ claude-stream-integration: error mode emits is_error result (2226.3116ms)
+✔ PermissionTracker: full approve cycle via handleAction with userId (1.837ms)
+✔ buildApprovalBlocks: timeout text is dynamic based on timeoutMs (1.2802ms)
+✔ PermissionTracker: requesterUserId returned for gateway auth check (0.6754ms)
+✔ PermissionTracker: handleAction parses requestId containing colons (0.6832ms)
+[stream-parser] RESULT detected — closing stdin
+[stream-parser] RESULT detected — closing stdin
+[stream-parser] RESULT detected — closing stdin
+[stream-parser] RESULT detected — closing stdin
+[stream-parser] RESULT detected — closing stdin
+[stream-parser] RESULT detected — closing stdin
+✔ ClaudeStreamParser parses system.init from fixture (75.3299ms)
+✔ ClaudeStreamParser parses permission_request from fixture (2.5324ms)
+✔ ClaudeStreamParser parses api_retry events (0.7688ms)
+✔ ClaudeStreamParser extracts assistant text and result (1.356ms)
+✔ ClaudeStreamParser handles user replay (isReplay) (8.2301ms)
+✔ ClaudeStreamParser fires onSessionId from system.init (3.5687ms)
+✔ ClaudeStreamParser ignores empty and invalid lines (0.6194ms)
+✔ ClaudeStreamParser: stream_event unwrapping (2.1228ms)
+✔ ClaudeStreamParser: direct delta still works (1.807ms)
+✔ PermissionRequest type has correct shape (5.8298ms)
+✔ permission_response JSON matches protocol spec (0.9014ms)
+✔ ClaudeStreamSession shape validates (1.2821ms)
+▶ parseCliArgs
+  ✔ parses --init for automatic profile initialization (4.8168ms)
+  ✔ returns undefined for both when no flags present (0.6028ms)
+  ✔ parses --agent with space separator (1.3587ms)
+  ✔ parses --agent with equals separator (0.6161ms)
+  ✔ parses --env-file with space separator (absolute path) (3.3776ms)
+  ✔ parses --env-file with equals separator (absolute path) (0.5703ms)
+  ✔ throws when --agent and --env-file are both specified (mutual exclusion) (2.6189ms)
+  ✔ parses flags before the command (e.g. chorusgate --agent claude run) (0.5229ms)
+  ✔ ignores unknown flags (0.5982ms)
+  ✔ rejects relative --env-file paths (2.2803ms)
+  ✔ rejects relative --env-file with equals form (0.6117ms)
+  ✔ accepts Windows absolute paths for --env-file (0.4739ms)
+✔ parseCliArgs (41.7256ms)
+▶ validateAgentId
+  ✔ accepts valid lowercase ids (1.2773ms)
+  ✔ accepts ids with dashes and underscores (0.4512ms)
+  ✔ rejects ids with uppercase letters (0.509ms)
+  ✔ rejects ids with special characters (0.6405ms)
+  ✔ rejects empty or whitespace-only ids (0.5615ms)
+  ✔ rejects path traversal via slashes (0.6743ms)
+  ✔ rejects path traversal via double dots alone (0.3796ms)
+  ✔ rejects ids over 64 characters (0.414ms)
+  ✔ accepts ids at exactly 64 characters (0.3275ms)
+✔ validateAgentId (6.1709ms)
+▶ validateEnvFilePath
+  ✔ accepts absolute POSIX paths (0.4701ms)
+  ✔ rejects relative paths (0.6798ms)
+  ✔ rejects empty paths (0.4317ms)
+✔ validateEnvFilePath (1.9562ms)
+▶ parseCliArgs validation integration
+  ✔ throws on invalid agent-id via --agent flag (1.0067ms)
+  ✔ throws on path traversal in --agent (0.4101ms)
+  ✔ throws on relative --env-file (0.3966ms)
+  ✔ throws on mutual exclusion (0.3542ms)
+✔ parseCliArgs validation integration (2.9415ms)
+▶ parseCliArgs log command flags (#141)
+  ✔ parses --lines with space and equals separators (0.5396ms)
+  ✔ parses -n short form (0.4857ms)
+  ✔ defaults lines to undefined (command applies default 50) (0.3136ms)
+  ✔ parses --follow and -f (0.2911ms)
+  ✔ combines --agent + --lines + --follow (0.3115ms)
+  ✔ does not affect start/stop flag parsing (0.3664ms)
+  ✔ ignores a trailing --lines with no value (0.3288ms)
+  ✔ parses a non-numeric --lines as NaN (the command clamps it) (0.5141ms)
+  ✔ ignores a trailing -n with no value (0.315ms)
+✔ parseCliArgs log command flags (#141) (6.8264ms)
+✔ codex createSession args contain --json and --cd (18.8062ms)
+✔ codex args: headless flags — sandbox mode (default) (0.5792ms)
+✔ codex args: headless flags — bypass mode (legacy) (75.3008ms)
+✔ codex args: prompt goes to stdin not argv (1.528ms)
+✔ codex args: create includes sandbox before command args (7.9929ms)
+✔ codex args: resume omits unsupported sandbox flag (0.874ms)
+✔ ST-CX-001: codex createSession exec --json (after subcommand) (5338.2862ms)
+✔ ST-CX-002: codex resumeSession exec --json resume (after subcommand) (5905.9358ms)
+✔ ST-CX-003: args with spaces are quoted; prompt not in args (goes via stdin) (1.9983ms)
+✔ ST-CX-004: CJK prompt via stdin doesn't crash spawn (8933.0888ms)
+✔ ST-CX-005: MAX_ITERATIONS=1 limits iterations (6873.433ms)
+✔ ST-CX-006: CODEX_BIN=nonexistent → meaningful ENOENT error (1958.2203ms)
+✔ codexProvider.generateMCPConfig writes Web API-only config (165.5466ms)
+[migrate] No --agent given — auto-detecting from source .env (claude / codex / hermes / openclaw). Ambiguous or absent markers fail closed and require an explicit --agent.
+[migrate] No --agent given — auto-detecting from source .env (claude / codex / hermes / openclaw). Ambiguous or absent markers fail closed and require an explicit --agent.
+
+=== DRY-RUN (no changes made) ===
+
+Agent:     claude
+Target:    F:\Temp\cg-cli-CVmVM1\claude\.env
+
+📋 Migrating to ChorusGate (1 keys):
+  → SLACK_BOT_TOKEN
+
+📌 Staying in platform/project (1 keys):
+  · MY_VAR
+
+To apply: add --apply
+To overwrite existing: add --apply --force
+
+After migration, verify:
+  chorusgate run --agent claude
+
+[migrate] ERROR: --from <path> is required. Usage: chorusgate config migrate --from <source.env> [--agent <id>] [--cwd <project>] [--apply] [--force]
+[migrate] ERROR: Source file not found: F:\Temp\cg-cli-CVmVM1\missing.env
+[migrate] Written: F:\Temp\cg-cli-CVmVM1\codex\.env (1 keys)
+
+=== MIGRATION APPLIED ===
+
+Agent:     codex
+Target:    F:\Temp\cg-cli-CVmVM1\codex\.env
+Migrated:  1 keys
+
+Next steps:
+  1. Verify: chorusgate run --agent codex
+  2. Remove ChorusGate keys from source .env (optional, manual)
+  3. Source .env was NOT modified
+
+▶ parseMigrateArgs
+  ✔ parses all flags in space-separated form (23.629ms)
+  ✔ parses flags in equals form (9.9217ms)
+  ✔ defaults to dry-run when --apply is absent (11.5923ms)
+  ✔ ignores unknown flags and command tokens (12.9659ms)
+  ✔ throws a usage error when --from is missing (9.491ms)
+✔ parseMigrateArgs (73.4995ms)
+▶ runMigrate
+  ✔ succeeds with a dry-run preview (exitCode 0, no file written) (113.076ms)
+  ✔ exits 1 with a clear message when --from is missing (10.0421ms)
+  ✔ exits 1 when the source file does not exist (7.527ms)
+  ✔ --apply writes ChorusGate keys to the isolated home, keeping platform keys out (17.2134ms)
+✔ runMigrate (149.1296ms)
+[migrate] Written: F:\Temp\chorusgate-init-W1zcA7\missing\profiles\claude\.env (4 keys)
+▶ agent profile initialization
+  ✔ creates missing directories and a starter config (218.9598ms)
+  ✔ migrates an existing project env and creates parent directories (355.432ms)
+  ✔ formats known agents for spelling guidance (0.7489ms)
+  ✔ reports missing token names from an incomplete starter (81.619ms)
+✔ agent profile initialization (663.0929ms)
+▶ config migrate cwd preservation
+  ✔ adds an explicit cwd when migrating a project-local config (164.8245ms)
+  ✔ rejects a missing cwd before writing (11.569ms)
+✔ config migrate cwd preservation (192.711ms)
+▶ config migrate auto-detect agent
+  ✔ detects claude from GATEWAY_PROVIDER (1.616ms)
+  ✔ detects claude from claude-stream provider (0.5428ms)
+  ✔ detects codex from GATEWAY_PROVIDER (0.5408ms)
+  ✔ detects hermes from GATEWAY_PROVIDER (0.509ms)
+  ✔ detects openclaw from GATEWAY_PROVIDER (0.5141ms)
+  ✔ detects claude from CLAUDE_BIN marker (0.8463ms)
+  ✔ detects codex from CODEX_BIN marker (0.7599ms)
+  ✔ detects claude from Claude-specific env vars (0.8079ms)
+  ✔ returns null when no marker is present (0.5531ms)
+  ✔ rejects claude+codex conflicting markers as ambiguous (0.5873ms)
+  ✔ rejects provider+bin conflicting markers as ambiguous (0.4966ms)
+  ✔ migrateConfig fails closed when no marker and no --agent (126.3373ms)
+  ✔ migrateConfig propagates ambiguity error to caller (134.8161ms)
+  ✔ explicit --agent skips auto-detection entirely (75.4806ms)
+✔ config migrate auto-detect agent (349.4452ms)
+▶ control-plane: per-agent status isolation
+  ✔ reports running only for the agent whose home is seeded (185.8473ms)
+  ✔ omitting --agent targets 'default', not another running agent (10.3537ms)
+  ✔ uses exit code 3 for stopped and 0 for running (270.7279ms)
+  ✔ seeds/reads control-plane files under the agent home, not cwd (32.5382ms)
+  ✔ prints heartbeat age in status output (liveness AC3) (114.3353ms)
+  ✔ warns heartbeat stale beyond GATEWAY_HEARTBEAT_STALE_MS (liveness AC3) (159.5447ms)
+  ✔ honors a custom GATEWAY_HEARTBEAT_STALE_MS override (liveness AC3) (172.0694ms)
+  ✔ keeps the busy hint for a mid-aged snapshot, no stale warning (103.5391ms)
+✔ control-plane: per-agent status isolation (1054.722ms)
+✔ DurableEventStore: state machine — pending → processing → replied (126.8385ms)
+✔ DurableEventStore: state machine — fail and retry (1.6463ms)
+✔ DurableEventStore: replayable returns pending + stale processing events (2.0434ms)
+✔ DurableEventStore: dedup — fresh processing is not replayable (1.385ms)
+✔ DurableEventStore: countByState — self-contained (1.3843ms)
+✔ EventStore keeps newest events when capacity is exceeded (88.3937ms)
+✔ EventStore filters pending events and marks handled (2.8096ms)
+▶ gateway-paths: per-agent home resolution
+  ✔ resolves (--agent omitted) to ~/.chorusgate/default (3.203ms)
+  ✔ resolves each agent to its own isolated home (0.7303ms)
+  ✔ scopes pid/status/log per agent (no shared snapshot) (1.2722ms)
+  ✔ never places the daemon home under cwd (cross-project) (0.8487ms)
+  ✔ ensureGatewayDir creates the agent home (2.0153ms)
+✔ gateway-paths: per-agent home resolution (12.0191ms)
+✔ IT-01: interrupt mode sends SIGTERM and busy ack (3079.9688ms)
+✔ IT-02: debounce — 2nd interrupt on same channel/thread is suppressed (128.1543ms)
+✔ IT-03: cross-session — interrupt on A does not touch B (52.4555ms)
+[interrupt] failed to kill process for IT-07: ESRCH: no such process
+✔ IT-05: queue mode — child already exited, interrupt returns true immediately (3643.0439ms)
+✔ IT-06: clear() SIGKILLs all running children (70.8024ms)
+✔ IT-07: child.kill() throws, interrupt() still returns true (3.2432ms)
+✔ IT-08: queue mode returns true after child exit (regression for #54) (3117.7922ms)
+✔ InterruptManager queue mode: sends queue ack, awaits child exit, returns true (2485.5231ms)
+✔ #58 regression: onSpawn (register) fires synchronously after spawn — no async gap (2151.3495ms)
+✔ #58 regression: 10,000 rapid register/isRunning cycles — zero false negatives (15.7869ms)
+✔ #58 regression: concurrent register of different keys doesn't interfere (2.0141ms)
+✔ #58 regression: isRunning remains true during simulated claude -p lifetime (147.6942ms)
+✔ InterruptManager: register + unregister lifecycle (1624.0971ms)
+✔ InterruptManager: interrupt returns true when no process is running (2.8163ms)
+✔ InterruptManager: interrupt mode calls child.kill(SIGTERM) (280.2229ms)
+✔ InterruptManager: sendBusyAck debounce — second call within 30s is suppressed (12.6166ms)
+✔ InterruptManager: clear() SIGKILLs all running children and resets state (2.5314ms)
+✔ InterruptManager: unregister is a no-op for unknown key (1.4353ms)
+▶ ST-CG134-006: agent-id validation
+  ✔ accepts valid agent-id: "default" (173.7567ms)
+  ✔ accepts valid agent-id: "claude" (7.4971ms)
+  ✔ accepts valid agent-id: "codex" (7.9616ms)
+  ✔ accepts valid agent-id: "hermes" (137.8795ms)
+  ✔ accepts valid agent-id: "openclaw" (9.5774ms)
+  ✔ accepts valid agent-id: "agent-1" (13.0552ms)
+  ✔ accepts valid agent-id: "a" (6.9025ms)
+  ✔ accepts valid agent-id: "test_123" (109.2041ms)
+  ✔ accepts valid agent-id: "abc-def-ghi" (15.0964ms)
+  ✔ rejects invalid agent-id: "Invalid_ID" (11.0729ms)
+  ✔ rejects invalid agent-id: "测试" (10.4474ms)
+  ✔ rejects invalid agent-id: "" (18.176ms)
+  ✔ rejects invalid agent-id: "../../../etc/passwd" (11.8155ms)
+  ✔ rejects invalid agent-id: ".hidden" (9.1737ms)
+  ✔ rejects invalid agent-id: "-leading-dash" (7.1601ms)
+  ✔ rejects invalid agent-id: "_leading-underscore" (16.5251ms)
+  ✔ rejects invalid agent-id: "has space" (13.4299ms)
+  ✔ rejects invalid agent-id: "has/slash" (11.1815ms)
+  ✔ rejects invalid agent-id: "aaaaaaaaaaaaaaaaaaaa" (14.3685ms)
+  ✔ rejects invalid agent-id: "UPPERCASE" (15.4324ms)
+  ✔ rejects invalid agent-id: "name!@#" (15.8544ms)
+✔ ST-CG134-006: agent-id validation (643.1356ms)
+▶ ST-CG134-007: path traversal prevention
+  ✔ blocks traversal attempt: "../../../etc/passwd" (9.7318ms)
+  ✔ blocks traversal attempt: "..%2F..%2Fetc" (124.7211ms)
+  ✔ blocks traversal attempt: "....//....//etc" (18.21ms)
+  ✔ blocks traversal attempt: "a/../../../etc" (9.835ms)
+  ✔ blocks traversal attempt: "..\..\..\windows" (7.793ms)
+✔ ST-CG134-007: path traversal prevention (171.3504ms)
+▶ ST-CG134-023: POSIX path resolution
+  ✔ resolves ~/.chorusgate/codex/.env on POSIX (14.0206ms)
+  ✔ uses join() not string concatenation (no manual separators) (9.1419ms)
+✔ ST-CG134-023: POSIX path resolution (23.5533ms)
+▶ ST-CG134-011: shell env override
+  ✔ shell SLACK_BOT_TOKEN overrides file value (12.3941ms)
+✔ ST-CG134-011: shell env override (12.6557ms)
+▶ ST-CG134-025: log desensitization
+  ✔ masks bot token value (8.0728ms)
+  ✔ masks app token value (13.5022ms)
+  ✔ handles empty/undefined (8.5333ms)
+  ✔ masks short values completely (7.6202ms)
+✔ ST-CG134-025: log desensitization (38.3431ms)
+▶ ST-CG134-022: migration key filtering
+  ✔ classifies ChorusGate keys as migratable (15.822ms)
+  ✔ classifies non-ChorusGate keys as NOT migratable (16.6913ms)
+  ✔ per-profile keys (SLACK_BOT_TOKEN_CC etc.) are migratable (8.957ms)
+✔ ST-CG134-022: migration key filtering (42.0121ms)
+▶ ST-CG134-026: error message locatability
+  ✔ error message includes file path (8.5717ms)
+  ✔ error message is actionable (user knows what to fix) (16.4822ms)
+✔ ST-CG134-026: error message locatability (25.4439ms)
+▶ ST-CG134-017~021: migration behavior contract
+  ✔ dry-run does not write target file (ST-CG134-017) (8.2691ms)
+  ✔ apply writes target file (ST-CG134-018) (141.2901ms)
+  ✔ conflict: existing target is not overwritten without --force (ST-CG134-019) (160.6044ms)
+  ✔ force: backup before overwrite (ST-CG134-020) (685.1934ms)
+  ✔ source file is preserved after migration (ST-CG134-021) (142.8768ms)
+✔ ST-CG134-017~021: migration behavior contract (1138.9773ms)
+▶ ST-CG134-024: Windows path resolution (simulated)
+  ✔ uses path.join which adapts to platform (132.628ms)
+✔ ST-CG134-024: Windows path resolution (simulated) (132.8864ms)
+✔ all chat.postMessage call sites include link_names:true (P0 #60 regression) (119.1573ms)
+▶ liveness Layer 1: suspend detection (clock jump)
+  ✔ anchors on the first tick and stays silent on normal ticks (AC4) (6.6718ms)
+  ✔ fires onSuspendDetected with rounded jump seconds when a tick is late (AC7) (1.1161ms)
+  ✔ respects a custom suspendJumpMs threshold (1.9879ms)
+  ✔ does not fire for a jump below the threshold (0.7175ms)
+✔ liveness Layer 1: suspend detection (clock jump) (14.0005ms)
+▶ liveness Layer 2: zombie-socket detection
+  ✔ does not fire below the failure limit (1.3006ms)
+  ✔ fires onZombieDetected on the failureLimit-th consecutive failure (0.695ms)
+  ✔ resets the counter on a successful probe and logs recovery (0.6356ms)
+  ✔ re-escalates after a failed forced reconnect (counter resets per escalation) (0.7287ms)
+  ✔ respects a custom failureLimit (0.6873ms)
+  ✔ treats a throwing probe as a failure (1.1344ms)
+  ✔ is silent while the socket stays healthy (AC4) (0.5225ms)
+✔ liveness Layer 2: zombie-socket detection (7.1243ms)
+▶ liveness Layer 3: unrecoverable escalation
+  ✔ calls onUnrecoverable when the zombie handler throws (1.1624ms)
+✔ liveness Layer 3: unrecoverable escalation (1.4945ms)
+▶ liveness lifecycle
+  ✔ stop() makes tick and probe no-ops (monitor disabled) (0.9203ms)
+  ✔ start() then stop() is idempotent and restartable (0.4296ms)
+✔ liveness lifecycle (1.7096ms)
+[load-env] loaded agent profile "claude": F:\Temp\cg-loadenv-sM5mWQ\claude\.env
+[load-env] loaded agent profile "claude": F:\Temp\cg-loadenv-sM5mWQ\claude\.env
+[load-env] loaded agent profile "codex": F:\Temp\cg-loadenv-sM5mWQ\codex\.env
+[load-env] loaded explicit env-file: F:\Temp\cg-loadenv-sM5mWQ\standalone.env
+[load-env] loaded agent profile "claude": F:\Temp\cg-loadenv-sM5mWQ\claude\.env
+[load-env] loaded agent profile "claude": F:\Temp\cg-loadenv-sM5mWQ\claude\.env
+[load-env] loaded explicit env-file: F:\Temp\cg-loadenv-sM5mWQ\override.env
+[load-env] loaded project: E:\my_project\ainize\ChorusGate_dev\.env
+▶ CHORUSGATE_HOME override & path resolution
+  ✔ honors the CHORUSGATE_HOME override instead of the real user home (31.6323ms)
+  ✔ resolves agent profile .env under the config home (13.4192ms)
+  ✔ builds the profile path via join() (platform-adaptive separators) (10.8346ms)
+✔ CHORUSGATE_HOME override & path resolution (61.2845ms)
+▶ agent profile discovery
+  ✔ agentProfileExists is false for a missing agent (26.4036ms)
+  ✔ agentProfileExists is true after the profile file is created (78.9582ms)
+  ✔ listAgentProfiles returns [] for an empty home (11.6181ms)
+  ✔ listAgentProfiles lists only dirs containing a .env (14.4009ms)
+  ✔ listAgentProfiles tolerates a missing home directory (14.3201ms)
+✔ agent profile discovery (147.1703ms)
+▶ loadEnv — agent-profile mode
+  ✔ loads ~/.chorusgate/<agent>/.env values into the environment (152.8314ms)
+  ✔ loads a second agent profile without leaking the first (136.2114ms)
+  ✔ throws a locatable error when the agent profile file is missing (16.3187ms)
+✔ loadEnv — agent-profile mode (306.5144ms)
+▶ loadEnv — explicit env-file mode
+  ✔ loads the given absolute .env path (14.5342ms)
+  ✔ throws a locatable error when the env-file is missing (75.4705ms)
+✔ loadEnv — explicit env-file mode (90.4346ms)
+▶ loadEnv — load priority
+  ✔ shell environment is never overwritten by a file (234.5498ms)
+  ✔ env-file overrides the agent profile when both are given (305.3239ms)
+✔ loadEnv — load priority (540.2498ms)
+▶ loadEnv — legacy mode
+  ✔ tolerates missing global/cwd .env files and returns a merged object (15.4899ms)
+✔ loadEnv — legacy mode (16.0668ms)
+▶ fixMcpPlaceholders
+  ✔ replaces a ${...} placeholder with the parsed value (8.0153ms)
+  ✔ leaves an already-resolved value untouched (9.3662ms)
+  ✔ leaves a placeholder untouched when no parsed value exists (8.7311ms)
+  ✔ ignores keys not requested (9.2363ms)
+✔ fixMcpPlaceholders (35.9184ms)
+▶ chorusgate log
+  ✔ prints the last 50 lines by default (AC4) (166.6792ms)
+  ✔ honors --lines N (AC5) (226.0044ms)
+  ✔ accepts the -n short form (AC5) (297.1562ms)
+  ✔ reads the --agent scoped log and falls back to default (AC7) (327.5493ms)
+  ✔ reports a missing log file with non-zero exit (no daemon running) (7.4897ms)
+✔ chorusgate log (1031.3265ms)
+▶ chorusgate log — edge cases
+  ✔ clamps --lines 0 / negative / NaN to the default 50 (91.146ms)
+  ✔ floors fractional --lines values (25.184ms)
+  ✔ keeps the last real line when the file has no trailing newline (22.9645ms)
+  ✔ returns all lines when the file has fewer than requested (7.0714ms)
+  ✔ prints nothing and exits 0 for an empty existing log file (4.8507ms)
+✔ chorusgate log — edge cases (152.5235ms)
+▶ logger format (AC1)
+  ✔ writes [ts YYYY-MM-DD HH:mm:ss.SSS] [LEVEL] [module] msg lines (133.1531ms)
+✔ logger format (AC1) (136.3805ms)
+▶ logger level filtering
+  ✔ drops lines below the configured level (164.8306ms)
+✔ logger level filtering (165.3918ms)
+▶ logger rotation
+  ✔ rotates when the file exceeds maxSize, writing into a fresh file (AC2) (262.5912ms)
+  ✔ rotates on a day boundary (file mtime backdated) (AC2) (100.1443ms)
+  ✔ prunes .old files older than keepDays (AC3) (14.332ms)
+✔ logger rotation (378.0573ms)
+▶ logger missing-file tolerance
+  ✔ creates parent dirs and starts cleanly (139.7381ms)
+✔ logger missing-file tolerance (140.3223ms)
+▶ console redirect (daemon call site)
+  ✔ routes console.log/warn/error through the logger as module daemon (110.2566ms)
+  ✔ collapses multiline console output onto one log line (151.1414ms)
+✔ console redirect (daemon call site) (262.3657ms)
+▶ logger arg formatting (call-site args)
+  ✔ serializes primitives inline (141.8047ms)
+  ✔ falls back to the message when an Error has no stack (175.1263ms)
+  ✔ collapses a multiline message onto one line (202.617ms)
+  ✔ survives circular objects (JSON.stringify fallback) (140.267ms)
+  ✔ accepts a string level via log() (unknown levels fall back to info priority) (79.7057ms)
+✔ logger arg formatting (call-site args) (740.6356ms)
+▶ logger fail-closed behavior
+  ✔ falls back to stderr when the log file cannot be written (5.4291ms)
+✔ logger fail-closed behavior (7.7769ms)
+✔ valid <@U...> mentions pass (6.5696ms)
+✔ bare @名字 is flagged (3.5067ms)
+✔ bare @latin name is flagged (3.1016ms)
+✔ bare mention at start of message is flagged (0.6974ms)
+✔ emails and links are not flagged (0.9885ms)
+✔ @here / @channel / @everyone special mentions are allowed (0.5419ms)
+✔ malformed <@...> is flagged (0.9185ms)
+✔ multiple issues are all reported (0.7619ms)
+[permission-tracker] duplicate request req_b (same tool+session as req_a), skipping
+✔ PermissionTracker resolves 'once' via handleAction (8.057ms)
+✔ PermissionTracker resolves 'session' via handleAction (2.2352ms)
+✔ PermissionTracker auto-approves subsequent same-tool requests after session scope (1.3823ms)
+✔ PermissionTracker auto-approves after 'always' scope (0.7634ms)
+✔ auto-approval respects SessionIdentity — cross-profile isolation (1.2892ms)
+✔ auto-approval respects SessionIdentity — cross-project isolation (0.7084ms)
+✔ auto-approval 'always' scope works for same user across sessions (0.5873ms)
+✔ PermissionTracker resolves 'deny' via handleAction (0.5854ms)
+✔ PermissionTracker handleAction legacy 'approve' format (1.2958ms)
+✔ PermissionTracker.approve / .deny work directly (3.1716ms)
+[permission-tracker] request req_timeout timed out, auto-denying
+[permission-tracker] duplicate request req_2 (same tool+session as req_1), skipping
+✔ PermissionTracker auto-denies on timeout (269.1412ms)
+✔ PermissionTracker.handleAction ignores unknown format (0.612ms)
+✔ PermissionTracker.clear resolves all pending as denied (0.8335ms)
+✔ buildApprovalBlocks returns 4-button Slack blocks (1.1936ms)
+✔ PermissionTracker: requesterUserId returned for gateway auth check (0.529ms)
+✔ PermissionTracker handleAction parses requestId containing colons (0.4242ms)
+✔ PlanTracker parses todo JSON result (9.699ms)
+✔ PlanTracker updatePlan returns rendered text (2.1712ms)
+✔ PlanTracker updatePlan detects no change (1.0229ms)
+✔ PlanTracker clears session (2.1972ms)
+✔ PlanTracker plan message ts get/set (0.7665ms)
+✔ ClaudeEventParser detects TodoWrite tool_use (1.6141ms)
+✔ ClaudeEventParser ignores non-todo tools (1.9262ms)
+✔ ClaudeEventParser parses tasks array (alternative format) (5.9977ms)
+✔ PlanTracker ignores non-todo JSON (4.0792ms)
+✔ PlanTracker renders completed/cancelled with strikethrough (1.2957ms)
+[profile-config] WARNING: SLACK_BOT_TOKEN should start with 'xoxb-'. Got: not-a...
+▶ parseProfiles — legacy single profile
+  ✔ parses a single default profile from SLACK_BOT_TOKEN/SLACK_APP_TOKEN (92.5641ms)
+  ✔ reads GATEWAY_PROVIDER for legacy mode (7.1024ms)
+  ✔ reads GATEWAY_CLAUDE_CWD for legacy mode (8.233ms)
+  ✔ reads GATEWAY_COMMAND_PREFIX for legacy mode (9.0358ms)
+  ✔ defaults commandPrefix to 'cc' when not set (72.045ms)
+✔ parseProfiles — legacy single profile (192.9274ms)
+▶ parseProfiles — multi-profile mode
+  ✔ parses GATEWAY_PROFILES=cc,codex (8.2471ms)
+  ✔ reads per-profile provider overrides (8.1413ms)
+  ✔ reads per-profile CWD overrides (9.957ms)
+  ✔ reads per-profile command prefix (66.1087ms)
+  ✔ defaults commandPrefix to profile id (8.7157ms)
+  ✔ trims whitespace in GATEWAY_PROFILES (7.2838ms)
+✔ parseProfiles — multi-profile mode (110.4108ms)
+▶ parseProfiles — validation
+  ✔ throws when GATEWAY_PROFILES is set but empty (9.4926ms)
+  ✔ throws on duplicate profile ids in GATEWAY_PROFILES (107.4975ms)
+  ✔ throws when a profile is missing bot token (7.6075ms)
+  ✔ throws when a profile is missing app token (9.833ms)
+  ✔ warns on unexpected token prefix (non-throwing) (9.1388ms)
+✔ parseProfiles — validation (145.6998ms)
+[reply-engine] generateReply opts.timeoutMs=5000 → timeoutMs=5000
+[reply-engine] createSession failed (claude -p exited null: ), retrying once...
+[reply-engine] generateReply opts.timeoutMs=5000 → timeoutMs=5000
+[claude-stream] SPAWN: "claude" -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --replay-user-messages --permission-mode bypassPermissions --session-id f269f307-ece7-41b3-aa7f-c85fbaaa5bcf
+✔ ST-PROV-001: generateReply({providerId:claude}) spawns claude (15552.0733ms)
+[reply-engine] createSession failed (claude stream timed out (idle 5000ms with no output)), retrying once...
+[claude-stream] SPAWN: "claude" -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --replay-user-messages --permission-mode bypassPermissions --session-id e4f7e58c-60fe-4ad8-ab7b-1c37af0238c2
+[reply-engine] generateReply opts.timeoutMs=5000 → timeoutMs=5000
+✔ ST-PROV-002: generateReply({providerId:claude-stream}) spawns stream-json (15390.215ms)
+[reply-engine] createSession failed (codex exec timed out (idle 5000ms with no output)), retrying once...
+[reply-engine] generateReply opts.timeoutMs=5000 → timeoutMs=5000
+✔ ST-PROV-003: generateReply({providerId:codex}) spawns codex (14957.188ms)
+[stream-parser] RESULT detected — closing stdin
+[reply-engine] createSession failed (claude -p exited null: ), retrying once...
+[reply-engine] generateReply opts.timeoutMs=5000 → timeoutMs=5000
+[claude-stream] SPAWN: "claude" -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --replay-user-messages --permission-mode bypassPermissions --session-id 1b7a89dc-48c8-4538-8090-922fad2078cd
+✔ ST-PROV-004: no providerId + GATEWAY_CLAUDE_MODE=legacy → claude legacy (15315.135ms)
+[reply-engine] createSession failed (claude stream timed out (idle 5000ms with no output)), retrying once...
+[claude-stream] SPAWN: "claude" -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --replay-user-messages --permission-mode bypassPermissions --session-id aef8fd4c-9db5-4c69-99a8-798923c871a9
+[stream-parser] RESULT detected — closing stdin
+[reply-engine] generateReply opts.timeoutMs=5000 → timeoutMs=5000
+✔ ST-PROV-005: no providerId + GATEWAY_CLAUDE_MODE=stream → stream-json (15144.0304ms)
+[reply-engine] createSession failed (claude -p exited null: ), retrying once...
+✔ ST-PROV-006: no providerId + no GATEWAY_CLAUDE_MODE → claude legacy (15485.5797ms)
+[reply-engine] generateReply opts.timeoutMs=1000 → timeoutMs=1000
+✔ reply-engine: generateReply is importable (9.548ms)
+✔ reply-engine: generateReplyStream is importable (1.214ms)
+[reply-engine] createSession failed (claude -p exited null: ), retrying once...
+[reply-engine] generateReply opts.timeoutMs=1000 → timeoutMs=1000
+✔ reply-engine: generateReply returns error with empty prompt and no claude (3721.6343ms)
+✔ reply-engine: ReplyResult shape is correct (0.8412ms)
+[reply-engine] createSession failed (claude -p exited null: ), retrying once...
+[claude-stream] SPAWN: "nonexistent-claude-binary-for-stream-test" -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --replay-user-messages --permission-mode bypassPermissions --session-id 7070599e-f769-4975-b425-e6634a414a8c
+[claude-stream] stdin prompt (59B): {"type":"user","message":{"role":"user","content":"test"}}
+...
+✔ reply-engine: generateReply passes sessionId for new sessions (3425.5917ms)
+[reply-engine] generateReply opts.timeoutMs=2000 → timeoutMs=2000
+✔ reply-engine: generateReplyStream accepts onPermission callback (638.3391ms)
+✔ reply-engine: generateReplyStream includes finally block for close() (1.1859ms)
+[reply-engine] createSession failed (claude -p exited 1: '"nonexistent-claude-binary-for-error-test"' �����ڲ����ⲿ���Ҳ���ǿ����еĳ���
+���������ļ���
+'"nonexistent-claude-binary-for-error-test"' �����ڲ����ⲿ���Ҳ���ǿ����еĳ���
+���������ļ���
+), retrying once...
+✔ reply-engine: provider error is caught and returned as error string (3046.0334ms)
+✔ reply-engine: PermissionTracker waitForApproval returns promise (1.9092ms)
+✔ reply-engine: generateReply respects timeoutMs default (1.4239ms)
+[chorusgate] ERROR: ChorusGate requires administrator privileges on Windows.
+[chorusgate] Re-run this command from an elevated terminal (right-click
+[chorusgate] your terminal and choose "Run as administrator").
+▶ Windows admin requirement
+  ✔ passes through when the elevation check succeeds (4.0299ms)
+  ✔ exits with code 1 when the elevation check fails (3.1317ms)
+  ✔ includes guidance and the command hint in the message (0.8374ms)
+  ✔ omits the hint line when none is given (0.7088ms)
+✔ Windows admin requirement (17.1141ms)
+✔ SessionStore persists and reloads markdown mappings (102.9475ms)
+✔ SessionStore evicts idle mappings (167.8036ms)
+✔ ST-SR-001: bot DM from 小克 (U0B8VHLHJAX) → shouldReply=false (5.8772ms)
+✔ ST-SR-002: bot DM from 小扣 (U0BAGFVD8VB) → shouldReply=false (1.3693ms)
+✔ ST-SR-003: human DM (U0AHDRREVPD) → shouldReply=true (1.3514ms)
+✔ ST-SR-004: @mention of bot in channel → shouldReply=true (1.276ms)
+✔ ST-SR-005: subtype=message_changed → shouldReply=false (no re-trigger) (94.272ms)
+✔ ST-SR-006: empty/whitespace text → shouldReply=false (1.6729ms)
+✔ ST-SR-007: no user field (Codex progress) → shouldReply=false (1.9238ms)
+✔ ST-SR-008: regular channel message (no mention) → shouldReply=false (1.9921ms)
+✔ short Slack messages remain unchanged (108.6005ms)
+✔ long Slack messages split below the API-safe limit (1.5941ms)
+✔ a single oversized line is hard-split without data loss (0.6389ms)
+✔ chunk sender keeps every part in the requested thread (9.9545ms)
+✔ socket-manager: BlockActionsPayload has required shape (3.4689ms)
+✔ socket-manager: block_actions deny button parsed correctly (0.7893ms)
+✔ socket-manager: handles multiple actions in one block_actions event (0.8615ms)
+✔ socket-manager: unknown action_id should be silently ignored (0.5415ms)
+✔ socket-manager: action_value with requestId containing special chars (0.6483ms)
+✔ socket-manager: malformed action_value with no userId segment returns handled:false (0.5654ms)
+✔ buildSpawnCommand — non-Windows returns bin + args unchanged (6.725ms)
+✔ buildSpawnCommand — Windows wraps in quoted shell command (1.2079ms)
+✔ buildSpawnOptions — default options with pipe stdio (0.6049ms)
+✔ buildSpawnOptions — passes through env when provided (0.5172ms)
+✔ buildSpawnEnv — injects Slack tokens into process env (5.3868ms)
+✔ buildSpawnEnv — no tokens passed, still returns process env copy (4.3004ms)
+✔ createLineBuffer — splits on newlines (0.7706ms)
+✔ createLineBuffer — accumulates partial trailing line (0.5716ms)
+✔ createLineBuffer — handles Buffer input (0.6915ms)
+✔ flushBuffer — flushes remaining partial line (0.9235ms)
+✔ flushBuffer — no-op when buffer empty (0.6854ms)
+ℹ tests 343
+ℹ suites 46
+ℹ pass 343
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 114690.3792
+EXIT=0 

@@ -110,7 +110,7 @@ export function startLivenessMonitor(opts: {
 
 ## 6. 实现状态（小克，2026-08-19）
 
-已在 `v5/logging-liveness` 实现，tsc 零错误；`src/liveness.ts`（17 例单测）+ `control-plane.test.ts`（status 心跳年龄，3 例新增）通过。commit 见分支 log。
+已在 `v5/logging-liveness` 实现，tsc 零错误；`src/liveness.ts`（14 例单测）+ `control-plane.test.ts`（status 心跳年龄，4 例新增，含 GATEWAY_HEARTBEAT_STALE_MS 覆盖）通过。commit 见分支 log。
 
 **实现要点与 spec 的差异（有意为之，需 SIT 关注）**
 

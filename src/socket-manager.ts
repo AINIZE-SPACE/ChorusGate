@@ -28,6 +28,29 @@ import {
 } from "./reconnect-policy.js";
 import { parseUser } from "./user-identity.js";
 
+// ---- safe error formatting (#157) --------------------------------------------
+// Socket Mode can reject/emit with `undefined` or a non-Error value (e.g. a bare
+// string, or ws returning no error object). Reading `err.message` naively throws
+// a NEW TypeError inside a catch/error handler — an unhandled rejection that
+// kills the daemon the very defect we're trying to survive. Always route thrown
+// values through errMsg() so the failure path itself can never crash.
+export function errMsg(err: unknown, fallback = "unknown error"): string {
+  if (err && typeof err === "object" && "message" in err) {
+    const m = (err as { message?: unknown }).message;
+    if (typeof m === "string" && m.length > 0) return m;
+  }
+  if (typeof err === "string" && err.length > 0) return err;
+  if (
+    typeof err === "number" ||
+    typeof err === "boolean" ||
+    typeof err === "bigint" ||
+    typeof err === "symbol"
+  ) {
+    return String(err);
+  }
+  return fallback;
+}
+
 // ---- reconnect policy config (#148) ------------------------------------------
 // 读取 GATEWAY_RECONNECT_* / GATEWAY_CIRCUIT_* 环境变量；缺省即默认值。
 function reconnectPolicyConfig(): ReconnectPolicyConfig {
@@ -171,7 +194,7 @@ export class SocketManager {
     } catch (err) {
       console.error(
         `[socket-manager] profile '${config.id}': failed to resolve bot user ID, ` +
-          `self-message filtering disabled: ${(err as Error).message}`,
+          `self-message filtering disabled: ${errMsg(err)}`,
       );
     }
 
@@ -231,7 +254,7 @@ export class SocketManager {
     socket.on("error", (error) => {
       console.error(
         `[socket-manager] profile '${config.id}': Socket Mode error: ` +
-          (error as Error).message,
+          errMsg(error),
       );
     });
 
@@ -298,7 +321,7 @@ export class SocketManager {
         } catch (err) {
           console.error(
             `[socket-manager] profile '${pid}': slash command handler error: ` +
-              (err as Error).message,
+              errMsg(err),
           );
         }
       }
@@ -342,7 +365,7 @@ export class SocketManager {
         } catch (err) {
           console.error(
             `[socket-manager] profile '${pid}': block_action handler error: ` +
-              (err as Error).message,
+              errMsg(err),
           );
         }
       }
@@ -356,7 +379,7 @@ export class SocketManager {
     } catch (err) {
       console.error(
         `[socket-manager] profile '${config.id}': initial connect failed — ` +
-          (err as Error).message,
+          errMsg(err),
       );
       this.onFailure(config.id, "initial connect failed");
     }
@@ -481,7 +504,7 @@ export class SocketManager {
     } catch (err) {
       console.error(
         `[socket-manager] profile '${profileId}': disconnect during forced reconnect failed: ` +
-          (err as Error).message,
+          errMsg(err),
       );
     }
     try {
@@ -493,7 +516,7 @@ export class SocketManager {
       rp.intentionalReconnect = false;
       console.error(
         `[socket-manager] profile '${profileId}': forced reconnect failed: ` +
-          (err as Error).message,
+          errMsg(err),
       );
       // 记录失败并按退避/熔断调度下一次尝试。
       this.onFailure(profileId, "forced reconnect failed");
@@ -644,7 +667,7 @@ export class SocketManager {
     } catch (err) {
       console.error(
         `[socket-manager] profile '${profileId}': error handling event: ` +
-          (err as Error).message,
+          errMsg(err),
       );
     }
   }
@@ -728,7 +751,7 @@ export async function startSocketMode(
     console.error(
       "[chorusgate-mcp] Failed to resolve bot user ID, " +
         "self-message filtering disabled:",
-      (err as Error).message,
+      errMsg(err),
     );
   }
 
@@ -759,7 +782,7 @@ export async function startSocketMode(
   _legacySocket.on("error", (error) => {
     console.error(
       "[chorusgate-mcp] Socket Mode error:",
-      (error as Error).message,
+      errMsg(error),
     );
   });
 
@@ -837,7 +860,7 @@ export async function startSocketMode(
       } catch (err) {
         console.error(
           "[chorusgate-mcp] slash command handler error:",
-          (err as Error).message,
+          errMsg(err),
         );
       }
     }
@@ -874,7 +897,7 @@ export async function startSocketMode(
       } catch (err) {
         console.error(
           "[chorusgate-mcp] block_action handler error:",
-          (err as Error).message,
+          errMsg(err),
         );
       }
     }

@@ -1,0 +1,16 @@
+ChorusGate CLI smoke — Windows
+Repo root: E:\my_project\ainize\ChorusGate_dev
+Isolated home: F:\Temp\cg-smoke-6SBOS4
+Elevated (Windows): yes
+
+  ✅ chorusgate help — exit 0
+  ✅ chorusgate status (stopped) — exit 3
+  ✅ chorusgate log (default 50-line tail) — 50 lines
+  ✅ chorusgate log --lines 3 — exactly 3 lines
+  ✅ chorusgate log --agent <missing> — exit 1 + guidance
+  … booting daemon (isolated home, dummy tokens)…
+  ✅ daemon boot writes [ts] log lines — [ts 2026-08-19 09:39:55.151] [ERROR] [daemon] [load-env] loaded agent profile "d
+
+Smoke: 6/6 passed
+OVERALL: PASS ✅
+EXIT=0 
