@@ -1,6 +1,6 @@
 # V10 Harness Router — 统一运行时契约（DRAFT）
 
-> **状态**: DRAFT v0.2 — 小克起草/补充 2026-08-26，供 thread 1787727403.447589 全员评审。
+> **状态**: DRAFT v0.3 — 小克起草/补充 2026-08-26；v0.3 补丁 2026-09-02 按小马评审补齐 3×P0（§4 Commitment expires 触发 / §1 urgency 档位校准 / §8 双验 checklist）+ 不阻塞项（§3 lost、§6 result_ref TTL、§0.6 实践映射）。
 > **前置文档**: `V10-Architecture-Hermes.md`（890 行，zederer@e829d11）§11-16。
 > **用途**: 把小扣「运行时适配层」+ 底座选型结论固化为 —— ① Non-Goals/分期（v0.2 新增）；② 数据契约 + Harness Router SPI + ADR 骨架。
 > **底座选型（小扣 2026-08-26 记录）**: A Hermes Host+acpx = 主线；B OpenClaw = 正式备案；C 自研 = 否决；ChorusGate 升维为企业 Control Plane。
@@ -39,6 +39,19 @@
 
 ---
 
+## 0.6 与现行实践的映射（V10 不是凭空造，是把手工制度化）
+
+| V10 概念 | 现行手工做法 |
+|---|---|
+| §1 Event + §2 WakePolicy + §5 Attention | cron 心跳四条件纪律的手工执行版（QUIET→SILENT / 定期→DIGEST 等） |
+| §6 Completion.result_ref → COS 引用 | 现有 zkos 桶交付通道（media二进制→COS，git 只存 manifest/引用） |
+| §4 Commitment Ledger | 承诺目前散记在 thread / 手账，随 session 消失——V10 把它固化为不随 session 消失的账本 |
+| §8 Harness Adapter + metadata().license | 底座选型定案 A Hermes / B OpenClaw 的接口化落点 |
+
+给评审一个具体锚点：六契约不是新发明，是把上面这些已经在跑的做法制度化、接口化。
+
+---
+
 ## 1. Event（事件规范化 → 统一入口）doc §11
 
 ```jsonc
@@ -48,12 +61,17 @@
   "type":          "ci.failed | email.new | approval.pending | goal.progress ...",
   "employee_id":   "emp_001",
   "subject":       { "project": "payment", "sha": "a1b2..." },
-  "urgency":       0.82,          // 0..1，来源给初值，小脑可重估
+  "urgency":       "high",        // P0: 枚举档位 low|med|high|critical（跨来源可比，见校准规则）; P1 小脑规则引擎上线后连续化 0..1
   "dedup_key":     "payment:ci:sha",   // 同 key 去重 + TTL
   "ttl":           3600,          // 秒，超时过期
   "received_at":   "<iso8601>"
 }
 ```
+
+**`urgency` 校准规则（P0：档位化，保证跨来源可比）**：
+- P0 只取枚举档位 `low|med|high|critical`，来源给出动因标签（`source_reason`），不做跨来源数值比较——heartbeat 的 `high` 与 webhook 的 `high` 语义一致。
+- **禁止 P0 直接上连续 0..1**: 连续值要求每个 source 先自建定标函数，等 P1 小脑规则引擎上线后再连续化、由小脑统一重估。
+- 档位默认映射（adapter 未显式给档位时兜底）: `critical`=SLA 违约/安全; `high`=CI 失败/审批待办; `med`=进度推进; `low`=消息类。
 
 ---
 
@@ -86,6 +104,7 @@ type WakeAction =
   "employee":      "emp_002",
   "executor":      "hermes | openclaw | claude-code | codex | opencode", // adapter 名
   "status":        "queued|running|waiting|blocked|succeeded|failed|cancelled|lost",
+  // lost = attempts 用尽 + N 个 heartbeat 周期无 checkpoint 更新（与 failed「主动报败」区分）
   "checkpoint":    "step_02",        // 断点续跑
   "next_wake":     "<iso8601?>" ,    // 条件未满足时的下次唤醒点
   "attempts":      0,
@@ -108,10 +127,17 @@ type WakeAction =
   "project":       "payment",
   "notify_target": { "channel": "C0...", "user": "U0B..." },
   "expires":       "<iso8601>",
+  "expired_at":    "<iso8601?>",  // open→expired 的确切时刻，由触发机制写入
   "status":        "open|satisfied|expired|cancelled",
   "created_at":    "<iso8601>"
 }
 ```
+
+**`expires` 触发机制（P0 必答：open→expired 由谁执行）**：
+
+- **惰性读时判定（primary）**: 任何读取 Commitment Ledger 的路径先检查 `status=="open" && expires < now` → 当场判 expired 并发 `expired` 事件，落库带 `expired_at`。
+- **心跳周期扫描兜底（secondary）**: HRS 随 heartbeat 心跳做周期批量扫描，把所有 `open && expires < now` 标 expired，避免「从不读就永不判」。
+- **双保险闭环**: 两路任一都保证过期承诺被闭合，账本不再只增不减；`satisfied` 优先于 `expired`（先满足则先落 satisfied）。
 
 ---
 
@@ -142,6 +168,7 @@ type Attention =
   "attention":     "ALERT",        // 由 Notification Policy 定
   "deliver_to":    { "channel": "C0...", "thread_ts"?: "..." },
   "result_ref":    "cos://.../summary.md",   // 长量产物体由 COS 汇聚，git 只存引用
+  // result_ref COS 对象需 TTL/默认保留期 + 清理策略（zkos-1326019273 桶已有体积压力），P0 定默认保留期
   "produced_at":   "<iso8601>"
 }
 ```
@@ -175,6 +202,17 @@ interface HarnessAdapter {
 - OpenClaw 实现 `executor: "openclaw"`（复用其 Task Ledger / Automation）
 
 **决策闸门**：Hermes 扩展点能从 `onHeartbeat`+`execute` 插 Wake Policy → Hermes 主线；失败/受限 → OpenClaw 升级为正式 adapter；二者都不满足 → 保留自有控制平面，不反向复制 Gateway。
+
+**决策闸门双验 · 验收 checklist（P0，ADR-0001 证据入口；`能插 / 失败 / 受限` 必须以可判定证据为准，而非「感觉可以」）**：
+
+- [ ] `onHeartbeat` 能否注入自定义 WakePolicy（Hermes 扩展点成立，产出 WakeInput[]）
+- [ ] `execute` 能否携带独立 profile 与测试数据，全程不触碰生产 Soul/gbrain/agents_memory/mem0/凭据
+- [ ] Completion 能否走 push 回调（`onCompletion`）而非轮询（推拉分离成立）
+- [ ] 最小闭环垂直切片（§7）在沙箱跑通，终点留在隔离环境，不污染生产账本
+- [ ] 失败 / 受限路径有可判定证据（异常 trace、license/API 缺口清单），能驱动「OpenClaw 升级」或「保留自有控制平面」任一结论
+- [ ] 全程守住「验证后才报完成」纪律——任何里程碑完成均须附本清单勾选结果
+
+> 每项未勾选即视为闸门未通过，back to spike，不进入 base 定稿。
 
 ---
 
