@@ -242,4 +242,10 @@ interface HarnessAdapter {
 - [ ] 双验结果落 ADR-0001
 - [ ] 名称解耦分别决策（不阻塞本契约）
 
+**实现验收待办（09-04 复评审收口新增，不阻塞 base 定稿；随第一个实现 PR 以 AC 逐项闭合）**：
+- [ ] schema_version 字段 + 兼容升级规则（读旧写新路径）
+- [ ] 幂等/correlation（`event_id`/`envelope_id` 去重）与双重完成路径（既 push 又 poll 时的收敛规则）
+- [ ] TaskEnvelope 状态机（`queued|running|waiting|blocked|succeeded|failed|cancelled|lost` 转移图 + 非法转移拒绝）
+- [ ] ADR-0001 owner 指派、替代方案记录、supersede 触发条件
+
 > 工作树注意：本文件与 `V10-Architecture-Hermes.md` 后续一并从 base 走 clean PR；本分支/本地 `memory/events.md` 的改动不并入。
