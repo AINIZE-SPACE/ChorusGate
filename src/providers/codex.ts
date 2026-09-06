@@ -225,14 +225,18 @@ function spawnCodex(
       if (code === 0 && text) {
         resolve({ ok: true, text, sessionId: "" });
       } else if (code === 0 && !text) {
+        const parserErrors = parser.errors.join("; ");
         resolve({
           ok: false, text: "", sessionId: "",
-          error: "codex exec exited 0 but produced no output",
+          error: `codex exec exited 0 but produced no output${parserErrors ? `: ${parserErrors}` : ""}`,
         });
       } else {
+        const parserErrors = parser.errors.join("; ");
+        const detail = (stderr.trim() || parserErrors || stdoutBuf.trim())
+          .slice(0, 500);
         resolve({
           ok: false, text, sessionId: "",
-          error: `codex exec exited ${code}: ${stderr.trim().slice(0, 500)}`,
+          error: `codex exec exited ${code}${detail ? `: ${detail}` : ""}`,
         });
       }
     });
@@ -281,7 +285,7 @@ export const codexProvider: AgentProvider = {
     opts: CreateSessionOptions,
   ): Promise<SessionOutput> {
     let resolvedSessionId = "";
-    const args = ["--cd", opts.cwd]; // prompt via stdin; --cd sets workspace
+    const args = ["--cd", opts.cwd, "-"]; // prompt via stdin; --cd sets workspace; `-` explicitly tells codex to read prompt from stdin
 
     const parser = new CodexEventParser();
     parser.onProgress = opts.onProgress;
