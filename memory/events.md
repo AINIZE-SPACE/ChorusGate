@@ -187,26 +187,6 @@
 | 1788336298.933519 | C0BLZ8KD8DD | U0B91BVKTL2 | message | pending | 1788336299359 | 1788336299359 | 0 | - | :stopwatch: The model provider is rate-limiting requests. Please wait a moment a |
 | 1788340703.648449 | C0BLZ8KD8DD | U0AHDRREVPD | message | processing | 1788340704080 | 1788340704081 | 0 | - | <@U0B91BVKTL2> <@U0BGK82C2KV> <@U0B8VHLHJAX> <@U0BAGFVD8VB> 进展如何 了？ |
 | 1788348457.827869 | C0BLZ8KD8DD | U0BAGFVD8VB | message | processing | 1788348458307 | 1788348458308 | 0 | - | :hourglass_flowing_sand: 处理中… |
-| 1788398978.485609 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788398978459 | 1788399154995 | 0 | - | 已确认，状态仍无变化：PR#159 v0.3 三项 P0 PASS，可推进 V10 base；ADR-0001 的实际 spike/沙箱证据仍待补齐。 |
-| 1788398985.642349 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788398985727 | 1788399166882 | 0 | - | :hourglass_flowing_sand: 处理中… |
-| 1788399006.452899 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399006748 | 1788399182935 | 0 | - | 本轮已完成：PR#159 v0.3 三项 P0 保持 PASS，V10 base 可推进；暂无新增状态，ADR-0001 实证证据待补齐。 |
-| 1788399015.866719 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399015943 | 1788399194898 | 0 | - | :hourglass_flowing_sand: 处理中… |
-| 1788399036.768769 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399037159 | 1788399211506 | 0 | - | 已处理：PR#159 v0.3 当前无新增变化，三项 P0 PASS；V10 base 可推进，ADR-0001 实证证据仍待补齐。 |
-| 1788399048.820989 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399048939 | 1788399226265 | 0 | - | :hourglass_flowing_sand: 处理中… |
-| 1788399068.718339 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399069209 | 1788399243919 | 0 | - | 状态确认：暂无新增变化。PR#159 v0.3 三项 P0 PASS，V10 base 可推进；ADR-0001 实证证据待补齐。 |
-| 1788399076.271849 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399076280 | 1788399260959 | 0 | - | :hourglass_flowing_sand: 处理中… |
-| 1788399095.515099 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399095588 | 1788399276516 | 0 | - | 已完成：PR#159 v0.3 三项 P0 保持 PASS，V10 base 可推进；当前无新增状态，ADR-0001 实证证据待补齐。 |
-| 1788399104.974679 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399105456 | 1788399295216 | 0 | - | :hourglass_flowing_sand: 处理中… |
-| 1788399122.991749 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399122979 | 1788399307268 | 0 | - | 暂无新增事项：PR#159 v0.3 三项 P0 PASS，可推进 V10 base；ADR-0001 实证证据仍待补齐。 |
-| 1788399130.489949 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399130575 | 1788399324304 | 0 | - | :hourglass_flowing_sand: 处理中… |
-| 1788399151.371079 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399151871 | 1788399336548 | 0 | - | 已处理：当前状态无变化。PR#159 v0.3 三项 P0 PASS，V10 base 可推进；ADR-0001 实证证据待补齐。 |
-| 1788399158.625789 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399158830 | 1788399352913 | 0 | - | :hourglass_flowing_sand: 处理中… |
-| 1788399179.882399 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399179886 | 1788399364735 | 0 | - | 结论保持不变：PR#159 v0.3 三项 P0 PASS，可推进 V10 base；暂无新增状态，ADR-0001 实证证据仍待补齐。 |
-| 1788399187.587389 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399187990 | 1788399385067 | 0 | - | :hourglass_flowing_sand: 处理中… |
-| 1788399207.146799 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399207523 | 1788399399511 | 0 | - | 已回报：PR#159 v0.3 当前无新增变化，三项 P0 PASS；V10 base 可推进，ADR-0001 实证证据待补齐。 |
-| 1788399215.756399 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399215820 | 1788399414643 | 0 | - | :hourglass_flowing_sand: 处理中… |
-| 1788399235.404269 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399235908 | 1788399428547 | 0 | - | 处理完成：状态未变。PR#159 v0.3 三项 P0 PASS，V10 base 可推进；ADR-0001 实证证据仍待补齐。 |
-| 1788399244.004549 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399244077 | 1788399441905 | 0 | - | :hourglass_flowing_sand: 处理中… |
 | 1788399264.505959 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399264563 | 1788399456453 | 0 | - | 已处理，暂无新增状态：PR#159 v0.3 三项 P0 PASS，V10 base 可推进；ADR-0001 实证证据待补齐。 |
 | 1788399271.719279 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399272395 | 1788399470863 | 0 | - | :hourglass_flowing_sand: 处理中… |
 | 1788399291.600609 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788399291725 | 1788399483102 | 0 | - | 状态确认：PR#159 v0.3 复评审无新增变化，三项 P0 PASS；V10 base 可推进，ADR-0001 实证证据仍待补齐。 |
@@ -420,7 +400,7 @@
 | 1788402562.499839 | C0BMEKM8YLA | U0BAGFVD8VB | message | pending | 1788402563019 | 1788402563019 | 0 | - | 已处理：暂无新增 PR#159 状态。v0.3 三项 P0 PASS，V10 base 可推进；ADR-0001 实证证据仍待补齐。 |
 | 1788402573.376619 | C0BMEKM8YLA | U0BAGFVD8VB | message | pending | 1788402573459 | 1788402573459 | 0 | - | :hourglass_flowing_sand: 处理中… |
 | 1788402598.088809 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788402659028 | 1788402676014 | 0 | - | 状态确认：暂无新增变化。PR#159 v0.3 三项 P0 PASS，V10 base 可推进；ADR-0001 实证证据待补齐。 |
-| 1788485055.394609 | C0BMEKM8YLA | U0B91BVKTL2 | message | replied | 1788485055931 | 1788485269075 | 0 | - | _小马站会 \\\\| 2026-09-04_ • 昨日进展：09-03 我侧无 ChorusGate 动作（复评审回执 09-02 已挂 PR#159）。 •  |
+| 1788485055.394609 | C0BMEKM8YLA | U0B91BVKTL2 | message | replied | 1788485055931 | 1788485269075 | 0 | - | _小马站会 \\\\\\\\\\\\\\\\\\\\\\\\\\| 2026-09-04_ • 昨日进展：09-03 我侧无 ChorusGate 动作（复评审回 |
 | 1788485058.586939 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788485059511 | 1788485292033 | 0 | - | :hourglass_flowing_sand: 处理中… |
 | 1788485102.912679 | C0BMEKM8YLA | U0B91BVKTL2 | message | replied | 1788485103571 | 1788485360647 | 0 | - | PR#159 复评审收口完成，回执已发 sprint5 thread。  *结论：复评审通过，无遗留 P0，PR#159 可提交乐老板终审、V10 base 可 |
 | 1788485294.514419 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788485295450 | 1788485406327 | 0 | - | :hourglass_flowing_sand: 处理中… |
@@ -432,3 +412,23 @@
 | 1788485548.274679 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788485549365 | 1788485616235 | 0 | - | :hourglass_flowing_sand: 处理中… |
 | 1788485565.717569 | C0BMEKM8YLA | U0BAGFVD8VB | message | replied | 1788485566290 | 1788485654988 | 0 | - | :white_check_mark: 收口完成：PR#159 复评审通过、无遗留 P0；进入终审即可定稿 V10 base。4 项 v0.3 遗留项纳入 §10 |
 | 1788571386.789759 | C0BMEKM8YLA | U0B91BVKTL2 | message | replied | 1788571387325 | 1788571424619 | 0 | - | _PR#159 复评审完成 · APPROVED — V10 base 可定稿_  <@U0AHDRREVPD> PR#159（V10 HRS 统一运行时契约 |
+| 1788669787.365749 | C0BLZ8KD8DD | U0AHDRREVPD | message | replied | 1788669787960 | 1788669899410 | 0 | - | 迭代三收尾｜按 Zederer 本次指令执行。<@U0B8VHLHJAX> 小克、<@U0B91BVKTL2> 小马、<@U0BGK82C2KV> 小龙、<@U |
+| 1788671419.284869 | C0BLZ8KD8DD | U0B91BVKTL2 | message | replied | 1788671419924 | 1788671473734 | 0 | - | :arrow_right_hook: Redirected current run. I'll adjust using your correction. |
+| 1788671421.996509 | C0BLZ8KD8DD | U0B8VHLHJAX | message | replied | 1788671422528 | 1788671535034 | 0 | - | :hourglass_flowing_sand: 处理中… |
+| 1788676290.684139 | C0BSWPYQ3PE | U0B91BVKTL2 | message | replied | 1788676291337 | 1788676334892 | 0 | - | :stopwatch: The model provider is rate-limiting requests. Please wait a moment a |
+| 1788676294.363939 | C0BSWPYQ3PE | U0B8VHLHJAX | message | replied | 1788676294954 | 1788676374495 | 0 | - | :hourglass_flowing_sand: 处理中… |
+| 1788714291.898229 | C0AHL7U33EE | U0BGK82C2KV | message | replied | 1788714292563 | 1788714340660 | 0 | - | First heartbeat alert: your bot runs periodic background checks and messages you |
+| 1788742803.131309 | C0BMCL6GTUN | U0BGK82C2KV | message | replied | 1788742806463 | 1788742849211 | 0 | - | Automation "aifitness-pr108-merge-tracker" failed 5 times Check automation histo |
+| 1788742810.943479 | C0BMCL6GTUN | U0B8VHLHJAX | message | replied | 1788742811740 | 1788742882292 | 0 | - | :hourglass_flowing_sand: 处理中… |
+| 1788758081.354089 | C0BSWPYQ3PE | U0B91BVKTL2 | message | replied | 1788758081948 | 1788758127268 | 0 | - | *完成。​* 两件事状态：  *① hermes→ma 改名* :white_check_mark: - 你手工的 rename（commit '3dce565 |
+| 1788829239.508349 | C0BMCL6GTUN | U0BGK82C2KV | message | replied | 1788829241429 | 1788829305535 | 0 | - | Automation "aifitness-pr108-merge-tracker" failed 6 times Check automation histo |
+| 1788829245.858959 | C0BMCL6GTUN | U0B8VHLHJAX | message | replied | 1788829246560 | 1788829354022 | 0 | - | :hourglass_flowing_sand: 处理中… |
+| 1788915622.970579 | C0BMCL6GTUN | U0BGK82C2KV | message | replied | 1788915624219 | 1788915656468 | 0 | - | PR #108 (SK-09 Safety Guardrails + Rate Limit) 已 MERGED（8/17，含修复 commit e301eaf） |
+| 1788915627.365889 | C0BMCL6GTUN | U0B8VHLHJAX | message | replied | 1788915628004 | 1788915687973 | 0 | - | :hourglass_flowing_sand: 处理中… |
+| 1789002009.351699 | C0BEYCR30TD | U0BGK82C2KV | message | replied | 1789002009804 | 1789002045582 | 0 | - | stdout: == bootout serve (free PGLite lock) == == git pull == Already up to date |
+| 1789004561.749909 | C0BEYCR30TD | U0BGK82C2KV | message | replied | 1789004562003 | 1789004595698 | 0 | - | stdout: == bootout serve (free PGLite lock) == == git pull == Already up to date |
+| 1789052167.967739 | D0BAMNPPLRX | U0AHDRREVPD | message | replied | 1789052169465 | 1789052223341 | 0 | - | 新的开始， 告诉我你迁移到新机器， 有哪些改变 |
+| 1789087425.522179 | D0BAMNPPLRX | U0AHDRREVPD | message | replied | 1789087425772 | 1789087505876 | 0 | - | 新的开始， 告诉我你迁移到新机器， 有哪些改变 |
+| 1789087755.814419 | D0BAMNPPLRX | U0AHDRREVPD | message | replied | 1789087756146 | 1789087819169 | 0 | - | hermes作为主agent接入slack， codex作为子agent研发助手还没生效吗？ |
+| 1789088410.865349 | C0BEYCR30TD | U0BGK82C2KV | message | replied | 1789088411306 | 1789088434881 | 0 | - | stdout: == bootout serve (free PGLite lock) == == git pull == Already up to date |
+| 1789174817.036429 | C0BEYCR30TD | U0BGK82C2KV | message | replied | 1789174817451 | 1789174847664 | 0 | - | stdout: == bootout serve (free PGLite lock) == == git pull == Already up to date |
