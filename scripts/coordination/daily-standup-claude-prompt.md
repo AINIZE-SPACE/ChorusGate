@@ -6,7 +6,7 @@
 
 1. ZKOS-IP Sprint 3：channel C0BLZ8KD8DD。当前职责：#148 连接健壮性已合入、Sprint 3 无 assign 给我的开发 issue 时如实说明。
 2. ChorusGate Sprint 5：channel C0BMEKM8YLA。当前职责：#145 修复已合入、#148 合入、#149 日报自动化在开发中；按 issue 状态汇报。
-3. AIFitness Sprint 1：channel C0BMCL6GTUN。当前职责：无 assign 时如实说明，或按最近一次交互汇报。
+3. AIFitness Sprint 2：channel C0C36F9PVEY（2026-09-19 起迭代二主频道；迭代一 C0BMCL6GTUN 已停用归档）。当前职责：无 assign 时如实说明，或按最近一次交互汇报。
 
 每条消息格式：
 
