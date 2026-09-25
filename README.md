@@ -1,25 +1,44 @@
 # ChorusGate
 
-ChorusGate is a local-first coordination gateway for coding-agent runtimes and collaboration channels. The existing Slack gateway and MCP server remain the operational entry points. V10 adds a deliberately small, observable boundary for runtime coordination; it does not replace those components.
+[中文文档](./README_CN.md)
 
-## V10: HRS runtime contracts + observation slice
+## Project direction
 
-### The problem
+ChorusGate is the local runtime-coordination entry point for organizational intelligence and collaboration among digital employees. It connects people and Agent Runtimes—including Hermes, OpenClaw, Codex, and Claude—through Channels and Gateway.
 
-Hermes, OpenClaw, and similar runtimes already emit events, wake workers, run tasks, report completion, and notify people. What is missing is one portable and testable control entry point to observe that path across runtimes. V10 defines the HRS boundary and supplies a local demo view of its resulting runtime state.
+Its shared HRS contract makes the collaboration loop explicit:
 
 ```text
-Event -> WakePolicy -> TaskEnvelope -> HarnessAdapter
-                                      -> Completion -> Attention / Delivery
+Event -> WakePolicy -> TaskEnvelope -> HarnessAdapter -> Completion -> Attention / Delivery
 ```
 
-The first V10 slice is read-only: a deterministic fixture adapter produces two digital-employee runtime records for a small Web API and page. It does not start Slack, authenticate a user, or contact an external service.
+ChorusGate is local-first: it provides a verifiable local observation surface and controlled delivery/attention boundary. A runtime continues to own its own execution, tools, memory, scheduler, and internal behavior.
 
-### Explicit non-goals
+## Problem
 
-V10 is **not** a silicon-organization management system, performance platform, enterprise Control Plane, HR system, knowledge base, IAM layer, generic cloud platform, scheduler, or complete frontend product. It does not move or ingest `zederer_ip`, `agents_memory`, `summit-saw`, Soul, gbrain, or mem0 data.
+Real runtimes each have their own events, task handoff, execution, completion, notification, and observation model. Cross-runtime collaboration therefore lacks a uniform contract, closed-loop status, evidence receipts, and a local operational entry point. ChorusGate addresses that coordination boundary; it does not replace the runtimes themselves.
 
-ChorusGate's scope here is a runtime coordination/control gateway: normalize the HRS boundary and make the bounded runtime state observable. Runtime-internal agent behavior stays with the corresponding runtime and its adapter.
+## Long-term target
+
+The long-term target is a proven coordination loop for multiple digital-employee runtimes: Channel/Gateway connects people and runtimes; HRS carries the portable contract; adapters execute within their runtime; Completion returns traceable evidence; and local Web observation makes the bounded state and outcomes inspectable.
+
+See the project-level relationships, roadmap, and acceptance conditions in [ChorusGate project direction](docs/planning/chorusgate-direction.md).
+
+## Non-goals
+
+ChorusGate is not a generalized “silicon organization Control Plane,” an organization-management system, HR or performance platform, knowledge base, IAM layer, generic cloud platform, or a replacement scheduler/runtime. These are not current implementation targets; any future scope must be justified by a real operating loop.
+
+## Roadmap
+
+- **Iteration 0 / V10:** set the direction, establish the HRS vocabulary, deterministic fixtures, and a locally verifiable read-only observation surface.
+- **Iteration 1:** add a real HRS adapter and local evidence ledger with traceable contract transitions.
+- **Later:** make multi-runtime coordination reliable through idempotency, recovery, delivery policy, and comparable observability.
+
+V10 is the first iteration—not the final product.
+
+## Iteration 0 / V10: HRS runtime contracts + observation slice
+
+The implemented V10 slice is read-only: a deterministic fixture adapter produces two digital-employee runtime records for a small Web API and page. It does not start Slack, authenticate a user, or contact an external service. The existing Slack gateway and MCP server remain operational entry points and are not replaced.
 
 ## V10 local Web demo
 
@@ -43,7 +62,7 @@ Change `V10_WEB_PORT` to use another local port, for example `V10_WEB_PORT=4311 
 
 ```bash
 npm run typecheck
-npm test -- --test-name-pattern='V10'
+node --import tsx --import ./tests/test-env.mjs --test tests/v10-web.test.ts
 ```
 
 The second command exercises fixture-to-view conversion plus health, employee API, HTML, and unknown-path behaviour. Run `npm test` for the full gateway suite. V10's interface boundary and acceptance criteria are in [`docs/planning/V10-HRS-observation-slice.md`](docs/planning/V10-HRS-observation-slice.md); the original contract draft remains in [`docs/planning/V10-HRS-contracts-draft.md`](docs/planning/V10-HRS-contracts-draft.md).
@@ -61,6 +80,7 @@ src/
 tests/
   v10-web.test.ts                  conversion and HTTP acceptance tests
 docs/planning/
+  chorusgate-direction.md          project direction and staged acceptance conditions
   V10-HRS-contracts-draft.md       existing HRS contract draft
   V10-HRS-observation-slice.md     implemented slice design
 ```
