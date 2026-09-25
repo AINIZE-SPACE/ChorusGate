@@ -17,6 +17,7 @@
     "gateway": "tsx src/gateway.ts",
     "mcp": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
+    "v10:web": "tsx src/v10/web-server.ts",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
