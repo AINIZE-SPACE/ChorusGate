@@ -1,15 +1,15 @@
 # Iteration 10 — Plan and Review Gates
 
-**Status:** `PENDING — HUMAN REVIEW REQUIRED`. This is preparation only. No
-gate has passed or been approved, and all implementation phases remain
-conditional.
+**Status:** `G0 PASS RECORDED; G1 CONDITIONAL PASS RECORDED`. This remains
+planning only: CG-I10-002 is pending its stated prerequisite, and all
+implementation phases remain conditional.
 
 ## Ordered gates
 
 | Gate | Owner | Entry evidence | Exit condition | Outcome if not passed | Current status |
 | --- | --- | --- | --- | --- | --- |
-| G0 — SDD completeness | 小扣 | `intent.md`, `constitution.md`, `spec.md`, `plan.md`, `tasks.md` | Sources, boundary, non-goals, unresolved items, tasks and external status are internally consistent. | Return to SDD preparation. | `PENDING — HUMAN REVIEW REQUIRED; no approval recorded` |
-| G1 — Scope/contract review | 小扣 | G0 plus proposed runtime and decision options | Accepts/rejects scope, authority, HRS boundaries, retention decision owner, and external-tracking deferral. | Block implementation. | `PENDING — HUMAN REVIEW REQUIRED; G0 is not approved` |
+| G0 — SDD completeness | 小扣 | `intent.md`, `constitution.md`, `spec.md`, `plan.md`, `tasks.md` | Sources, boundary, non-goals, unresolved items, tasks and external status are internally consistent. | Return to SDD preparation. | `PASS — recorded in review-g0.md (2026-09-30)` |
+| G1 — Scope/contract review | 小扣 | G0 plus proposed runtime and decision options | Accepts/rejects scope, authority, HRS boundaries, retention decision owner, and external-tracking deferral. | Block implementation. | `CONDITIONAL PASS — recorded in review-g1.md (2026-10-02); CG-I10-002 remains blocked pending 小龙 operational input` |
 | G2 — Independent test/integration review | 小马 | G1-approved spec and adapter evidence | Confirms test matrix, state/correlation rules, regression scope, and acceptance environment. | Return to design/spike. | `PENDING — HUMAN REVIEW REQUIRED; G1 is not approved` |
 | G3 — Operations/local-delivery review | 小龙 | G2-reviewed plan | Confirms local runtime feasibility, environment constraints, observability and handoff requirements without exposing secrets. | Block runtime integration. | `PENDING — HUMAN REVIEW REQUIRED; G2 is not approved` |
 | G4 — Implementation authorization | 小扣 | G1-G3 approvals recorded with source paths/evidence | A separate, bounded implementation TaskEnvelope exists. | No product code may begin. | `PENDING — HUMAN REVIEW REQUIRED; G1-G3 are not approved` |
