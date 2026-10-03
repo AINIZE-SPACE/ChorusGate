@@ -2,276 +2,115 @@
 
 [中文文档](./README_CN.md)
 
-ChorusGate is a local-first gateway that brings coding agents into collaboration
-channels. It started as a Claude Code + Slack bridge and is evolving into a
-shared channel gateway for Slack, Feishu/Lark, Claude Code, Codex, and other
-agent runtimes.
+## Project direction
 
-@mention the bot in a channel or send it a DM; ChorusGate routes the message to
-the configured agent runtime and posts the reply back. It also ships MCP tooling
-so agent runtimes can actively read and write channel context when needed.
+ChorusGate is the local runtime-coordination entry point for organizational intelligence and collaboration among digital employees. It connects people and Agent Runtimes—including Hermes, OpenClaw, Codex, and Claude—through Channels and Gateway.
 
-**Highlights:**
-
-- **Local-first**: Run the gateway on your own machine or private server; tokens stay with you
-- **Channel-oriented**: Slack works today; Feishu/Lark support is planned
-- **Agent-oriented**: Claude Code works today; Codex and other runtimes are in scope
-- **Persistent context**: Each channel/DM can bind to a long-lived agent session
-
----
-
-## Quick Start
-
-### Prerequisites
-
-- Node.js >= 18
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) — verify with `claude -p "say hi"`
-- Slack workspace admin access (to create an app)
-
-### 1. Create the Slack App
-
-1. Go to <https://api.slack.com/apps> → **Create New App** → **From a manifest**
-2. Select your workspace
-3. Paste the contents of [`manifest.json`](./manifest.json) for a Claude Code style app, or [`manifest.cx.json`](./manifest.cx.json) for a Codex style app. These are just starter manifests for different slash-command prefixes.
-4. Click **Create** → **Install to Workspace** → **Allow**
-
-### 2. Collect Tokens
-
-- **OAuth & Permissions** → copy the **Bot User OAuth Token** (`xoxb-…`)
-- **Basic Information** → **App-Level Tokens** → **Generate Token and Scopes**
-  - Give it a name (e.g. `socket`), add scope `connections:write`, generate
-  - Copy the App-Level Token (`xapp-…`)
-
-### 3. Configure .env
-
-Agent-scoped configuration is loaded from `~/.chorusgate/<agent-id>/.env`.
-`chorusgate run` uses the `default` profile; shell environment variables retain
-the highest priority. Every agent — `default` included — owns its process-level
-files under the same home, so omitting `--agent` anywhere is equivalent to
-`--agent default` (i.e. `~/.chorusgate/default/`).
-
-#### Agent profiles and state ownership
-
-A ChorusGate agent is a cross-project process. Its lifecycle must not depend on
-the shell's current working directory or on a project directory selected by an
-environment variable. Each agent owns an isolated home directory:
+Its shared HRS contract makes the collaboration loop explicit:
 
 ```text
-~/.chorusgate/<agent-id>/
-├── .env          # process configuration
-├── gateway.pid   # daemon identity
-├── gateway.log   # process output
-├── status.json   # runtime status
-└── ...           # locks, sessions, and other process-level state
+Event -> WakePolicy -> TaskEnvelope -> HarnessAdapter -> Completion -> Attention / Delivery
 ```
 
-All process-level configuration and output belong under that directory. Control
-commands (`run`, `start`, `stop`, `restart`, `status`, and `list`) must resolve
-the agent first and then read or write only that agent's files. A missing agent
-must be reported as missing or stopped; it must not silently fall back to the
-`default` profile, the current directory, or another running process.
+ChorusGate is local-first: it provides a verifiable local observation surface and controlled delivery/attention boundary. A runtime continues to own its own execution, tools, memory, scheduler, and internal behavior.
 
-The project-local `.gateway/` directory has a narrower role: it may contain only
-metadata or state for the current project and the relevant agent. It is not the
-home of a cross-project daemon and must not determine or store the daemon PID,
-global status, logs, locks, or other process-level output.
+## Problem
 
-> **Why the split?** In the legacy layout the PID, status snapshot and log lived
-> together in one shared `cwd/.gateway/` for every agent. `status --agent codex`
-> and `status --agent claude` therefore read the same files and printed identical
-> output, and only one agent could run per working directory. Scoping them under
-> the agent home makes each agent a real cross-project process with an
-> independent PID, uptime and session list.
+Real runtimes each have their own events, task handoff, execution, completion, notification, and observation model. Cross-runtime collaboration therefore lacks a uniform contract, closed-loop status, evidence receipts, and a local operational entry point. ChorusGate addresses that coordination boundary; it does not replace the runtimes themselves.
 
-For a first-time setup, initialize from the current project's legacy `.env`:
+## Long-term target
 
-```powershell
-chorusgate run --agent claude --init
-chorusgate config init --agent codex --from E:\project\.env --cwd E:\project
+The long-term target is a proven coordination loop for multiple digital-employee runtimes: Channel/Gateway connects people and runtimes; HRS carries the portable contract; adapters execute within their runtime; Completion returns traceable evidence; and local Web observation makes the bounded state and outcomes inspectable.
+
+See the project-level relationships, roadmap, and acceptance conditions in [ChorusGate project direction](docs/planning/chorusgate-direction.md).
+
+## Non-goals
+
+ChorusGate is not a generalized “silicon organization Control Plane,” an organization-management system, HR or performance platform, knowledge base, IAM layer, generic cloud platform, or a replacement scheduler/runtime. These are not current implementation targets; any future scope must be justified by a real operating loop.
+
+## Roadmap
+
+- **Iteration 0 / V10:** set the direction, establish the HRS vocabulary, deterministic fixtures, and a locally verifiable read-only observation surface.
+- **Iteration 1:** add a real HRS adapter and local evidence ledger with traceable contract transitions.
+- **Later:** make multi-runtime coordination reliable through idempotency, recovery, delivery policy, and comparable observability.
+
+V10 is the first iteration—not the final product.
+
+## Iteration 0 / V10: HRS runtime contracts + observation slice
+
+The implemented V10 slice is read-only: a deterministic fixture adapter produces two digital-employee runtime records for a small Web API and page. It does not start Slack, authenticate a user, or contact an external service. The existing Slack gateway and MCP server remain operational entry points and are not replaced.
+
+## V10 local Web demo
+
+Prerequisite: Node.js 18+ and installed dependencies (`npm install`).
+
+```bash
+npm run v10:web
 ```
 
-If a profile is missing, ChorusGate lists existing agent names and asks whether
-to initialize it in an interactive terminal. Non-interactive runs print the
-equivalent `--init` command and exit cleanly. When no source `.env` exists,
-initialization creates the directories and a starter config without secrets.
+Open <http://127.0.0.1:4310>. The page is clearly labelled as deterministic demo data and shows employee/agent cards, runtime status, current task, recent event, and success/failure/blocked completion counts.
 
-Before connecting to Slack, ChorusGate verifies that the selected `claude` or
-`codex` CLI is installed. If it is missing, install that platform or set
-`CLAUDE_BIN` / `CODEX_BIN` to its executable path.
+Endpoints:
 
-A profile must contain:
+- `GET /health` — liveness response and fixture source
+- `GET /api/v10/employees` — employee runtime observation JSON
+- `GET /` — static HTML observation page
 
-```env
-SLACK_BOT_TOKEN=xoxb-your-bot-token
-SLACK_APP_TOKEN=xapp-your-app-token
+Change `V10_WEB_PORT` to use another local port, for example `V10_WEB_PORT=4311 npm run v10:web` (PowerShell: `$env:V10_WEB_PORT=4311; npm run v10:web`).
+
+## Verification
+
+```bash
+npm run typecheck
+node --import tsx --import ./tests/test-env.mjs --test tests/v10-web.test.ts
 ```
 
-### 4. Install Dependencies
+The second command exercises fixture-to-view conversion plus health, employee API, HTML, and unknown-path behaviour. Run `npm test` for the full gateway suite. V10's interface boundary and acceptance criteria are in [`docs/planning/V10-HRS-observation-slice.md`](docs/planning/V10-HRS-observation-slice.md); the original contract draft remains in [`docs/planning/V10-HRS-contracts-draft.md`](docs/planning/V10-HRS-contracts-draft.md).
+
+## Directory map
+
+```text
+src/
+  gateway.ts, index.ts, tools/     existing Slack gateway and MCP entry points
+  v10/
+    types.ts                       read-only HRS observation boundary
+    fixture-adapter.ts             deterministic demo runtime records
+    employee-view.ts               adapter-to-Web projection
+    web-server.ts, web-page.ts     native HTTP server and static page
+tests/
+  v10-web.test.ts                  conversion and HTTP acceptance tests
+docs/planning/
+  chorusgate-direction.md          project direction and staged acceptance conditions
+  V10-HRS-contracts-draft.md       existing HRS contract draft
+  V10-HRS-observation-slice.md     implemented slice design
+```
+
+## Existing gateway and MCP modes
+
+V10 does not replace the existing Slack Socket Mode gateway or MCP server.
+Install Node.js 18+, create the Slack app from the applicable manifest, and
+configure its bot and app tokens in the relevant agent profile
+`~/.chorusgate/<agent-id>/.env`; shell environment variables take precedence.
+See [INSTALL.md](INSTALL.md) for profile migration and initialization, then
+install and link the CLI:
 
 ```bash
 npm install
 npm link
 ```
 
-> :warning: **Don't skip `npm link`.** `npm install` alone won't register the `chorusgate` and `chorusgate-mcp` commands on your PATH. If you get `command not found` later, re-run `npm link`.
-
-### 5. Verify Claude CLI
-
-Run this in **your own terminal** (not a sandbox):
+Start either existing mode:
 
 ```bash
-claude -p "say pong" --output-format text
+npm run gateway  # Slack Socket Mode gateway
+npm run mcp      # MCP channel-tool server
 ```
 
-If it prints "pong", you're good. The gateway spawns `claude -p` and inherits this environment — if the CLI doesn't work here, it won't work in the gateway either.
-
-### 6. Start the Gateway
-
-**Foreground** (good for first run / debugging):
-
-```bash
-npm run gateway        # or: chorusgate run
-```
-
-**Background daemon** (recommended for ongoing use):
-
-```bash
-chorusgate start --agent codex    # start codex in the background
-chorusgate status --agent codex   # show only codex's pid, uptime, and sessions
-chorusgate stop --agent codex     # stop only codex
-chorusgate restart --agent codex  # restart only codex
-chorusgate list --agent codex     # list only codex's channel→session mappings
-chorusgate log --agent codex      # show codex's daemon log (default: last 50 lines)
-chorusgate log --agent codex --lines 200  # last 200 lines
-chorusgate log --agent codex --follow     # follow new lines (tail -f; also -f / -n)
-```
-
-Omitting `--agent` is equivalent to `--agent default`. Different agents may run
-at the same time and must report independent PIDs and runtime state. The npm
-aliases use the same rules. Logs go to
-`~/.chorusgate/<agent-id>/gateway.log`.
-
-### 7. Use It in Slack
-
-Invite the bot to a channel (`/invite @ChorusGate`), then @mention it or send it a DM. Replies are automatic.
-
----
-
-## Two Modes
-
-| Mode | Entry point | When to use |
-|------|-------------|-------------|
-| **Auto-reply gateway** | `src/gateway.ts` | Fully automatic replies, runs as a daemon |
-| **MCP server** | `src/index.ts` | Agent runtimes call channel tools on demand |
-
-> **Only one Socket Mode connection at a time.** Slack load-balances each event to exactly one open connection per app — two connections means events get split and lost.
->
-> ChorusGate MCP is now Web API only. The gateway owns Socket Mode; agent runtimes can reuse the same `.claude/mcp.json` for channel reads and writes.
-
----
-
-## MCP Server Mode
-
-Create `.claude/mcp.json` in your project root (reuses the `.claude` system — no need for a separate root `mcp.json`). You can start from `.claude/mcp.json.example`:
-
-```json
-{
-  "mcpServers": {
-    "chorusgate": {
-      "command": "chorusgate-mcp",
-      "args": []
-    }
-  }
-}
-```
-
-The same config works both standalone and alongside the gateway because `chorusgate-mcp` no longer opens Socket Mode.
-
-Available MCP tools: `slack_reply` / `slack_send_message` / `slack_add_reaction` / `slack_channel_history` / `slack_thread_replies` / `slack_list_channels` / `slack_get_user_info`
-
----
-
-## Slash Commands
-
-Control sessions directly from Slack:
-
-| Command | Description |
-|---------|-------------|
-| `/cc_sessions` | List all known sessions for this app profile |
-| `/cc_resume N` or `/cc_resume <uuid>` | Switch the current channel to a specific session |
-| `/cc_new` | Reset the current session binding for this channel or DM |
-| `/cc_current` | Show the currently bound session |
-| `/cchelp` | Show help |
-
-> To use slash commands in DMs: Slack App settings → **App Home** → enable "Allow users to send Slash commands and messages from the messages tab".
->
-> The `cc_` prefix is only a Slack command namespace. Internally the gateway
-> should reason in terms of app profiles and providers, not hard-code `cc` or
-> `cx` semantics. If you run multiple Claude Code style assistants for one human
-> owner, each one should use its own Slack app/profile and may use a different
-> prefix through `GATEWAY_COMMAND_PREFIX`.
-
----
-
-## Environment Variables
-
-> **Where to put them:** Process-level Gateway variables go in `~/.chorusgate/<agent-id>/.env`.
-> They are not implicitly loaded from `~/.gateway/.env`, the project `.env`, the current working directory, or a project-local `.gateway/.env`.
-> Only `SLACK_BOT_TOKEN` and `SLACK_APP_TOKEN` may also appear in `.claude/mcp.json`'s `env` block (for the MCP server).
-> Shell environment variables always take precedence.
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `GATEWAY_MAX_CONCURRENT` | `3` | Max simultaneous `claude -p` processes |
-| `GATEWAY_REPLY_TIMEOUT_MS` | `180000` | Per-reply timeout (ms) |
-| `GATEWAY_REPLY_TIMEOUT_MS_LONG` | `360000` | Per-reply timeout for resume turns (ms) |
-| `GATEWAY_SESSION_SCOPE` | `channel` | `channel` (shared per channel) or `thread` (isolated per thread) |
-| `GATEWAY_SESSION_IDLE_MS` | `86400000` | Idle time before a session mapping is evicted (ms) |
-| `GATEWAY_COMMAND_PREFIX` | `cc` | Slash-command prefix for this app profile. This is a Slack-facing namespace only. |
-| `GATEWAY_PROGRESS` | `1` | Set to `0` to disable live progress messages |
-| `GATEWAY_PROGRESS_MODE` | `hybrid` | Progress mode (#129): `hybrid` (edit placeholder + append tool_call results), `append` (all progress as new messages), `edit` (legacy, all via `chat.update`) |
-| `GATEWAY_PROGRESS_MAX_MESSAGES` | `5` | Max intermediate-result messages appended before further appends are skipped (#129) |
-| `GATEWAY_THREAD_SMART_REPLY` | `1` | Smart thread reply (#128): set to `0` to disable multi-level judgment for non-mention messages in threads |
-| `GATEWAY_LLM_REPLY_JUDGE` | unset | Enable LLM pre-judgment (#128 Level 4): set to `1` to call `claude -p` for lightweight yes/no reply decisions on thread messages |
-| `GATEWAY_PROFILE_TRIGGERS_<ID>` | unset | Per-profile trigger words for name-based reply detection (#128 Level 3). Format: `displayName,alias1,alias2`. Example: `GATEWAY_PROFILE_TRIGGERS_CC=小克,CC,claude` |
-| `GATEWAY_CLAUDE_CWD` | project root | Working directory for spawned claude processes |
-| `CLAUDE_BIN` | `claude` | Path to the Claude CLI binary |
-| `CLAUDE_PERMISSION_MODE` | `bypassPermissions` | Permission mode for headless claude |
----
-
-## Troubleshooting
-
-**Bot randomly misses messages**
-
-Only one Socket Mode connection per app is allowed. Multiple connections split events. Make sure only the gateway opens a Socket Mode connection; `chorusgate-mcp` no longer opens one.
-
-**Slash commands don't work in DMs**
-
-Slack App settings → **App Home** → check "Allow users to send Slash commands and messages from the messages tab", then reinstall the app.
-
-**Windows: `claude -p` exits with code 3221225794**
-
-`STATUS_DLL_INIT_FAILED` — too many processes spawned at once. Lower `GATEWAY_MAX_CONCURRENT`, or check that empty messages aren't bypassing the `shouldReply` filter.
-
-**Placeholder stuck on "Sending..." / timed out after 180s**
-
-Long resume turns use `GATEWAY_REPLY_TIMEOUT_MS_LONG` (default 360s). If you see timeouts on long tasks, increase it. If the placeholder message is stuck on a tool label, restart the gateway — the latest code fixes drain-queue ordering.
-
-**`chorusgate: command not found`**
-
-`npm install` doesn't register global commands — run `npm link` to wire `chorusgate` and `chorusgate-mcp` onto your PATH.
-
-More in [`docs/gotchas.md`](./docs/gotchas.md).
-
----
-
-## Documentation
-
-- [`INSTALL.md`](./INSTALL.md) — Detailed installation guide
-- [`docs/architecture.md`](./docs/architecture.md) — Architecture overview
-- [`docs/`](./docs/README.md) — Full documentation index (including planned features)
-
----
+For the complete Slack prerequisites, manifests, `.env` and profile guidance,
+see [INSTALL.md](INSTALL.md). For MCP registration and environment guidance,
+see [the MCP section of INSTALL.md](INSTALL.md#7-set-up-mcp-server-claude-code-ide-integration);
+the [documentation index](docs/README.md) links the gateway and MCP operational
+references.
 
 ## License
 

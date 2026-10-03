@@ -2,6 +2,71 @@
 
 [English](./README.md)
 
+## 项目方向
+
+ChorusGate 是跨“数智员工”组织智能与 Agent 协同的本地运行协调入口。它通过 Channel/Gateway 接入人和 Agent Runtime（包括 Hermes、OpenClaw、Codex、Claude 等），在真实协作中为跨 Runtime 的协同建立统一、可验证的边界。
+
+这一边界由 HRS contracts 串起完整闭环：
+
+```text
+Event → WakePolicy → TaskEnvelope → HarnessAdapter → Completion → Attention / Delivery
+```
+
+ChorusGate 提供本地优先、可验证的运行观察与控制边界。各 Runtime 仍各自负责内部执行、工具、记忆、调度和行为；ChorusGate 负责让跨 Runtime 的事件、任务、执行、完成、通知和观察方式能够形成可追踪的协作契约、状态闭环与证据回执。
+
+## 要解决的问题
+
+不同数智员工 Runtime 对事件、唤醒、任务执行、完成、通知和运行状态的表达各不相同。因此，跨 Runtime 协作缺少统一契约、闭环状态、可核验的证据回执，以及本地可观察的运行入口。ChorusGate 聚焦解决这个协调边界，而不是替代任何 Runtime。
+
+## 长期目标与非目标
+
+长期目标是验证并逐步实现多个数智员工 Runtime 的协同闭环：人通过 Channel 协作，Gateway 负责边界协调，HRS contracts 负责可移植的交接，Runtime 通过 adapter 执行，Completion 携带可追踪的证据，Web observation 在本地呈现受限而可验证的状态与结果。
+
+当前不实现组织管理制度、HR、绩效、知识库、IAM、通用云平台，也不把项目抽象成泛化的“硅基组织 Control Plane”。只有真实运行闭环产生明确需求后，才讨论这些方向的受限扩展。
+
+## 路线图
+
+- **迭代 0 / V10：** 定调，建立 HRS 契约语言、确定性 fixture 与本地只读观察面，验证最小闭环。
+- **迭代 1：** 接入真实 HRS adapter 与本地 evidence ledger，使契约转换和完成证据可追溯。
+- **后续：** 面向多 Runtime 协同补齐可靠性、幂等/恢复、交付策略与可比较的观察能力。
+
+V10 只是首个“迭代 0”，负责定调、契约、fixture 和观察面，不是最终产品。完整的对象关系、阶段验收条件见[项目级规划](docs/planning/chorusgate-direction.md)。
+
+## V10：HRS Runtime 契约与本地观察入口
+
+ChorusGate V10 是“跨‘数智员工’组织智能和代理的入口”。它覆盖跨 Agent Runtime 契约、状态闭环、证据回执和本地观察；当前具体实现仍是 **HRS runtime coordination gateway + local runtime observation**：为参与的 runtime 建立可报告、可观察的受限接口，而不是接管组织本身。
+
+V10 **不是**泛化的硅基组织 Control Plane，也不是硅基组织管理、HR、绩效、IAM、知识库、通用云平台、调度器或完整前端产品。它不会搬运或接入 `zederer_ip`、`agents_memory`、`summit-saw`、Soul、gbrain 或 mem0 数据。
+
+### V10 本地 Web 演示
+
+前置条件：Node.js 18+，并已安装依赖（`npm install`）。
+
+```bash
+npm run v10:web
+```
+
+打开 <http://127.0.0.1:4310>。页面明确标注为确定性演示数据，展示数智员工/agent 卡片、runtime 状态、当前任务、最近事件和成功/失败/阻塞完成数。
+
+接口：
+
+- `GET /health`：存活响应和 fixture 数据源
+- `GET /api/v10/employees`：数智员工 runtime 本地观察 JSON
+- `GET /`：静态本地观察页面
+
+可通过 `V10_WEB_PORT` 改用其他本地端口，例如 `V10_WEB_PORT=4311 npm run v10:web`；PowerShell 中使用 `$env:V10_WEB_PORT=4311; npm run v10:web`。
+
+### V10 验证
+
+```bash
+npm run typecheck
+node --import tsx --import ./tests/test-env.mjs --test tests/v10-web.test.ts
+```
+
+第二条命令覆盖 fixture 到视图的转换，以及 health、员工观察 API、HTML 页面和未知路径的行为。完整网关测试使用 `npm test`。
+
+---
+
 ChorusGate 是一个 local-first 的协作 channel gateway，用来把 coding agents 接入 Slack、飞书/Lark 等工作频道。
 它最初是 Claude Code + Slack 桥接器，现在范围扩展为 Slack、飞书规划、Claude Code、Codex 和更多 agent runtime 的通用网关。
 
