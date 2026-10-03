@@ -1,64 +1,59 @@
-# ChorusGate docs/
+# ChorusGate 中文文档导航
 
-> 产品文档索引。所有文档中文撰写，面向后续维护者。
+> 本目录为 ChorusGate 项目文档根目录。V10 之后，中文文档为首选维护语言。
 
-## 架构
-
-| 文档 | 内容 |
-|------|------|
-| [architecture.md](./architecture.md) | 架构总览：两种模式、数据流、目录结构、核心决策 |
-| [gotchas.md](./gotchas.md) | 调试踩坑记录 |
-| [roadmap.md](./roadmap.md) | 版本规划方向 |
-
-## 已实现功能 ([spec/](./spec/README.md))
-
-| 文档 | 功能 |
-|------|------|
-| [auto-reply.md](./spec/auto-reply.md) | 自动回复：触发条件、session 复用、并发控制 |
-| [gateway-lifecycle.md](./spec/gateway-lifecycle.md) | Gateway 生命周期：start/stop/restart/status/list |
-| [live-progress.md](./spec/live-progress.md) | 实时进度提示：占位消息、stream-json 解析 |
-| [mcp-server.md](./spec/mcp-server.md) | MCP server 模式：Web API tools、配置 |
-| [session-management.md](./spec/session-management.md) | Session 管理：slash command、sessions.md、路由 |
-
-## 规划中 ([planning/](./planning/README.md))
+## 新中文文档体系
 
 | 文档 | 内容 |
-|------|------|
-| [v4-story-8-stream-incremental.md](./planning/v4-story-8-stream-incremental.md) | M3 增量流式 (#85) |
-| [v4-story-8-unified-approval.md](./planning/v4-story-8-unified-approval.md) | 统一审批方案 (#84) |
-| [v4-story-8-unified-streaming.md](./planning/v4-story-8-unified-streaming.md) | 统一 StreamUpdate 接口 (#86) |
-| [feature-feishu.md](./planning/feature-feishu.md) | 飞书支持 |
-| [feature-install-lifecycle.md](./planning/feature-install-lifecycle.md) | 安装生命周期 |
-| [feature-slack-commands.md](./planning/feature-slack-commands.md) | Slack command 增强 |
+| --- | --- |
+| [../README.md](../README.md) | 项目总览：定位、V10 语境、核心循环、快速开始、迭代状态 |
+| [architecture-v10.md](./architecture-v10.md) | V10 架构定位、边界、模块关系、演进约束与路径 |
+| [design-iteration-10.md](./design-iteration-10.md) | 迭代 10 SDD 导航、门禁状态、任务与未决问题 |
+| [code-framework.md](./code-framework.md) | 技术栈、`src/` 模块地图、构建与测试基线 |
 
-## 参考资料 ([reference/](./reference/))
+## SDD 迭代 10
+
+位于 [`planning/iteration-10-sdd/`](./planning/iteration-10-sdd/)：
+
+| 文件 | 内容 |
+| --- | --- |
+| `intent.md` | 产品意图、边界、非目标 |
+| `constitution.md` | 项目宪法八条 |
+| `spec.md` | I10-FR-01..06 需求与 HRS 状态机 |
+| `plan.md` | 门禁 G0..G5 与技术序列 |
+| `tasks.md` | CG-I10-001..007 任务登记 |
+| `review-g0.md` | G0 PASS 评审记录 |
+| `review-g1.md` | G1 CONDITIONAL PASS 评审记录 |
+| `g1-entry-runtime-candidates.md` | 运行时/适配器候选 |
+| `g1-review-input-runtime-candidates-xiaoma.md` | 小马评审输入 |
+
+## 项目方向与契约
 
 | 文档 | 内容 |
-|------|------|
-| [v3-stories/](./reference/v3-stories/) | v3 已完成设计文档 (12 篇) |
-| [hermes-agent-analysis.md](./reference/hermes-agent-analysis.md) | Hermes Agent 源码借鉴分析 |
-| [ccpocket.md](./reference/ccpocket.md) | CC Pocket 参考架构 |
+| --- | --- |
+| [planning/chorusgate-direction.md](./planning/chorusgate-direction.md) | 项目方向、问题、产品边界、路线图 |
+| [planning/V10-HRS-contracts-draft.md](./planning/V10-HRS-contracts-draft.md) | HRS 契约草案 |
+| [planning/V10-HRS-observation-slice.md](./planning/V10-HRS-observation-slice.md) | 已实现的只读观察切片 |
+| [planning/V10-Architecture-Hermes.md](./planning/V10-Architecture-Hermes.md) | Hermes 架构参考 |
+| [planning/architecture-boundaries.md](./planning/architecture-boundaries.md) | 架构边界 |
 
-## 评审记录 ([reviews/](./reviews/README.md))
+## 归档
 
 | 目录 | 内容 |
-|------|------|
-| [v3/2026-06-12-hermes-review.md](./reviews/v3/2026-06-12-hermes-review.md) | v3 第一轮评审 |
-| [v3/2026-06-13-hermes-review.md](./reviews/v3/2026-06-13-hermes-review.md) | v3 第二轮评审 |
+| --- | --- |
+| [archive/pre-v10/README.md](./archive/pre-v10/README.md) | pre-V10 规划/规格文档归档说明 |
 
-## 测试方案 ([tests/](./tests/README.md))
+## 测试与评审
 
 | 目录 | 内容 |
-|------|------|
-| [v3/](./tests/v3/) | v3 Issue 跟踪 |
-| [plans/](./tests/plans/) | 测试计划 |
-| [cases/](./tests/cases/) | 测试用例 |
+| --- | --- |
+| [tests/](./tests/) | 测试计划、用例、报告 |
+| [reviews/](./reviews/) | 历史评审记录 |
+| [spec/](./spec/) | 已实现的 v3/v4 功能规格 |
+| [specs/](./specs/) | 当前有效的 issue 规格 |
+| [reference/](./reference/) | 参考资料 |
 
-## 迭代报告 ([reports/](./reports/README.md))
+## 注意
 
-| 文档 | 类型 | 作者 |
-|------|------|------|
-| [v3/sprint-3-daily-claude.md](./reports/v3/sprint-3-daily-claude.md) | 日报 | 小克 |
-| [v3/sprint-3-daily-hermes.md](./reports/v3/sprint-3-daily-hermes.md) | 日报 | 小马 |
-| [v3/sprint-3-retrospective.md](./reports/v3/sprint-3-retrospective.md) | 迭代回顾 | — |
-| [v3/sprint-3-retrospective-roles.md](./reports/v3/sprint-3-retrospective-roles.md) | 角色复盘 | 全角色 |
+- `docs/planning/iteration-10-sdd/` 以外的旧规划文档已按日期归档到 `docs/archive/pre-v10/`。
+- 外部跟踪状态仍为 `PENDING / NOT EXECUTED`；未创建或修改 Trello/GitHub Issue。

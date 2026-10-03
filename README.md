@@ -1,116 +1,87 @@
 # ChorusGate
 
-[中文文档](./README_CN.md)
+**本地协调边界（Local Coordination Boundary）**：连接 Channels、Gateway 与数字员工运行时（digital-employee runtimes）的控制平面制度试验田。
 
-## Project direction
+> 本项目不是通用“硅基组织控制面”、HR/绩效平台、知识库、IAM 层或调度器/运行时的替代品。运行时的推理、记忆、调度、工具与副作用仍由运行时自身持有。
 
-ChorusGate is the local runtime-coordination entry point for organizational intelligence and collaboration among digital employees. It connects people and Agent Runtimes—including Hermes, OpenClaw, Codex, and Claude—through Channels and Gateway.
+## V10 语境
 
-Its shared HRS contract makes the collaboration loop explicit:
+- **独立网关阶段**已于 **2026-08-26** 关闭，标签 [`gateway-final`](https://github.com/AINIZE-SPACE/ChorusGate/releases/tag/gateway-final) 是最终完整网关快照。
+- **Hermes** = 躯壳与神经系统；**GBrain** = 人格与记忆；**acpx** = 神经总线；**ChorusGate** = 本地协调边界与控制平面制度试验田。
+- V10 / Iteration 0 仅建立方向、HRS 词汇表、确定性 fixture 与只读 Web 观察面，不替代现有 Slack Gateway 与 MCP Server。
+
+## 核心循环六环
 
 ```text
-Event -> WakePolicy -> TaskEnvelope -> HarnessAdapter -> Completion -> Attention / Delivery
+Event -> WakePolicy -> TaskEnvelope -> HarnessAdapter -> Completion -> Attention/Delivery
 ```
 
-ChorusGate is local-first: it provides a verifiable local observation surface and controlled delivery/attention boundary. A runtime continues to own its own execution, tools, memory, scheduler, and internal behavior.
+1. **Event**：来自 Slack 等 Channel 的归一化事件。
+2. **WakePolicy**：决定是否唤醒一次任务。
+3. **TaskEnvelope**：把任务封装为带权威、范围、验收标准的信封。
+4. **HarnessAdapter**：在选定运行时的隔离边界内执行任务。
+5. **Completion**：记录终端完成状态与证据收据。
+6. **Attention/Delivery**：把结果递交给正确的人或 Channel。
 
-## Problem
-
-Real runtimes each have their own events, task handoff, execution, completion, notification, and observation model. Cross-runtime collaboration therefore lacks a uniform contract, closed-loop status, evidence receipts, and a local operational entry point. ChorusGate addresses that coordination boundary; it does not replace the runtimes themselves.
-
-## Long-term target
-
-The long-term target is a proven coordination loop for multiple digital-employee runtimes: Channel/Gateway connects people and runtimes; HRS carries the portable contract; adapters execute within their runtime; Completion returns traceable evidence; and local Web observation makes the bounded state and outcomes inspectable.
-
-See the project-level relationships, roadmap, and acceptance conditions in [ChorusGate project direction](docs/planning/chorusgate-direction.md).
-
-## Non-goals
-
-ChorusGate is not a generalized “silicon organization Control Plane,” an organization-management system, HR or performance platform, knowledge base, IAM layer, generic cloud platform, or a replacement scheduler/runtime. These are not current implementation targets; any future scope must be justified by a real operating loop.
-
-## Roadmap
-
-- **Iteration 0 / V10:** set the direction, establish the HRS vocabulary, deterministic fixtures, and a locally verifiable read-only observation surface.
-- **Iteration 1:** add a real HRS adapter and local evidence ledger with traceable contract transitions.
-- **Later:** make multi-runtime coordination reliable through idempotency, recovery, delivery policy, and comparable observability.
-
-V10 is the first iteration—not the final product.
-
-## Iteration 0 / V10: HRS runtime contracts + observation slice
-
-The implemented V10 slice is read-only: a deterministic fixture adapter produces two digital-employee runtime records for a small Web API and page. It does not start Slack, authenticate a user, or contact an external service. The existing Slack gateway and MCP server remain operational entry points and are not replaced.
-
-## V10 local Web demo
-
-Prerequisite: Node.js 18+ and installed dependencies (`npm install`).
-
-```bash
-npm run v10:web
-```
-
-Open <http://127.0.0.1:4310>. The page is clearly labelled as deterministic demo data and shows employee/agent cards, runtime status, current task, recent event, and success/failure/blocked completion counts.
-
-Endpoints:
-
-- `GET /health` — liveness response and fixture source
-- `GET /api/v10/employees` — employee runtime observation JSON
-- `GET /` — static HTML observation page
-
-Change `V10_WEB_PORT` to use another local port, for example `V10_WEB_PORT=4311 npm run v10:web` (PowerShell: `$env:V10_WEB_PORT=4311; npm run v10:web`).
-
-## Verification
-
-```bash
-npm run typecheck
-node --import tsx --import ./tests/test-env.mjs --test tests/v10-web.test.ts
-```
-
-The second command exercises fixture-to-view conversion plus health, employee API, HTML, and unknown-path behaviour. Run `npm test` for the full gateway suite. V10's interface boundary and acceptance criteria are in [`docs/planning/V10-HRS-observation-slice.md`](docs/planning/V10-HRS-observation-slice.md); the original contract draft remains in [`docs/planning/V10-HRS-contracts-draft.md`](docs/planning/V10-HRS-contracts-draft.md).
-
-## Directory map
+## 目录结构
 
 ```text
 src/
-  gateway.ts, index.ts, tools/     existing Slack gateway and MCP entry points
-  v10/
-    types.ts                       read-only HRS observation boundary
-    fixture-adapter.ts             deterministic demo runtime records
-    employee-view.ts               adapter-to-Web projection
-    web-server.ts, web-page.ts     native HTTP server and static page
-tests/
-  v10-web.test.ts                  conversion and HTTP acceptance tests
-docs/planning/
-  chorusgate-direction.md          project direction and staged acceptance conditions
-  V10-HRS-contracts-draft.md       existing HRS contract draft
-  V10-HRS-observation-slice.md     implemented slice design
+  gateway.ts, socket-manager.ts, shouldReply.ts, slack-message.ts  # 网关核心
+  session-store.ts, session-context.ts, session-commands.ts        # 会话与上下文
+  providers/                                                       # Claude/Codex 适配器
+  tools/                                                           # MCP tools
+  v10/                                                             # V10 观察面 fixture/web-server
+bin/              # CLI 入口
+scripts/          # 协调脚本与 watchdog
+tests/            # node:test 套件
+docs/
+  planning/iteration-10-sdd/   # V10 SDD 包
+  architecture-v10.md          # V10 架构定位
+  design-iteration-10.md       # 迭代 10 设计导航
+  code-framework.md            # 代码框架说明
+  archive/pre-v10/             # pre-V10 归档文档
 ```
 
-## Existing gateway and MCP modes
-
-V10 does not replace the existing Slack Socket Mode gateway or MCP server.
-Install Node.js 18+, create the Slack app from the applicable manifest, and
-configure its bot and app tokens in the relevant agent profile
-`~/.chorusgate/<agent-id>/.env`; shell environment variables take precedence.
-See [INSTALL.md](INSTALL.md) for profile migration and initialization, then
-install and link the CLI:
+## 快速开始
 
 ```bash
 npm install
-npm link
+npm run build     # tsc --noEmit，当前 exit 0
+npm test          # 473 tests / 68 suites / 469 pass / 4 fail
 ```
 
-Start either existing mode:
+4 个失败全部位于 `tests/codex-integration.test.ts`，为历史遗留的 spawn/JSON flag 断言，与 V10 无关。
+
+启动本地 V10 演示：
 
 ```bash
-npm run gateway  # Slack Socket Mode gateway
-npm run mcp      # MCP channel-tool server
+npm run v10:web   # 默认 http://127.0.0.1:4310
 ```
 
-For the complete Slack prerequisites, manifests, `.env` and profile guidance,
-see [INSTALL.md](INSTALL.md). For MCP registration and environment guidance,
-see [the MCP section of INSTALL.md](INSTALL.md#7-set-up-mcp-server-claude-code-ide-integration);
-the [documentation index](docs/README.md) links the gateway and MCP operational
-references.
+现有 Slack Socket Mode 网关：
+
+```bash
+npm run gateway
+npm run mcp
+```
+
+## 文档索引
+
+| 文档 | 内容 |
+| --- | --- |
+| [`docs/architecture-v10.md`](docs/architecture-v10.md) | V10 架构定位、边界与模块关系 |
+| [`docs/design-iteration-10.md`](docs/design-iteration-10.md) | 迭代 10 SDD 导航、门禁状态、任务与未决问题 |
+| [`docs/code-framework.md`](docs/code-framework.md) | 技术栈、`src/` 模块地图、构建与测试基线 |
+| [`docs/planning/iteration-10-sdd/`](docs/planning/iteration-10-sdd/) | SDD 包（intent/constitution/spec/plan/tasks/review-g0/review-g1） |
+| [`docs/archive/pre-v10/README.md`](docs/archive/pre-v10/README.md) | pre-V10 归档说明 |
+
+## 迭代状态
+
+- **G0 SDD 完整性**：`PASS`（`review-g0.md`，2026-09-30）
+- **G1 范围/契约评审**：`CONDITIONAL PASS`（`review-g1.md`，2026-10-02）
+- **G2-G4**：`PENDING`，待 小马 提供 C1 适配器探针证据、小龙 提供运维约束、小扣 审批 ADR-0001。
+- **外部跟踪**：`PENDING / NOT EXECUTED`，未创建或修改 Trello/GitHub Issue。
 
 ## License
 

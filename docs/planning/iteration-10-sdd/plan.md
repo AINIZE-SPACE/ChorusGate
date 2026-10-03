@@ -46,3 +46,5 @@ or human acceptance.
   `docs/reviews/pr-159-v10-hrs-contracts-2026-09-05.md`.
 - Migrated review/evidence discipline (used only as control-plane input):
   `E:/my_project/ainize/zederer_ip/docs/03_operations/ZKOS_IP_TEAM_RETROSPECTIVE_2026-08-29.md`.
+
+> 注：2026-10-03 与 `review-g0.md` 状态同步——G0 `PASS` 已记录，G1 `CONDITIONAL PASS` 已记录，G2-G5 仍为 `PENDING`（小马）。
