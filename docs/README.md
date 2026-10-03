@@ -37,23 +37,8 @@
 | [planning/V10-Architecture-Hermes.md](./planning/V10-Architecture-Hermes.md) | Hermes 架构参考 |
 | [planning/architecture-boundaries.md](./planning/architecture-boundaries.md) | 架构边界 |
 
-## 归档
-
-| 目录 | 内容 |
-| --- | --- |
-| [archive/pre-v10/README.md](./archive/pre-v10/README.md) | pre-V10 规划/规格文档归档说明 |
-
-## 测试与评审
-
-| 目录 | 内容 |
-| --- | --- |
-| [tests/](./tests/) | 测试计划、用例、报告 |
-| [reviews/](./reviews/) | 历史评审记录 |
-| [spec/](./spec/) | 已实现的 v3/v4 功能规格 |
-| [specs/](./specs/) | 当前有效的 issue 规格 |
-| [reference/](./reference/) | 参考资料 |
-
 ## 注意
 
-- `docs/planning/iteration-10-sdd/` 以外的旧规划文档已按日期归档到 `docs/archive/pre-v10/`。
 - 外部跟踪状态仍为 `PENDING / NOT EXECUTED`；未创建或修改 Trello/GitHub Issue。
+
+pre-V10 历史文档与旧网关实现：见 tag/分支 gateway-final。

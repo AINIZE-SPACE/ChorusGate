@@ -1,50 +1,27 @@
 {
   "name": "chorusgate",
   "version": "1.0.0",
-  "description": "ChorusGate - local-first collaboration-channel gateway for coding agents",
+  "description": "ChorusGate - local coordination boundary for digital-employee runtimes (V10 observation slice)",
   "type": "module",
-  "main": "src/index.ts",
-  "bin": {
-    "chorusgate-mcp": "./bin/chorusgate-mcp.mjs",
-    "chorusgate": "./bin/chorusgate.mjs"
-  },
   "scripts": {
-    "start": "node bin/chorusgate.mjs start",
-    "stop": "node bin/chorusgate.mjs stop",
-    "restart": "node bin/chorusgate.mjs restart",
-    "status": "node bin/chorusgate.mjs status",
-    "list": "node bin/chorusgate.mjs list",
-    "gateway": "tsx src/gateway.ts",
-    "mcp": "tsx src/index.ts",
-    "dev": "tsx watch src/index.ts",
-    "v10:web": "tsx src/v10/web-server.ts",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
     "test": "node --import tsx --import ./tests/test-env.mjs --test --test-timeout=30000 --test-force-exit tests/*.test.ts",
-    "test:fast": "node --import tsx --import ./tests/test-env.mjs --test --test-timeout=10000 --test-force-exit --test-name-pattern='^(?!.*(ST-)).*' tests/*.test.ts",
-    "test:integration": "node --import tsx --import ./tests/test-env.mjs --test --test-timeout=60000 --test-force-exit tests/*.test.ts"
+    "v10:web": "tsx src/v10/web-server.ts"
   },
   "keywords": [
     "agent",
     "gateway",
-    "slack",
-    "feishu",
-    "lark",
-    "codex",
-    "claude-code",
-    "mcp"
+    "runtime",
+    "coordination",
+    "v10"
   ],
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.0",
-    "@slack/socket-mode": "^2.0.3",
-    "@slack/web-api": "^7.12.0",
-    "dotenv": "^16.5.0",
-    "https-proxy-agent": "^5.0.1",
     "tsx": "^4.22.4"
   },
   "devDependencies": {
+    "@types/node": "^18.19.130",
     "typescript": "^5.9.0"
   }
 }
