@@ -118,11 +118,12 @@ export async function start(skipConfigPreflight = false): Promise<void> {
   ensureGatewayDir(agentId);
   const logFile = getLogFile(agentId);
 
-  // Forward --agent and --env-file to the daemon process (#134)
+  // Forward --agent, --env-file, and --agent-home to the daemon process (#134/#140)
   const cliArgs = parseCliArgs();
   const forwardArgs: string[] = [];
   if (cliArgs.agentId) forwardArgs.push("--agent", cliArgs.agentId);
   if (cliArgs.envFile) forwardArgs.push("--env-file", cliArgs.envFile);
+  if (cliArgs.agentHome) forwardArgs.push("--agent-home", cliArgs.agentHome);
   if (cliArgs.initialize) forwardArgs.push("--init");
 
   // Issue #141: the daemon OWNS its log file via an internal rotating logger.

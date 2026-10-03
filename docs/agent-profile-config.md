@@ -14,6 +14,7 @@ ChorusGate 的 agent-profile 配置，一句话：
 
 - CLI 入口是 **`--agent <id>` / `--env-file <path>`**（互斥），**不是** `--profile` / `--config`。
 - 每个 agent 一个隔离家目录：`~/.chorusgate/<id>/.env`（配置）+ `gateway.pid / status.json / gateway.log`（控制面）。
+- **#140 扩展**：`--agent-home <path>`（或 Windows 上 `AGENT_HOME`）可把 agent profile 的 `.env` 基路径重定向到官方/自定义 agent home（默认 `%USERPROFILE%\.ainize\.config`）；**不指定时行为不变**。详见 §3.8。
 - 本仓库**没有** Clines 集成、**没有** `clines_profiles.json` / `clines_config.json`、**没有** slot/tenant 语义、**没有** `--profile`/`--config` 透传。任务描述中的相关源码文件在本仓库**不存在**，详见 §4。
 - ⚠️ 任务给出的"完整全景"输入与本仓库实际不符，本文档按"以代码为准"原则记录真实状态，并单独整理平台侧对照参考（§7）。
 
@@ -50,7 +51,7 @@ ChorusGate 的 agent-profile 配置，一句话：
 
 | 关注点 | 真实实现 | 位置 |
 |---|---|---|
-| CLI flag | `--agent <id>` / `--env-file <path>` / `--init` | `src/cli-args.ts` — `parseCliArgs()` |
+| CLI flag | `--agent <id>` / `--env-file <path>` / `--init` / `--agent-home <path>` | `src/cli-args.ts` — `parseCliArgs()` |
 | agent-id 校验 | `^[a-z0-9][a-z0-9_-]{0,63}$`，禁路径穿越，与 `--env-file` 互斥 | `src/cli-args.ts` — `validateAgentId()` / `validateEnvFilePath()` |
 | 配置路径 | `~/.chorusgate/<id>/.env`；legacy 兼容 `~/.gateway/.env` + `<project>/.env` + `./.gateway/.env` | `src/load-env.ts` — `CHORUSGATE_HOME` / `agentProfileEnvPath()` / `loadEnv()` |
 | 加载优先级 | agent profile → `--env-file` → shell env（shell 永远不被覆盖） | `src/load-env.ts` |
@@ -134,6 +135,54 @@ Legacy 模式（不加 `--agent`/`--env-file`）：
 触发词 `GATEWAY_PROFILE_TRIGGERS_<ID>`（`parseProfileTriggers()`，`profile-config.ts:196`）用于 #128 智能回复的名字匹配，同样属于 Slack 层 profile。
 
 另外：`gateway.ts` 中 `acquireSlot()`/`releaseSlot()` 的 **slot 仅指并发槽位**（`running` 计数器 + 信号量，`gateway.ts:430-446`），与任务背景中的 Clines "slot/tenant" **完全不同的词源，只是撞名**。本仓库没有任何 tenant 概念。
+
+### 3.8 Agent Home（#140）— 官方/自定义 agent home 重定向
+
+> 关联 issue：#140 | 全新模块 `src/agent-home.ts` | 纯函数、27 单测。
+
+**一句话：`~/.chorusgate/<id>/.env` 仍是默认基路径（#134 行为不变）；显式给出 `--agent-home <path>`（或 Windows 上 `AGENT_HOME`）时，agent profile 的 `.env` 查找重定向到 `<agent-home>/<id>/.env`。**
+
+**两个 "home" 概念（关键，勿混）：**
+
+| | `~/.chorusgate/<id>/` | 解析后的 agent home（`src/agent-home.ts`） |
+|---|---|---|
+| 语义 | ChorusGate **自有控制面**：pid/status/log + agent profile `.env`（#134） | **官方/自定义 agent home**：agent 配置文件所在地（默认 `%USERPROFILE%\.ainize\.config`） |
+| 谁决定 | `CHORUSGATE_HOME`（`src/load-env.ts`） | `resolveAgentHome()`（`src/agent-home.ts`） |
+| 受 `--agent-home` 影响？ | **否** —— 控制面永远在 `~/.chorusgate` | **是** —— 显式指定时重定向 profile `.env` 基路径 |
+
+**解析顺序（`resolveAgentHome()`，高优先胜出）：**
+
+1. `--agent-home` CLI flag（空白/纯空白忽略，落到下一级）
+2. `AGENT_HOME` env var（**仅 Windows 检查**）
+3. 默认官方 home：`%USERPROFILE%\.ainize\.config`
+
+相对 `--agent-home`/`AGENT_HOME` 按 `%USERPROFILE%` 解析；CLI 覆盖 env；官方 home 之上不再叠加 fallback。
+
+**运行时行为（`agentProfileBase()`，`src/load-env.ts`）—— 关键取舍：**
+
+- **无显式覆盖时，默认基路径保持 `~/.chorusgate`**（向后兼容 #134，不改变线上配置加载行为）。
+- **显式覆盖时**（非空 `--agent-home`，或 Windows 上非空 `AGENT_HOME`），基路径 = `resolveAgentHome(...)` 的解析结果（默认官方 `.ainize/.config`，或自定义路径）。
+- 默认官方 `.ainize/.config` **不是** 隐式 opt-in：没有显式覆盖就不会切过去，避免现有 `~/.chorusgate/<id>/.env` 用户静默换家。
+
+**接线路径（#140 已落地）：**
+
+- `src/cli-args.ts` — `parseCliArgs()` 新增 `--agent-home <path>` / `--agent-home=<path>`，`CliArgs.agentHome`。
+- `src/load-env.ts` — `LoadEnvOptions.agentHome`；`agentProfileEnvPath(agentId, agentHome?)` / `agentProfileBase(agentHome?)` 重定向基路径。
+- `src/bootstrap.ts` / `src/gateway.ts` — 透传 `agentHome` 进 `loadEnv`。
+- `src/config-init.ts` — `initializeAgentProfile()` / `prepareRunConfig()` 走同一基路径，init 与 run 一致。
+- `src/gateway-control.ts` — `start()` 向 daemon 转发 `--agent-home`（控制面自身仍留在 `~/.chorusgate`，不被重定向）。
+
+```bash
+# 使用官方默认 home 建档并运行
+chorusgate config init --agent claude --agent-home "%USERPROFILE%\.ainize\.config"
+chorusgate run --agent claude --agent-home "%USERPROFILE%\.ainize\.config"
+
+# Windows：AGENT_HOME 环境变量等效（仅在 Windows 上检查）
+set AGENT_HOME=D:\agents\work
+chorusgate run --agent codex        # → 读 D:\agents\work\codex\.env
+```
+
+> ⚠️ 边界：`config migrate` 的目标目前仍写 `~/.chorusgate`（`profileRoot` 仅测试/嵌入用）；迁移到 agent home 是未来扩展，不在 #140 范围。
 
 ---
 
@@ -265,6 +314,7 @@ const profiles = bootstrap({ agentId, envFile: cliArgs.envFile });
 |---|---|---|
 | `CHORUSGATE_HOME` | `~/.chorusgate` 常量；可用同名环境变量覆盖（测试/嵌入接缝） | `src/load-env.ts:64` |
 | `CHORUSGATE_STATE_DIR` ⭐ | 覆盖 memory 状态目录（测试/嵌入用，非 profile 选择） | `src/state-paths.ts:12` |
+| `AGENT_HOME` ⭐ | **仅 Windows**：agent profile 基路径覆盖（等效 `--agent-home`）；相对值按 `%USERPROFILE%` 解析 | `src/agent-home.ts` — `resolveAgentHome()` / `src/load-env.ts` — `agentProfileBase()` |
 
 > 注意：**选择 profile 的入口是 CLI flag `--agent`/`--env-file`，不是环境变量**。`~/.chorusgate/<id>/.env` 里通过 `GATEWAY_PROFILES` 等声明的是 Slack 多 app profile（见 6.3）。
 

@@ -19,16 +19,16 @@ import { parseProfileTriggers } from "./profile-config.js";
 import { parseCliArgs } from "./cli-args.js";
 import { requireWindowsAdmin } from "./require-admin.js";
 import {
+  shouldReply as decideShouldReply,
+  cleanText,
+  type ShouldReplyContext,
+} from "./shouldReply.js";
+import {
   defaultMessageHandlerHooks,
   dispatchMessageHandler,
   type MessageHandlerHooks,
 } from "./message-handlers.js";
 import { parseUser } from "./user-identity.js";
-import {
-  shouldReply as decideShouldReply,
-  cleanText,
-  type ShouldReplyContext,
-} from "./shouldReply.js";
 
 // Windows requires an elevated process (see require-admin.ts). Enforced here
 // as defense-in-depth — the CLI dispatcher also guards, but `npm run gateway`
@@ -71,7 +71,7 @@ redirectConsoleToLogger(logger);
 // #148 全局异常捕捉：unhandledRejection 记录后继续，uncaughtException 记录后 exit(1)。
 installGlobalErrorHandlers(logger);
 
-const profiles = bootstrap({ agentId, envFile: cliArgs.envFile });
+const profiles = bootstrap({ agentId, envFile: cliArgs.envFile, agentHome: cliArgs.agentHome });
 
 // #147 传输配置：Slack 直连（CHORUSGATE_SLACK_TRANSPORT 默认 direct）+ agent
 // 子进程按 CHORUSGATE_AGENT_PROXY 构造 env。必须在 bootstrap() 之后执行，

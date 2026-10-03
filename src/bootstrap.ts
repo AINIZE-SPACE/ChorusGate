@@ -28,9 +28,11 @@ export type { LoadEnvOptions } from "./load-env.js";
  *   4. Validate token formats
  *   5. Initialize default singleton Slack clients (backward compat)
  *
- * @param opts.agentId — When set, loads from ~/.chorusgate/<agentId>/.env
- *   instead of project .env. (#134)
+ * @param opts.agentId — When set, loads from <agentHome>/<agentId>/.env
+ *   (default base ~/.chorusgate) instead of project .env. (#134)
  * @param opts.envFile — Explicit .env path. Takes precedence over agentId.
+ * @param opts.agentHome — Redirects the agent-profile base away from
+ *   ~/.chorusgate (--agent-home / AGENT_HOME). (#140)
  *
  * Returns the parsed profiles so callers can set up multi-profile
  * Socket Mode if needed.
