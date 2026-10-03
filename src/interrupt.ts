@@ -9,6 +9,12 @@
 //   3. Lets the new message proceed
 //
 // Inspired by Hermes Agent's _busy_input_mode + _busy_ack_ts.
+//
+// Note (#58): after interrupt kills the old process, there is a narrow
+// race window where buffered stdout events from the old process could
+// arrive during the new spawn. This is self-correcting: the old parser
+// is no longer referenced, and the old process's close event triggers
+// cleanup. Monitor for stale UI updates; add event-loop drain if needed.
 // ============================================================
 
 import type { ChildProcess } from "node:child_process";
