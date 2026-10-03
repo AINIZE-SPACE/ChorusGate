@@ -182,9 +182,9 @@ K push 修复后:
 
 ### 5. 回归不通过 → 黑事件
 - **打回** @小克 重修 + @小扣 同步状态
-- **记录** `docs/black-incidents/{YYYY-MM-DD}-{slug}.md` (失败 SHA/现象/根因/方向)
+- **记录** 黑事件（历史：原 `black-incidents/{YYYY-MM-DD}-{slug}.md`，已于 V10 清理 commit `b0ce5c3` 移除，可经 git 历史查阅）(失败 SHA/现象/根因/方向)
 - **issue 重开** `gh issue reopen {N}` (不能关!)
-- **入回顾** 列入 `docs/reports/v{N}-retro.md` 的 `## 黑事件` 段
+- **入回顾** 列入迭代回顾报告 `## 黑事件` 段（历史：原 `reports/v{N}-retro.md`，已于 V10 清理 commit `b0ce5c3` 移除，可经 git 历史查阅）
 
 ### 6. 通知模板
 
@@ -211,15 +211,15 @@ Refs: #{N}
 <@{C}> #{N} 回归失败, 已打回 @{K} 重修 (黑事件).
 *失败 SHA*: {SHORT_SHA}
 *现象*: {一句话}
-*入档*: docs/black-incidents/{slug}.md
-*回顾*: docs/reports/v{N}-retro.md#黑事件
+*入档*: 黑事件记录（历史：原 `black-incidents/{slug}.md`，已于 V10 清理 commit `b0ce5c3` 移除，可经 git 历史查阅）
+*回顾*: 迭代回顾报告 `## 黑事件` 段（历史：原 `reports/v{N}-retro.md#黑事件`，已于 V10 清理 commit `b0ce5c3` 移除，可经 git 历史查阅）
 ```
 
 ### 7. 黑事件 (Black Incident) 定义
 
 任何 **回归失败** 或 **未走完整 sprint-handoff 流程** 导致的返工/事故, 都算黑事件.
-- 写 `docs/black-incidents/{YYYY-MM-DD}-{slug}.md`
-- 入 `docs/reports/v{N}-retro.md` 的 `## 黑事件` 段
+- 写 黑事件记录（历史：原 `black-incidents/{YYYY-MM-DD}-{slug}.md`，已于 V10 清理 commit `b0ce5c3` 移除，可经 git 历史查阅）
+- 入 迭代回顾报告 `## 黑事件` 段（历史：原 `reports/v{N}-retro.md`，已于 V10 清理 commit `b0ce5c3` 移除，可经 git 历史查阅）
 - 跨迭代累计, 作下一轮流程改进的输入
 - **黑事件不消音** —— 入档 + 公开, 不掩盖
 
