@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "updatedAt": "2026-09-12T01:31:36.845Z",
+  "sessions": [
+    {
+      "key": "default:codex:channel:C0BEYCR30TD:E:\\my_project\\ainize\\zederer_ip_test",
+      "sessionId": "01a08dfa-bd43-7771-b255-a94235c47419",
+      "identity": {
+        "profileId": "default",
+        "providerId": "codex",
+        "scopeType": "channel",
+        "scopeTarget": "C0BEYCR30TD",
+        "projectDir": "E:\\my_project\\ainize\\zederer_ip_test"
+      },
+      "started": true,
+      "lastUsed": "2026-09-12T01:00:47.095Z"
+    }
+  ]
+}
