@@ -204,7 +204,7 @@ Refs: #{N}
 <@{C}> #{N} 回归失败, 已打回 @{K} 重修 (黑事件).
 *失败 SHA*: {SHORT_SHA}
 *现象*: {一句话}
-*入档*: docs/black-incidents/{slug}.md（pre-V10 历史见 tag `gateway-final`）
+*入档*: docs/black-incidents/{YYYY-MM-DD}-{slug}.md（pre-V10 历史见 tag `gateway-final`）
 *回顾*: docs/reports/retro/v{N}-retro.md 的 `## 黑事件` 段（pre-V10 历史见 tag `gateway-final`）
 ```
 
