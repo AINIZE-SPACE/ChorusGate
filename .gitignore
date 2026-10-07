@@ -20,3 +20,6 @@ memory/channel-directory.json
 t2.txt
 test-out.txt
 min.test.ts
+
+# .claude-delegation/ — 主控委托记录目录（不进库）
+.claude-delegation/
