@@ -8,12 +8,12 @@
 pipeline（intent.md:24）：Event → WakePolicy → TaskEnvelope → HarnessAdapter → Completion → Attention/Delivery。
 WakeAction 是唤醒判定阶段的输出（V10-HRS-contracts-draft.md:82-90，六档），Attention 是完成投递阶段的输出（:147-154，六档）。FC-I10-03 的「conflict precedence」实为两个冲突点：
 
-- **C1（阶段内声明冲突）**：`TaskEnvelope.notify_policy.attention`（创建时声明，:114）与 `Completion.attention`（完成时判定，:166-168）不一致时何者优先，文档未定义。
-- **C2（阶段间语义缺口）**：WakeAction 输出与 Attention 输出是串联、覆盖还是合并未定义（:80 vs :156）；spec.md:33-35 要求 production-facing 实现前必须 explicit。
+- **P1（阶段内声明冲突）**：`TaskEnvelope.notify_policy.attention`（创建时声明，:114）与 `Completion.attention`（完成时判定，:166-168）不一致时何者优先，文档未定义。
+- **P2（阶段间语义缺口）**：WakeAction 输出与 Attention 输出是串联、覆盖还是合并未定义（:80 vs :156）；spec.md:33-35 要求 production-facing 实现前必须 explicit。
 
 注意：V10-Architecture-Hermes.md:595-609 的 ①→⑥ 是事件来源优先级，与 FC-I10-03 不同维度，不得混用。
 
-## 2. 候选选项（C1：阶段内声明冲突）
+## 2. 候选选项（P1：阶段内声明冲突）
 
 | 选项 | 规则 | 优 | 劣 |
 |---|---|---|---|
@@ -24,7 +24,7 @@ WakeAction 是唤醒判定阶段的输出（V10-HRS-contracts-draft.md:82-90，�
 
 推荐理由：:156 已有投递层全局压制的先例（silent⇒RECORD、异步⇒DIGEST），「强度被上下文压制」是既有设计底色；但 outcome ∈ {failed, timed_out} 是新增语义增量——失败必达是底线，故设突破条款。
 
-## 3. 阶段间继承约束（C2：WakeAction ↔ Attention）
+## 3. 阶段间继承约束（P2：WakeAction ↔ Attention）
 
 设定为「串联 + 各自独立判定，不互相覆盖」，附三条约束：
 
@@ -34,7 +34,7 @@ WakeAction 是唤醒判定阶段的输出（V10-HRS-contracts-draft.md:82-90，�
 
 ## 4. 移交小扣的决策点（ADR-0001 输入）
 
-- D1：C1 采用选项 1 或替代项（§2）。
+- D1：P1 采用选项 1 或替代项（§2）。
 - D2：突破条款的 outcome 集合是否含 cancelled（复核意见：不含，用户主动取消无需 ALERT）。
 - D3：§3 三条继承约束的批准/修订。
 - D4：批准后由 ADR-0001 落档，并回填 tasks.md:13 CG-I10-004 的 WakeAction-to-Attention precedence 验收项。
